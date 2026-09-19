@@ -1,0 +1,160 @@
+{
+  "schema_version": "1.0",
+  "policy": "No asset is bundled unless its redistribution rights are recorded and approved.",
+  "sources": [
+    {
+      "id": "competition-home",
+      "title": "Islamic AI Challenge — official home",
+      "url": "https://islamicaich.org",
+      "source_type": "competition-brief",
+      "status": "reference",
+      "use": "Tracks, dates, deliverables, participation rules, and challenge framing.",
+      "license_action": "Use as competition documentation; do not reproduce site content beyond necessary project references.",
+      "notes": "Official challenge page states a complete runnable product is required, with operating documents, source/license log, presentation, short video, and permitted public code."
+    },
+    {
+      "id": "competition-terms",
+      "title": "Islamic AI Challenge — terms",
+      "url": "https://islamicaich.org/terms",
+      "source_type": "competition-rules",
+      "status": "reference",
+      "use": "Rights, submission licenses, privacy, human evaluation, and documentation obligations.",
+      "license_action": "Read and comply; obtain rights for every bundled component.",
+      "notes": "Do not treat the challenge submission license as a license for third-party data. Keep the project’s own source and component register."
+    },
+    {
+      "id": "tanzil-quran-text",
+      "title": "Tanzil Quran Text — text license",
+      "url": "https://tanzil.ir/docs/text_license",
+      "source_type": "quran-text",
+      "status": "approved-candidate",
+      "use": "Production Arabic Qur’an text, imported verbatim and indexed separately from normalized search text.",
+      "license": "Creative Commons Attribution 3.0, with Tanzil-specific requirements",
+      "license_action": "Include attribution and link to tanzil.net; do not alter verbatim text; preserve the copyright notice.",
+      "notes": "Use checksums and keep a canonical copy. Search normalization must never overwrite display text."
+    },
+    {
+      "id": "quranic-arabic-corpus-download",
+      "title": "Quranic Arabic Corpus — data download",
+      "url": "https://corpus.quran.com/download/",
+      "source_type": "linguistic-annotation",
+      "status": "review-required",
+      "use": "Optional morphology and syntax features; not required for the first verification MVP.",
+      "license": "GNU public license stated by the project; review project terms before redistribution.",
+      "license_action": "Keep optional until the license and research/non-commercial conditions are reviewed for this use.",
+      "notes": "Do not make the core product dependent on this annotation during the competition prototype."
+    },
+    {
+      "id": "quranic-arabic-corpus-faq",
+      "title": "Quranic Arabic Corpus — FAQ",
+      "url": "https://corpus.quran.com/faq.jsp",
+      "source_type": "linguistic-annotation",
+      "status": "review-required",
+      "use": "Understand accuracy, citation, and research-use context.",
+      "license_action": "Read alongside the download and license pages; record any additional conditions.",
+      "notes": "The FAQ describes ongoing correction and research/non-commercial conditions."
+    },
+    {
+      "id": "quran-com-terms",
+      "title": "Quran.com — terms and conditions",
+      "url": "https://quran.com/terms-and-conditions",
+      "source_type": "reference-service",
+      "status": "do-not-bundle",
+      "use": "Potential external reference link only, subject to permission.",
+      "license_action": "Do not scrape or bundle Quran.com content under the current plan.",
+      "notes": "The terms describe service content as personal, non-commercial content and include third-party material."
+    },
+    {
+      "id": "sunnah-com-about",
+      "title": "Sunnah.com — about, sources, numbering, and grading",
+      "url": "https://sunnah.com/about",
+      "source_type": "hadith-reference-service",
+      "status": "do-not-bundle",
+      "use": "Research reference and source-discovery only until explicit redistribution permission is obtained.",
+      "license_action": "Do not scrape or redistribute Hadith text from the site without written permission or a separate clearly applicable license.",
+      "notes": "The site explains its source and numbering process and cautions that Hadith resources should not be used as do-it-yourself fiqh."
+    },
+    {
+      "id": "openiti-corpus",
+      "title": "OpenITI Corpus",
+      "url": "https://openiti.org/projects/OpenITI%20Corpus.html",
+      "source_type": "arabic-text-corpus",
+      "status": "discovery-only",
+      "use": "Bibliographic discovery and research lead.",
+      "license_action": "Check rights per text and per underlying source before copying or redistributing anything.",
+      "notes": "The corpus contains texts from multiple sources and notes variation in fidelity, including OCR and manual transcription differences."
+    },
+    {
+      "id": "cc-by-4",
+      "title": "Creative Commons Attribution 4.0",
+      "url": "https://creativecommons.org/licenses/by/4.0/",
+      "source_type": "license-reference",
+      "status": "reference",
+      "use": "Reference for attribution obligations when a future corpus is CC BY 4.0.",
+      "license_action": "For every CC BY asset, give credit, link the license, and indicate changes.",
+      "notes": "This is a license reference, not a grant of rights to any particular Islamic content."
+    },
+    {
+      "id": "sunnah-com-api",
+      "title": "Sunnah.com official API",
+      "url": "https://github.com/sunnah-com/api",
+      "source_type": "hadith-api",
+      "status": "approved-candidate",
+      "use": "Runtime retrieval of hadith text, numbering, and grading with attribution.",
+      "license_action": "Request an API key via the project's GitHub issue tracker and request the offline dump only with a clear, stated use. Comply with their terms.",
+      "notes": "Wrapping at runtime is different from bundling: do not commit the returned text into the public repo unless permission allows it. Offline access is available on request."
+    },
+    {
+      "id": "quran-foundation-content-api",
+      "title": "Quran Foundation / Quran.com Content API",
+      "url": "https://api-docs.quran.foundation",
+      "source_type": "quran-api",
+      "status": "approved-candidate",
+      "use": "Runtime access to verses, translations, tafsir, audio, and search via app credentials (no user login for Content APIs).",
+      "license_action": "Register an app, use pre-live then production credentials, and honor the service terms. Do not redistribute content as your own dataset.",
+      "notes": "Quran.com website terms describe content as personal, non-commercial and restrict copying and derivative works. Registering for the official API is the compliant path; scraping the site is not."
+    },
+    {
+      "id": "fawazahmed0-hadith-api",
+      "title": "fawazahmed0/hadith-api",
+      "url": "https://github.com/fawazahmed0/hadith-api",
+      "source_type": "hadith-dataset",
+      "status": "review-required",
+      "use": "Possible bulk hadith + translation + grading source for indexing.",
+      "license": "Repository code: The Unlicense (public domain)",
+      "license_action": "Treat the Unlicense as covering the code. Independently verify the licensing and provenance of each bundled translation before redistribution.",
+      "notes": "The licensing of the underlying texts is openly disputed in the project's own issue tracker. Use with a documented provenance and attribution policy."
+    },
+    {
+      "id": "saheeh-international-translation",
+      "title": "Saheeh International English translation",
+      "url": "https://en.wikipedia.org/wiki/Sahih_International",
+      "source_type": "quran-translation",
+      "status": "review-required",
+      "use": "Candidate English translation — must be license-cleared before use.",
+      "license": "Copyright, published by Dar Abul Qasim / Abul-Qasim Publishing House; some reprints carry a permissive no-changes notice.",
+      "license_action": "Confirm permissions in writing with the rights holder for the exact edition before displaying or redistributing it. Popularity is not a license.",
+      "notes": "A widely circulated reprint (The Qur'an Project / Maktabah edition) states that no rights are reserved provided no changes are made and the publisher is notified — but this must be verified for the specific edition used."
+    },
+    {
+      "id": "quran-translation-public-domain-candidates",
+      "title": "Public-domain / permissive Qur'an translation candidates",
+      "url": "https://tanzil.ir/docs/translations",
+      "source_type": "quran-translation",
+      "status": "review-required",
+      "use": "Fallback translations that may have simpler redistribution terms than modern copyrighted ones.",
+      "license_action": "Verify the copyright status of each translation and of the exact digital edition before bundling.",
+      "notes": "Older translations (e.g. early 20th-century English works) are often public domain, but digitized editions may still carry publisher rights. Check per edition."
+    },
+    {
+      "id": "islamic-challenge-terms-prizes",
+      "title": "Islamic AI Challenge — eligibility and IP notes",
+      "url": "https://islamicaich.org/terms",
+      "source_type": "competition-rules",
+      "status": "reference",
+      "use": "Reminder of submission requirements and IP handling.",
+      "license_action": "Keep the component register and rights disclosures current; do not bundle unlicensed content.",
+      "notes": "The competition requires a rights log and prohibits uploading third-party materials without authorization."
+    }
+  ]
+}

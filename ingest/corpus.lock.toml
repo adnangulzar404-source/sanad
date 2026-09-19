@@ -24,11 +24,34 @@ content_sha256 = "36da55e256f54f4838b6fa1c78781734346c8d9ffde52daf5a3cbfa32626a0
 expected_lines = 6236
 modifications  = "none"
 
-# -- NOT YET RESOLVED ---------------------------------------------------------
-# Qur'an translation: Tanzil is ruled out. tanzil.net/trans restricts its
-# translations to non-commercial use, which is narrower than the CC BY 3.0 on
-# their Arabic text. Pickthall (d. 1936) is public domain, but we need a
-# transcription from a distributor that imposes no terms of its own.
-# See the spec, section 14.2. Display-only layer; does not gate Stage A.
+# Pickthall English translation.
 #
+# LEGAL BASIS: the work's public-domain status, NOT a grant from Tanzil.
+# Marmaduke Pickthall died in 1936, so the translation has been public domain
+# since 2007 in life+70 jurisdictions and since 1 January 2026 in the US
+# (published 1930; 95 years from publication). A faithful transcription of a
+# public-domain text attracts no new copyright, and Tanzil's export of it
+# carries a metadata-only footer asserting no rights -- unlike their Arabic
+# text, which ships an explicit CC BY 3.0 block. Recording the basis as the
+# work's own PD status matters because Sanad's code is MIT: a downstream
+# commercial user would cross Tanzil's non-commercial term if we relied on a
+# Tanzil grant instead. We do not.
+#
+# Note the URL: translations are served from /trans/, NOT from the
+# /pub/download/ endpoint used for the Arabic text.
+
+[[source]]
+id             = "tanzil-en-pickthall"
+kind           = "quran-translation"
+title          = "The Meaning of the Glorious Koran (Pickthall)"
+publisher      = "Tanzil Project (distribution)"
+edition        = "en.pickthall, last updated 2010-09-04"
+url            = "https://tanzil.net/trans/?transID=en.pickthall&type=txt-2"
+license_id     = "public-domain"
+license_url    = "https://tanzil.net/trans/"
+content_sha256 = "c46125d8abd4d4fad41b2009a1a93dfc43b8a10e59354a4047617a0f8c30ba9a"
+expected_lines = 6236
+modifications  = "none"
+
+# -- NOT YET RESOLVED ---------------------------------------------------------
 # Hadith Arabic matn: source not chosen. See the spec, section 14.1.

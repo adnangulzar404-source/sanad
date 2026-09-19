@@ -6,12 +6,19 @@ REAL = "ingest/corpus.lock.toml"
 
 def test_loads_the_real_lockfile():
     sources = load_lockfile(REAL)
-    assert len(sources) == 1
-    s = sources[0]
-    assert s.id == "tanzil-uthmani-1.1"
-    assert s.expected_lines == 6236
-    assert s.license_id == "CC-BY-3.0"
-    assert len(s.content_sha256) == 64
+    assert len(sources) == 2
+    by_id = {s.id: s for s in sources}
+
+    arabic = by_id["tanzil-uthmani-1.1"]
+    assert arabic.expected_lines == 6236
+    assert arabic.license_id == "CC-BY-3.0"
+    assert len(arabic.content_sha256) == 64
+
+    translation = by_id["tanzil-en-pickthall"]
+    assert translation.kind == "quran-translation"
+    assert translation.expected_lines == 6236
+    assert translation.license_id == "public-domain"
+    assert len(translation.content_sha256) == 64
 
 
 def test_rejects_missing_required_field(tmp_path):

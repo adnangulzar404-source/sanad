@@ -57,6 +57,20 @@ def insert_records(conn: sqlite3.Connection, records: Iterable[Record]) -> int:
     return len(rows)
 
 
+_TRANSLATION_COLS = ("record_id", "source_id", "lang", "text")
+
+
+def insert_translations(conn: sqlite3.Connection,
+                        rows: Iterable[tuple[str, str, str, str]]) -> int:
+    rows = list(rows)
+    placeholders = ",".join("?" * len(_TRANSLATION_COLS))
+    conn.executemany(
+        f"INSERT OR REPLACE INTO translations ({','.join(_TRANSLATION_COLS)}) "
+        f"VALUES ({placeholders})", rows)
+    conn.commit()
+    return len(rows)
+
+
 def rebuild_fts(conn: sqlite3.Connection) -> None:
     conn.execute("DELETE FROM records_fts")
     conn.execute(

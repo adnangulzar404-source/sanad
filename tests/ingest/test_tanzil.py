@@ -55,3 +55,15 @@ def test_empty_input_raises():
 def test_malformed_verse_line_raises():
     with pytest.raises(TanzilParseError, match="line 2"):
         parse_tanzil("1|1|ok\nnot-a-verse-line\n")
+
+
+def test_attribution_is_byte_verbatim_including_trailing_whitespace():
+    raw = "1|1|نص\n\n# line with trailing space   \n#\tline with a tab\n"
+    p = parse_tanzil(raw)
+    assert p.attribution == "# line with trailing space   \n#\tline with a tab"
+
+
+def test_content_hash_changes_when_a_verse_changes():
+    base = parse_tanzil("1|1|نص\n\n# Copyright (C) 2007-2026 Tanzil Project\n")
+    edited = parse_tanzil("1|1|نصا\n\n# Copyright (C) 2007-2026 Tanzil Project\n")
+    assert base.content_sha256 != edited.content_sha256

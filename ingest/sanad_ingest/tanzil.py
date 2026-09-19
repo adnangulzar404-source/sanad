@@ -34,7 +34,8 @@ def parse_tanzil(raw: str) -> ParsedTanzil:
         if not stripped:
             continue
         if stripped.startswith("#"):
-            notice.append(stripped)
+            # Preserve the line exactly as it appears, including trailing whitespace
+            notice.append(line)
             continue
         m = _VERSE.match(line)
         if not m:

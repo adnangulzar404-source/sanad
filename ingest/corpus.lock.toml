@@ -5,22 +5,39 @@
 # not shipped.
 #
 # content_sha256 covers the VERSE PAYLOAD ONLY -- the "surah|ayah|text" lines
-# joined with "\n". It deliberately excludes the trailing copyright block,
-# which embeds the current year and would otherwise change the hash annually.
-# The copyright block is still captured verbatim into sources.attribution.
+# joined with "\n" (for XML sources: "surah|ayah|text" built from each aya's
+# `text` attribute, same convention). It deliberately excludes the trailing/
+# leading copyright block, which embeds the current year and would otherwise
+# change the hash annually. The copyright block is still captured verbatim
+# into sources.attribution.
+#
+# format is REQUIRED, not defaulted, and must be one of "xml" or "txt-2".
+# This is the provenance contract: an implicit default is exactly how the
+# wrong Tanzil export got chosen for the Arabic text below without anyone
+# noticing (see the comment on that entry).
 
 lockfile_version = 1
 
+# Arabic text: the XML export, not txt-2. txt-2 prepends the Bismillah to
+# the text of ayah 1 for every surah except At-Tawbah -- e.g. it renders
+# 112:1 as "بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ قُلْ هُوَ ٱللَّهُ أَحَدٌ"
+# instead of just "قُلْ هُوَ ٱللَّهُ أَحَدٌ", which is not the verse text and
+# silently corrupts similarity scoring for 112 of the corpus's 6,236
+# records (disproportionately the short, heavily-quoted ones). The XML
+# export instead models the Bismillah as a separate `bismillah` attribute
+# on the aya element, so `text_ar` is the ayah exactly and the Bismillah is
+# stored on the record as its own field.
 [[source]]
 id             = "tanzil-uthmani-1.1"
 kind           = "quran-arabic"
+format         = "xml"
 title          = "Tanzil Qur'an Text (Uthmani)"
 publisher      = "Tanzil Project"
 edition        = "1.1"
-url            = "https://tanzil.net/pub/download/index.php?quranType=uthmani&outType=txt-2&agree=true"
+url            = "https://tanzil.net/pub/download/index.php?quranType=uthmani&outType=xml&agree=true"
 license_id     = "CC-BY-3.0"
 license_url    = "https://tanzil.net/docs/text_license"
-content_sha256 = "36da55e256f54f4838b6fa1c78781734346c8d9ffde52daf5a3cbfa32626a08c"
+content_sha256 = "1ecb1a753a7f320eca3b0dfb24bd005e0a96e9f3441e9408060c86d6556b5bc3"
 expected_lines = 6236
 modifications  = "none"
 
@@ -43,6 +60,7 @@ modifications  = "none"
 [[source]]
 id             = "tanzil-en-pickthall"
 kind           = "quran-translation"
+format         = "txt-2"
 title          = "The Meaning of the Glorious Koran (Pickthall)"
 publisher      = "Tanzil Project (distribution)"
 edition        = "en.pickthall, last updated 2010-09-04"

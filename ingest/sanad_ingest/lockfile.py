@@ -11,7 +11,10 @@ except ModuleNotFoundError:  # pragma: no cover
 
 SUPPORTED_VERSION = 1
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
-_REQUIRED = ("id", "kind", "title", "url", "license_id",
+# "format" is required, not defaulted: this file is the provenance contract,
+# and an implicit default is precisely how the wrong Tanzil export (txt-2,
+# which prepends the Bismillah to ayah 1) got chosen without anyone noticing.
+_REQUIRED = ("id", "kind", "format", "title", "url", "license_id",
              "content_sha256", "expected_lines", "modifications")
 
 
@@ -23,6 +26,7 @@ class LockfileError(Exception):
 class LockedSource:
     id: str
     kind: str
+    format: str
     title: str
     url: str
     license_id: str

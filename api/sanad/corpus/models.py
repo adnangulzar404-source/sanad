@@ -39,3 +39,7 @@ class Record:
     chapter_ar: str | None = None
     hadith_no: str | None = None
     numbering_scheme: str | None = None
+    # The Bismillah, where Tanzil's XML export models it as verse metadata
+    # rather than text prepended to the following ayah. A record must be
+    # self-describing: the UI must not hardcode which surahs open with it.
+    bismillah: str | None = None

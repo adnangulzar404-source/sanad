@@ -11,7 +11,7 @@ from .schema import SCHEMA_SQL
 _RECORD_COLS = (
     "id", "source_id", "kind", "surah", "ayah", "surah_name_ar", "surah_name_en",
     "collection", "book_no", "chapter_ar", "hadith_no", "numbering_scheme",
-    "text_ar", "text_ar_sha256", "norm_light", "norm_standard",
+    "text_ar", "text_ar_sha256", "bismillah", "norm_light", "norm_standard",
     "norm_aggressive", "reference_display",
 )
 

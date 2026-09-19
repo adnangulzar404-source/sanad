@@ -10,7 +10,8 @@ GOOD = hashlib.sha256("1|1|نص".encode("utf-8")).hexdigest()
 
 def _src(sha: str) -> LockedSource:
     return LockedSource(
-        id="t", kind="quran-arabic", title="T", url="https://example.invalid/q",
+        id="t", kind="quran-arabic", format="txt-2", title="T",
+        url="https://example.invalid/q",
         license_id="CC-BY-3.0", content_sha256=sha, expected_lines=1,
         modifications="none")
 
@@ -40,7 +41,8 @@ def test_hash_mismatch_raises_and_does_not_cache(tmp_path, monkeypatch):
 def test_line_count_mismatch_raises(tmp_path, monkeypatch):
     monkeypatch.setattr("sanad_ingest.fetch._download", lambda url: RAW)
     src = LockedSource(
-        id="t", kind="quran-arabic", title="T", url="https://example.invalid/q",
+        id="t", kind="quran-arabic", format="txt-2", title="T",
+        url="https://example.invalid/q",
         license_id="CC-BY-3.0", content_sha256=GOOD, expected_lines=6236,
         modifications="none")
     with pytest.raises(HashMismatch, match="6236"):

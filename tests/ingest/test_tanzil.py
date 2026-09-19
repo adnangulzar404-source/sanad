@@ -2,9 +2,10 @@ import hashlib
 from pathlib import Path
 
 import pytest
-from sanad_ingest.tanzil import TanzilParseError, parse_tanzil
+from sanad_ingest.tanzil import TanzilParseError, parse_tanzil, parse_tanzil_xml
 
 FIXTURE = Path("tests/fixtures/tanzil_excerpt.txt")
+XML_FIXTURE = Path("tests/fixtures/tanzil_excerpt.xml")
 
 
 @pytest.fixture()
@@ -67,3 +68,94 @@ def test_content_hash_changes_when_a_verse_changes():
     base = parse_tanzil("1|1|نص\n\n# Copyright (C) 2007-2026 Tanzil Project\n")
     edited = parse_tanzil("1|1|نصا\n\n# Copyright (C) 2007-2026 Tanzil Project\n")
     assert base.content_sha256 != edited.content_sha256
+
+
+# --- parse_tanzil_xml --------------------------------------------------------
+#
+# The XML export is the correct source for the Arabic text: txt-2 prepends
+# the Bismillah to ayah 1's text for every surah except At-Tawbah, silently
+# corrupting text_ar. The XML export instead carries the Bismillah as a
+# separate `bismillah` attribute. These tests guard that distinction using a
+# small fixture, independent of the committed database.
+
+@pytest.fixture()
+def parsed_xml():
+    return parse_tanzil_xml(XML_FIXTURE.read_text(encoding="utf-8"))
+
+
+def _by_ref(parsed):
+    return {(s, a): (t, b) for s, a, t, b in parsed.ayat}
+
+
+def test_xml_extracts_every_aya(parsed_xml):
+    assert len(parsed_xml.ayat) == 4
+
+
+def test_xml_aya_tuple_shape(parsed_xml):
+    surah, ayah, text, bismillah = parsed_xml.ayat[0]
+    assert (surah, ayah) == (1, 1)
+    assert text.startswith("بِسْمِ")
+    assert bismillah is None  # Al-Fatiha 1:1 IS the Bismillah, not prefixed by it
+
+
+def test_xml_bismillah_present_where_it_applies(parsed_xml):
+    text, bismillah = _by_ref(parsed_xml)[(112, 1)]
+    assert text == "قُلْ هُوَ ٱللَّهُ أَحَدٌ"  # not prefixed with the Bismillah
+    assert bismillah == "بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ"
+
+
+def test_xml_bismillah_absent_for_ordinary_verse(parsed_xml):
+    _, bismillah = _by_ref(parsed_xml)[(112, 2)]
+    assert bismillah is None
+
+
+def test_xml_at_tawbah_has_no_bismillah(parsed_xml):
+    _, bismillah = _by_ref(parsed_xml)[(9, 1)]
+    assert bismillah is None
+
+
+def test_xml_attribution_captures_the_comment_block(parsed_xml):
+    assert "PLEASE DO NOT REMOVE" in parsed_xml.attribution
+    assert "Creative Commons Attribution 3.0" in parsed_xml.attribution
+
+
+def test_xml_attribution_excludes_aya_text(parsed_xml):
+    assert "قُلْ" not in parsed_xml.attribution
+
+
+def test_xml_content_hash_covers_ayat_only(parsed_xml):
+    payload = "\n".join(f"{s}|{a}|{t}" for s, a, t, _ in parsed_xml.ayat)
+    assert parsed_xml.content_sha256 == hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def _xml(comment: str, ayat: str) -> str:
+    return (
+        '<?xml version="1.0" encoding="utf-8" ?>\n'
+        f"<!-- {comment} -->\n"
+        f"<quran>{ayat}</quran>\n"
+    )
+
+
+def test_xml_content_hash_is_stable_across_copyright_year_change():
+    aya = '<sura index="1" name="s"><aya index="1" text="نص" /></sura>'
+    base = parse_tanzil_xml(_xml("Copyright (C) 2007-2026 Tanzil Project", aya))
+    later = parse_tanzil_xml(_xml("Copyright (C) 2007-2031 Tanzil Project", aya))
+    assert base.content_sha256 == later.content_sha256
+
+
+def test_xml_content_hash_changes_when_a_verse_changes():
+    base = parse_tanzil_xml(
+        _xml("c", '<sura index="1" name="s"><aya index="1" text="نص" /></sura>'))
+    edited = parse_tanzil_xml(
+        _xml("c", '<sura index="1" name="s"><aya index="1" text="نصا" /></sura>'))
+    assert base.content_sha256 != edited.content_sha256
+
+
+def test_xml_malformed_input_raises():
+    with pytest.raises(TanzilParseError, match="malformed XML"):
+        parse_tanzil_xml("<quran><sura>not closed")
+
+
+def test_xml_empty_input_raises():
+    with pytest.raises(TanzilParseError, match="no aya"):
+        parse_tanzil_xml('<?xml version="1.0" encoding="utf-8" ?><quran></quran>')

@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+
+# PLEASE DO NOT REMOVE OR CHANGE THIS COPYRIGHT BLOCK
+#====================================================================
+#
+#  Tanzil Quran Text (Uthmani, Version 1.1)
+#  Copyright (C) 2007-2026 Tanzil Project
+#  License: Creative Commons Attribution 3.0
+#
+#====================================================================
+
+-->
+<quran>
+	<sura index="1" name="الفاتحة">
+		<aya index="1" text="بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ" />
+	</sura>
+	<sura index="9" name="التوبة">
+		<aya index="1" text="بَرَآءَةٌ مِّنَ ٱللَّهِ وَرَسُولِهِۦٓ إِلَى ٱلَّذِينَ عَٰهَدتُّم مِّنَ ٱلْمُشْرِكِينَ" />
+	</sura>
+	<sura index="112" name="الإخلاص">
+		<aya index="1" text="قُلْ هُوَ ٱللَّهُ أَحَدٌ" bismillah="بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ" />
+		<aya index="2" text="ٱللَّهُ ٱلصَّمَدُ" />
+	</sura>
+</quran>

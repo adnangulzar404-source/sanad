@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS records (
   numbering_scheme  TEXT,
   text_ar           TEXT NOT NULL,
   text_ar_sha256    TEXT NOT NULL,
+  bismillah         TEXT,
   norm_light        TEXT NOT NULL,
   norm_standard     TEXT NOT NULL,
   norm_aggressive   TEXT NOT NULL,

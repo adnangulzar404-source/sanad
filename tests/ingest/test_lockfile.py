@@ -13,12 +13,15 @@ def test_loads_the_real_lockfile():
     assert arabic.expected_lines == 6236
     assert arabic.license_id == "CC-BY-3.0"
     assert len(arabic.content_sha256) == 64
+    # Not txt-2: that export prepends the Bismillah into ayah 1's text.
+    assert arabic.format == "xml"
 
     translation = by_id["tanzil-en-pickthall"]
     assert translation.kind == "quran-translation"
     assert translation.expected_lines == 6236
     assert translation.license_id == "public-domain"
     assert len(translation.content_sha256) == 64
+    assert translation.format == "txt-2"
 
 
 def test_rejects_missing_required_field(tmp_path):
@@ -32,7 +35,7 @@ def test_rejects_malformed_sha256(tmp_path):
     p = tmp_path / "bad.toml"
     p.write_text(
         'lockfile_version = 1\n[[source]]\n'
-        'id="x"\nkind="quran-arabic"\ntitle="t"\nurl="u"\n'
+        'id="x"\nkind="quran-arabic"\nformat="txt-2"\ntitle="t"\nurl="u"\n'
         'license_id="CC-BY-3.0"\ncontent_sha256="nothex"\n'
         'expected_lines=1\nmodifications="none"\n', encoding="utf-8")
     with pytest.raises(LockfileError, match="sha256"):

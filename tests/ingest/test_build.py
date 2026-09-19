@@ -1,4 +1,5 @@
 import hashlib
+import re
 from pathlib import Path
 
 import pytest
@@ -6,6 +7,7 @@ from sanad.corpus import db
 from sanad_ingest.build import build_corpus
 
 FIXTURE = Path("tests/fixtures/tanzil_excerpt.txt")
+XML_FIXTURE = Path("tests/fixtures/tanzil_excerpt.xml")
 TRANSLATION_FIXTURE = Path("tests/fixtures/pickthall_excerpt.txt")
 
 
@@ -25,7 +27,7 @@ def built(tmp_path, monkeypatch):
     lock = tmp_path / "corpus.lock.toml"
     lock.write_text(
         'lockfile_version = 1\n[[source]]\n'
-        'id = "tanzil-uthmani-1.1"\nkind = "quran-arabic"\n'
+        'id = "tanzil-uthmani-1.1"\nkind = "quran-arabic"\nformat = "txt-2"\n'
         'title = "Tanzil Uthmani"\npublisher = "Tanzil Project"\n'
         'edition = "1.1"\nurl = "https://example.invalid/q"\n'
         'license_id = "CC-BY-3.0"\nlicense_url = "https://tanzil.net/docs/text_license"\n'
@@ -109,7 +111,7 @@ def built_with_translation(tmp_path, monkeypatch):
     lock.write_text(
         'lockfile_version = 1\n'
         '[[source]]\n'
-        'id = "tanzil-uthmani-1.1"\nkind = "quran-arabic"\n'
+        'id = "tanzil-uthmani-1.1"\nkind = "quran-arabic"\nformat = "txt-2"\n'
         'title = "Tanzil Uthmani"\npublisher = "Tanzil Project"\n'
         'edition = "1.1"\n'
         f'url = "{_ARABIC_URL}"\n'
@@ -117,7 +119,7 @@ def built_with_translation(tmp_path, monkeypatch):
         f'content_sha256 = "{sha_ar}"\nexpected_lines = 4\nmodifications = "none"\n'
         '\n'
         '[[source]]\n'
-        'id = "tanzil-en-pickthall"\nkind = "quran-translation"\n'
+        'id = "tanzil-en-pickthall"\nkind = "quran-translation"\nformat = "txt-2"\n'
         'title = "The Meaning of the Glorious Koran (Pickthall)"\n'
         'publisher = "Tanzil Project (distribution)"\n'
         'edition = "en.pickthall"\n'
@@ -168,3 +170,90 @@ def test_fts_indexes_translation_text(built_with_translation):
     out, _ = built_with_translation
     results = db.fts_candidates(db.connect(out), "beneficent")
     assert any(r.id == "quran:1:1" for r in results)
+
+
+# --- Arabic source via the XML export (bismillah as metadata) --------------
+#
+# txt-2 prepends the Bismillah to ayah 1's text for every surah except
+# At-Tawbah, corrupting text_ar. These tests build from the XML export
+# fixture and confirm build_corpus keeps text_ar and bismillah separate --
+# independent of the committed database (see tests/ingest/test_real_corpus.py
+# for the equivalent checks against data/sanad-quran.db itself).
+
+_SURA_OPEN = re.compile(r'<sura index="(\d+)"')
+_AYA = re.compile(r'<aya index="(\d+)" text="([^"]*)"')
+
+
+def _xml_payload_sha256(raw: str) -> str:
+    # Deliberately reimplemented with plain regex, not by calling
+    # parse_tanzil_xml, so this fixture doesn't just check the parser
+    # against itself.
+    surah = None
+    lines = []
+    for line in raw.split("\n"):
+        sura_match = _SURA_OPEN.search(line)
+        if sura_match:
+            surah = int(sura_match.group(1))
+            continue
+        aya_match = _AYA.search(line)
+        if aya_match and surah is not None:
+            ayah, text = int(aya_match.group(1)), aya_match.group(2)
+            lines.append(f"{surah}|{ayah}|{text}")
+    payload = "\n".join(lines)
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+_XML_ARABIC_URL = "https://example.invalid/xml-q"
+
+
+@pytest.fixture()
+def built_from_xml(tmp_path, monkeypatch):
+    raw = XML_FIXTURE.read_text(encoding="utf-8")
+    sha = _xml_payload_sha256(raw)
+
+    lock = tmp_path / "corpus.lock.toml"
+    lock.write_text(
+        'lockfile_version = 1\n[[source]]\n'
+        'id = "tanzil-uthmani-1.1"\nkind = "quran-arabic"\nformat = "xml"\n'
+        'title = "Tanzil Uthmani"\npublisher = "Tanzil Project"\n'
+        'edition = "1.1"\n'
+        f'url = "{_XML_ARABIC_URL}"\n'
+        'license_id = "CC-BY-3.0"\nlicense_url = "https://tanzil.net/docs/text_license"\n'
+        f'content_sha256 = "{sha}"\nexpected_lines = 4\nmodifications = "none"\n',
+        encoding="utf-8")
+
+    monkeypatch.setattr("sanad_ingest.fetch._download", lambda url: raw)
+    out = tmp_path / "sanad.db"
+    stats = build_corpus(lock, out, tmp_path / "cache")
+    return out, stats
+
+
+def test_xml_build_does_not_prepend_bismillah_to_verse_text(built_from_xml):
+    out, _ = built_from_xml
+    rec = db.get_record(db.connect(out), "quran:112:1")
+    assert rec.text_ar == "قُلْ هُوَ ٱللَّهُ أَحَدٌ"
+
+
+def test_xml_build_stores_bismillah_separately(built_from_xml):
+    out, _ = built_from_xml
+    rec = db.get_record(db.connect(out), "quran:112:1")
+    assert rec.bismillah == "بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ"
+
+
+def test_xml_build_al_fatiha_1_1_has_no_bismillah_field(built_from_xml):
+    out, _ = built_from_xml
+    rec = db.get_record(db.connect(out), "quran:1:1")
+    assert rec.text_ar.startswith("بِسْمِ")  # it IS the Bismillah here
+    assert rec.bismillah is None
+
+
+def test_xml_build_at_tawbah_has_no_bismillah_field(built_from_xml):
+    out, _ = built_from_xml
+    rec = db.get_record(db.connect(out), "quran:9:1")
+    assert rec.bismillah is None
+
+
+def test_xml_build_ordinary_verse_has_no_bismillah_field(built_from_xml):
+    out, _ = built_from_xml
+    rec = db.get_record(db.connect(out), "quran:112:2")
+    assert rec.bismillah is None

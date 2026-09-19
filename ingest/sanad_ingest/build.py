@@ -13,13 +13,13 @@ from sanad.corpus.surahs import surah_name
 
 from .fetch import fetch_source
 from .lockfile import LockedSource, load_lockfile
-from .tanzil import ParsedTanzil, parse_tanzil
+from .tanzil import ParsedTanzil, ParsedTanzilXml, parse_tanzil, parse_tanzil_xml
 
 log = logging.getLogger(__name__)
 
 
 def _register_source(conn: sqlite3.Connection, locked: LockedSource,
-                     parsed: ParsedTanzil, today: str) -> None:
+                     parsed: ParsedTanzil | ParsedTanzilXml, today: str) -> None:
     db.insert_source(conn, Source(
         id=locked.id, kind=locked.kind, title=locked.title,
         publisher=locked.publisher, edition=locked.edition, url=locked.url,
@@ -28,6 +28,23 @@ def _register_source(conn: sqlite3.Connection, locked: LockedSource,
         upstream_sha256=parsed.content_sha256,
         modifications=locked.modifications,
     ))
+
+
+_Ayat = list[tuple[int, int, str, str | None]]
+
+
+def _parse_arabic(locked: LockedSource,
+                  raw: str) -> tuple[ParsedTanzil | ParsedTanzilXml, _Ayat]:
+    """Returns the parsed source plus (surah, ayah, text, bismillah) tuples,
+    dispatching on the lockfile's declared format. Only the XML export
+    carries a bismillah; the pipe (txt-2) export has none to give, since it
+    prepends the Bismillah into the ayah 1 text itself instead of modelling
+    it separately."""
+    if locked.format == "xml":
+        parsed_xml = parse_tanzil_xml(raw)
+        return parsed_xml, list(parsed_xml.ayat)
+    parsed = parse_tanzil(raw)
+    return parsed, [(s, a, t, None) for s, a, t in parsed.verses]
 
 
 def build_corpus(lockfile: Path, out_db: Path, cache_dir: Path) -> dict[str, int]:
@@ -49,16 +66,16 @@ def build_corpus(lockfile: Path, out_db: Path, cache_dir: Path) -> dict[str, int
             continue
 
         raw = fetch_source(locked, cache_dir)
-        parsed = parse_tanzil(raw)
+        parsed, ayat = _parse_arabic(locked, raw)
         _register_source(conn, locked, parsed, today)
 
         records = []
-        for surah, ayah, text in parsed.verses:
+        for surah, ayah, text, bismillah in ayat:
             name_ar, name_en = surah_name(surah)
             records.append(Record(
                 id=f"quran:{surah}:{ayah}", source_id=locked.id, kind="ayah",
                 surah=surah, ayah=ayah, surah_name_ar=name_ar, surah_name_en=name_en,
-                text_ar=text,
+                text_ar=text, bismillah=bismillah,
                 text_ar_sha256=hashlib.sha256(text.encode("utf-8")).hexdigest(),
                 norm_light=normalize(text, "light"),
                 norm_standard=normalize(text, "standard"),

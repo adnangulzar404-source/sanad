@@ -1,3 +1,5 @@
+import pytest
+
 from sanad.verify.extract import extract_spans
 
 
@@ -7,13 +9,20 @@ def test_extracts_guillemet_quote():
 
 
 def test_extracts_curly_quote():
+    # U+201C/U+201D: left/right double quotation mark
     spans = extract_spans('"قُلْ هُوَ ٱللَّهُ أَحَدٌ"')
-    assert len(spans) >= 1
+    assert any(s.kind == "wrapped" for s in spans)
+
+
+def test_extracts_straight_quote():
+    # U+0022: quotation mark (ASCII)
+    spans = extract_spans('"قُلْ هُوَ ٱللَّهُ أَحَدٌ"')
+    assert any(s.kind == "wrapped" for s in spans)
 
 
 def test_extracts_ornate_parenthesis():
     spans = extract_spans('﴿قُلْ هُوَ ٱللَّهُ أَحَدٌ﴾')
-    assert len(spans) >= 1
+    assert any(s.kind == "wrapped" for s in spans)
 
 
 def test_extracts_bare_arabic_run():
@@ -50,3 +59,29 @@ def test_spans_are_sorted_by_position():
     text = "«ٱللَّهُ ٱلصَّمَدُ» then «قُلْ هُوَ ٱللَّهُ أَحَدٌ»"
     spans = extract_spans(text)
     assert spans == sorted(spans, key=lambda s: s.start)
+
+
+@pytest.mark.parametrize("ch", [
+    "«",  # « U+00AB
+    "“",  # " U+201C
+    '"',  # " U+0022
+    "『",  # 『 U+300E
+    "【",  # 【 U+3010
+    "﴿",  # ﴿ U+FD3F
+    "»",  # » U+00BB
+    "”",  # " U+201D
+    "』",  # 』 U+300F
+    "】",  # 】 U+3011
+    "﴾",  # ﴾ U+FD3E
+])
+def test_wrapped_pattern_contains_every_delimiter(ch):
+    from sanad.verify.extract import _WRAPPED
+    assert ch in _WRAPPED.pattern
+
+
+def test_every_real_ayah_is_extractable_when_quoted():
+    from sanad.corpus import db
+    conn = db.connect("data/sanad-quran.db")
+    missed = [r.id for r in db.iter_records(conn)
+              if not extract_spans("«" + r.text_ar + "»")]
+    assert missed == [], f"{len(missed)} ayat produce no span: {missed[:10]}"

@@ -12,7 +12,17 @@ from dataclasses import dataclass
 
 from ..arabic.normalize import normalize
 
-_WRAPPED = re.compile(r"[«""『【﴿]([^»""』】﴾]{4,})[»""』】﴾]")
+# Openers: « (U+00AB), " (U+201C), " (U+0022), 『 (U+300E), 【 (U+3010),
+#          ﴿ (U+FD3F)
+# Closers: » (U+00BB), " (U+201D), " (U+0022), 』 (U+300F), 】 (U+3011),
+#          ﴾ (U+FD3E)
+_OPENERS = '«“"『【﴿'  # « " " 『 【 ﴿
+_CLOSERS = '»”"』】﴾'  # » " " 』 】 ﴾
+_WRAPPED = re.compile(
+    f"[{re.escape(_OPENERS)}]"
+    f"([^{re.escape(_CLOSERS)}]{{1,}})"
+    f"[{re.escape(_CLOSERS)}]"
+)
 _ARABIC_RUN = re.compile(r"[؀-ۿ][؀-ۿ\s]{6,}")
 
 
@@ -24,7 +34,9 @@ class Span:
     kind: str
 
 
-def extract_spans(text: str, min_arabic_chars: int = 8) -> list[Span]:
+def extract_spans(
+    text: str, *, min_wrapped_chars: int = 2, min_run_chars: int = 6
+) -> list[Span]:
     found: list[Span] = []
 
     for m in _WRAPPED.finditer(text):
@@ -44,7 +56,8 @@ def extract_spans(text: str, min_arabic_chars: int = 8) -> list[Span]:
 
     # keep only spans with enough Arabic to be a quotation
     found = [s for s in found
-             if len(normalize(s.text, "aggressive").replace(" ", "")) >= min_arabic_chars]
+             if len(normalize(s.text, "aggressive").replace(" ", ""))
+             >= (min_wrapped_chars if s.kind == "wrapped" else min_run_chars)]
 
     # wrapped wins over an overlapping bare run
     found.sort(key=lambda s: (s.start, s.kind != "wrapped"))

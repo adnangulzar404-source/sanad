@@ -1,0 +1,41 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class Source:
+    id: str
+    kind: str
+    title: str
+    publisher: str | None
+    edition: str | None
+    url: str
+    license_id: str
+    license_url: str | None
+    attribution: str
+    retrieved_at: str
+    upstream_sha256: str
+    modifications: str
+
+
+@dataclass(frozen=True)
+class Record:
+    id: str
+    source_id: str
+    kind: str
+    text_ar: str
+    text_ar_sha256: str
+    norm_light: str
+    norm_standard: str
+    norm_aggressive: str
+    reference_display: str
+    surah: int | None = None
+    ayah: int | None = None
+    surah_name_ar: str | None = None
+    surah_name_en: str | None = None
+    collection: str | None = None
+    book_no: int | None = None
+    chapter_ar: str | None = None
+    hadith_no: str | None = None
+    numbering_scheme: str | None = None

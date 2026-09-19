@@ -124,20 +124,59 @@ the lockfile. A corpus that cannot be reproduced is not shipped.
   jurisdictions as of 2024 but not uniformly; prefer Pickthall. **Saheeh
   International is not permissively licensed and must not be bundled.**
 
-  **Tanzil is not a valid source for the translation layer.** Verified
-  2026-09-19: tanzil.net/trans states *"The translations provided at this page
-  are for non-commercial purposes only. If used otherwise, you need to obtain
-  necessary permission from the translator or the publisher."* That is a
-  non-commercial restriction applied to Tanzil's whole translation collection,
-  distinct from the CC BY 3.0 that covers their Arabic text. A public-domain
-  translator does not cure a restrictive redistribution term on that particular
-  copy. The translation must come from a distributor that imposes no terms
-  beyond the work's own public-domain status.
+  **Tanzil's `en.pickthall` is the chosen source.** An earlier revision of this
+  spec ruled Tanzil out for translations. That was wrong, and the correction
+  matters enough to record why.
 
-  This does not block Stage A. Per §7, verification is Arabic-against-Arabic
-  and never consults a translation — the translation layer is display only. The
-  `translations` table and its loader are built in Stage A and populated when a
-  clean source is confirmed, the same pattern used for the Hadith slot.
+  The earlier reading stopped at one sentence on tanzil.net/trans — "The
+  translations provided at this page are for non-commercial purposes only." The
+  full terms and the downloaded file say something different:
+
+  - The per-file footer on `en.pickthall` is **metadata only**: name,
+    translator, language, id, last-update, source. It asserts no copyright, no
+    licence, and no reserved rights. Tanzil's Arabic text, by contrast, ships a
+    28-line block asserting CC BY 3.0 and demanding it not be removed. Tanzil
+    asserts rights where it holds them; it asserts none here.
+  - The terms direct a commercial user to "obtain necessary permission from
+    **the translator or the publisher**" — pointing away from Tanzil, which is
+    a disclaimer of ownership rather than an assertion of it.
+  - "Redistributing the following **list** is not allowed" governs the curated
+    table of translations (a collection right). Shipping one translation's text
+    does not engage it.
+  - The link-back requirement applies above three translations. We bundle one.
+
+  Pickthall died in 1936. The work has been public domain since 2007 in
+  life+70 jurisdictions, and since 1 January 2026 in the US (published 1930,
+  95 years from publication). A faithful transcription of a public-domain text
+  attracts no new copyright, so Tanzil's digitisation adds no protectable
+  layer. There is no rights holder left to ask.
+
+  **Our legal basis is Pickthall's public-domain status, not a grant from
+  Tanzil.** This distinction is load-bearing: Sanad's code is MIT, so a
+  downstream user could act commercially, which would cross Tanzil's
+  non-commercial line if that line were what we relied on. It is not. Record
+  the basis in `corpus.lock.toml`, not merely the URL.
+
+  Compliance actions, all required:
+  1. Link to https://tanzil.net/trans/ in the README and in the UI wherever a
+     translation is displayed.
+  2. Store the file's metadata footer verbatim in `sources.attribution`, as we
+     do for the Arabic.
+  3. Never redistribute Tanzil's translations list.
+  4. Surface Tanzil's accuracy disclaimer — "No translation of Quran can be a
+     hundred percent accurate, nor can it be used as a replacement of the
+     Quran text" — next to every rendered translation. This is not boilerplate;
+     it is the same claim Sanad makes about itself, and hiding it in a licence
+     file would contradict the product.
+
+  Not bundled, still in copyright: Saheeh International, Hilali & Khan,
+  Maududi, Arberry (d. 1969), Mubarakpuri, Qarai, Daryabadi. `en.itani`
+  (Talal Itani, modern English) is a plausible second candidate but its
+  public-domain dedication is unverified; do not add it on memory alone.
+
+  Per §7 the translation is display-only — verification is Arabic-against-Arabic
+  and never reads it. Format is identical to the Arabic export
+  (`surah|ayah|text`), so `parse_tanzil` handles it unchanged.
 - **Hadith Arabic matn.** The classical text is public domain. The copyright
   risk sits in modern critical editions, vowelling, apparatus, and publisher
   numbering. Ingest must record which digital edition was used and what its

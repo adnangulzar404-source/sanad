@@ -1,0 +1,34 @@
+# Sanad corpus lockfile.
+#
+# Every bundled source is pinned here with a content hash. sanad-ingest refuses
+# to build if a download does not match. A corpus that cannot be reproduced is
+# not shipped.
+#
+# content_sha256 covers the VERSE PAYLOAD ONLY -- the "surah|ayah|text" lines
+# joined with "\n". It deliberately excludes the trailing copyright block,
+# which embeds the current year and would otherwise change the hash annually.
+# The copyright block is still captured verbatim into sources.attribution.
+
+lockfile_version = 1
+
+[[source]]
+id             = "tanzil-uthmani-1.1"
+kind           = "quran-arabic"
+title          = "Tanzil Qur'an Text (Uthmani)"
+publisher      = "Tanzil Project"
+edition        = "1.1"
+url            = "https://tanzil.net/pub/download/index.php?quranType=uthmani&outType=txt-2&agree=true"
+license_id     = "CC-BY-3.0"
+license_url    = "https://tanzil.net/docs/text_license"
+content_sha256 = "36da55e256f54f4838b6fa1c78781734346c8d9ffde52daf5a3cbfa32626a08c"
+expected_lines = 6236
+modifications  = "none"
+
+# -- NOT YET RESOLVED ---------------------------------------------------------
+# Qur'an translation: Tanzil is ruled out. tanzil.net/trans restricts its
+# translations to non-commercial use, which is narrower than the CC BY 3.0 on
+# their Arabic text. Pickthall (d. 1936) is public domain, but we need a
+# transcription from a distributor that imposes no terms of its own.
+# See the spec, section 14.2. Display-only layer; does not gate Stage A.
+#
+# Hadith Arabic matn: source not chosen. See the spec, section 14.1.

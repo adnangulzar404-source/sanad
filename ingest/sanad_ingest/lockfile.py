@@ -1,0 +1,60 @@
+from __future__ import annotations
+
+import re
+from dataclasses import dataclass
+from pathlib import Path
+
+try:
+    import tomllib  # Python 3.11+
+except ModuleNotFoundError:  # pragma: no cover
+    import tomli as tomllib
+
+SUPPORTED_VERSION = 1
+_SHA256 = re.compile(r"^[0-9a-f]{64}$")
+_REQUIRED = ("id", "kind", "title", "url", "license_id",
+             "content_sha256", "expected_lines", "modifications")
+
+
+class LockfileError(Exception):
+    pass
+
+
+@dataclass(frozen=True)
+class LockedSource:
+    id: str
+    kind: str
+    title: str
+    url: str
+    license_id: str
+    content_sha256: str
+    expected_lines: int
+    modifications: str
+    publisher: str | None = None
+    edition: str | None = None
+    license_url: str | None = None
+
+
+def load_lockfile(path: str | Path) -> list[LockedSource]:
+    path = Path(path)
+    if not path.is_file():
+        raise LockfileError(f"lockfile not found: {path}")
+
+    data = tomllib.loads(path.read_text(encoding="utf-8"))
+
+    version = data.get("lockfile_version")
+    if version != SUPPORTED_VERSION:
+        raise LockfileError(
+            f"unsupported lockfile version {version!r}; expected {SUPPORTED_VERSION}")
+
+    out: list[LockedSource] = []
+    for entry in data.get("source", []):
+        missing = [f for f in _REQUIRED if f not in entry]
+        if missing:
+            raise LockfileError(
+                f"source {entry.get('id', '<unnamed>')!r} missing: {', '.join(missing)}")
+        if not _SHA256.match(entry["content_sha256"]):
+            raise LockfileError(
+                f"source {entry['id']!r} has a malformed sha256")
+        out.append(LockedSource(**{k: entry.get(k) for k in
+                                   list(_REQUIRED) + ["publisher", "edition", "license_url"]}))
+    return out

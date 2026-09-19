@@ -62,3 +62,12 @@ def test_normalization_is_idempotent():
 def test_unknown_tier_raises():
     with pytest.raises(ValueError):
         normalize("x", "nonsense")
+
+
+def test_standard_preserves_arabic_indic_digits():
+    assert normalize("سورة ١١٢", "standard") == "سورة ١١٢"
+
+
+def test_standard_preserves_dotless_letters():
+    # U+066E and U+066F are letters, not diacritics
+    assert normalize("ٮٯ", "standard") == "ٮٯ"

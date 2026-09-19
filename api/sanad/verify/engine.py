@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import difflib
 import sqlite3
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 
 from ..arabic.normalize import Tier, normalize
@@ -53,28 +53,51 @@ class Match:
     score: float
     given_reference: Reference | None = None
     diff: list[tuple[str, str]] | None = None
+    # Other record ids carrying identical normalized text at the matched tier
+    # (e.g. Ar-Rahman's refrain, repeated 31 times). Empty for the
+    # overwhelming majority of verses, which are unique.
+    also_at: list[str] = field(default_factory=list)
 
 
-def _exact_at_tier(conn: sqlite3.Connection, text: str, tier: Tier) -> Record | None:
+def _exact_at_tier(conn: sqlite3.Connection, text: str, tier: Tier) -> list[Record]:
+    """Every record tying on normalized text at this tier, lowest surah:ayah first.
+
+    Some Qur'anic text repeats verbatim across multiple ayat (refrains such as
+    Ar-Rahman 55 or Al-Mursalat 77). Returning only one such tied record (the
+    old `LIMIT 1` behaviour) meant a correctly-cited quotation of a repeated
+    verse could be compared against the WRONG sibling and reported as
+    WRONG_REFERENCE even though the citation was exactly right. Callers must
+    consider every tied candidate and prefer whichever agrees with a nearby
+    reference; see `_select_by_reference`.
+    """
     needle = normalize(text, tier)
     if not needle:
-        return None
-    row = conn.execute(
-        f"SELECT id FROM records WHERE {_NORM_COLUMN[tier]} = ? LIMIT 1",
-        (needle,)).fetchone()
-    return db.get_record(conn, row["id"]) if row else None
+        return []
+    rows = conn.execute(
+        f"SELECT id FROM records WHERE {_NORM_COLUMN[tier]} = ? ORDER BY surah, ayah, id",
+        (needle,)).fetchall()
+    return [db.get_record(conn, row["id"]) for row in rows]
 
 
-def _best_fuzzy(conn: sqlite3.Connection, text: str) -> tuple[Record | None, float]:
+def _best_fuzzy(conn: sqlite3.Connection, text: str) -> tuple[list[Record], float]:
+    """Every fts candidate tied for the highest aggressive-tier score.
+
+    Same duplicate-text concern as `_exact_at_tier`: a repeated verse can tie
+    for the top fuzzy score across several of its own occurrences, and the
+    caller needs all of them to prefer a reference-agreeing one.
+    """
     needle = normalize(text, "aggressive")
     if not needle:
-        return None, 0.0
-    best: Record | None = None
+        return [], 0.0
+    best: list[Record] = []
     best_score = 0.0
     for cand in db.fts_candidates(conn, needle, CANDIDATE_LIMIT):
         score = ratio(needle, cand.norm_aggressive)
         if score > best_score:
-            best, best_score = cand, score
+            best, best_score = [cand], score
+        elif score == best_score and best_score > 0.0:
+            best.append(cand)
+    best.sort(key=lambda r: (r.surah or 0, r.ayah or 0, r.id))
     return best, best_score
 
 
@@ -101,6 +124,27 @@ def _reference_conflicts(given: Reference, rec: Record) -> bool:
     return given.ayah is not None and given.ayah != rec.ayah
 
 
+def _select_by_reference(
+    candidates: list[Record], given: Reference | None
+) -> tuple[Record, bool]:
+    """Which tied candidate a citation is naming, among records sharing text.
+
+    Returns `(selected, agreed)`. When `given` names a surah (and, if given,
+    an ayah) that one of the tied `candidates` actually has, that candidate is
+    selected and `agreed` is True -- the quotation is genuine text, correctly
+    attributed, even though several other records happen to share its exact
+    wording. Otherwise the lowest-surah:ayah candidate is selected (a stable,
+    deterministic default) and `agreed` is False: either there was no nearby
+    reference, or every candidate disagreed with the one given (a genuine
+    WRONG_REFERENCE, reported against that default candidate).
+    """
+    if given is not None:
+        for cand in candidates:
+            if not _reference_conflicts(given, cand):
+                return cand, True
+    return candidates[0], False
+
+
 def _nearest_reference_to_span(refs: list[Reference], span: Span) -> Reference | None:
     """The reference "given" for a span, checked from both of its edges.
 
@@ -125,26 +169,32 @@ def _classify(conn: sqlite3.Connection, span: Span,
     given = _nearest_reference_to_span(refs, span)
 
     for tier in ("light", "standard"):
-        rec = _exact_at_tier(conn, span.text, tier)
-        if rec is None:
+        candidates = _exact_at_tier(conn, span.text, tier)
+        if not candidates:
             continue
         verdict = _TIER_VERDICT[tier]
-        if given and _reference_conflicts(given, rec):
-            return Match(span, Verdict.WRONG_REFERENCE, rec, tier, 1.0, given)
-        return Match(span, verdict, rec, tier, 1.0, given)
+        selected, agreed = _select_by_reference(candidates, given)
+        also_at = [c.id for c in candidates if c.id != selected.id]
+        if given and not agreed:
+            return Match(span, Verdict.WRONG_REFERENCE, selected, tier, 1.0, given,
+                         also_at=also_at)
+        return Match(span, verdict, selected, tier, 1.0, given, also_at=also_at)
 
-    rec, score = _best_fuzzy(conn, span.text)
-    if rec is not None and score >= 1.0:
-        # matches only after lossy folding -> never "verified"
-        if given and _reference_conflicts(given, rec):
-            return Match(span, Verdict.WRONG_REFERENCE, rec, "aggressive", score, given,
-                         _build_diff(span.text, rec.text_ar))
-        return Match(span, Verdict.NEAR_MATCH, rec, "aggressive", score, given,
-                     _build_diff(span.text, rec.text_ar))
-
-    if rec is not None and score >= NEAR_THRESHOLD:
-        return Match(span, Verdict.NEAR_MATCH, rec, "aggressive", score, given,
-                     _build_diff(span.text, rec.text_ar))
+    candidates, score = _best_fuzzy(conn, span.text)
+    if candidates:
+        selected, agreed = _select_by_reference(candidates, given)
+        also_at = [c.id for c in candidates if c.id != selected.id]
+        diff = _build_diff(span.text, selected.text_ar)
+        if score >= 1.0:
+            # matches only after lossy folding -> never "verified"
+            if given and not agreed:
+                return Match(span, Verdict.WRONG_REFERENCE, selected, "aggressive", score,
+                             given, diff, also_at)
+            return Match(span, Verdict.NEAR_MATCH, selected, "aggressive", score, given,
+                         diff, also_at)
+        if score >= NEAR_THRESHOLD:
+            return Match(span, Verdict.NEAR_MATCH, selected, "aggressive", score, given,
+                         diff, also_at)
 
     return Match(span, Verdict.NOT_FOUND, None, None, score, given)
 

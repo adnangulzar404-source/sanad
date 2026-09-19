@@ -93,3 +93,28 @@ def test_ayat_al_kursi_long_verse_matches(conn):
 def test_diff_is_populated_only_for_near_match(conn):
     assert _only(verify_spans(conn, f"«{IKHLAS_1}»")).diff is None
     assert _only(verify_spans(conn, "«قل هو الله احدق»")).diff is not None
+
+
+def test_duplicate_verse_verifies_against_each_of_its_own_citations(conn):
+    refrain = db.get_record(conn, "quran:55:16").text_ar
+    for ayah in (13, 16, 18, 21, 25, 28):
+        m = _only(verify_spans(conn, f"«{refrain}» (55:{ayah})"))
+        assert m.verdict is Verdict.EXACT, f"55:{ayah} failed"
+        assert m.record.id == f"quran:55:{ayah}"
+
+
+def test_duplicate_verse_with_a_genuinely_wrong_citation_still_flags(conn):
+    refrain = db.get_record(conn, "quran:55:16").text_ar
+    m = _only(verify_spans(conn, f"«{refrain}» (2:255)"))
+    assert m.verdict is Verdict.WRONG_REFERENCE
+
+
+def test_duplicate_verse_reports_its_other_locations(conn):
+    refrain = db.get_record(conn, "quran:55:16").text_ar
+    m = _only(verify_spans(conn, f"«{refrain}»"))
+    assert len(m.also_at) == 30  # 31 occurrences, minus the one reported
+
+
+def test_unique_verse_has_no_also_at(conn):
+    m = _only(verify_spans(conn, "«" + db.get_record(conn, "quran:2:255").text_ar + "»"))
+    assert m.also_at == []

@@ -1,3 +1,5 @@
+import pytest
+
 from sanad.verify.references import Reference, nearest_reference, parse_references
 
 
@@ -52,3 +54,28 @@ def test_nearest_reference_respects_window():
 
 def test_nearest_reference_on_empty_list():
     assert nearest_reference([], 0) is None
+
+
+@pytest.mark.parametrize("text", [
+    "Maryam told me she had finished reading it.",
+    "My colleague Yusuf sent the draft yesterday.",
+    "Ibrahim and Muhammad will both attend.",
+    "Yunus is presenting after lunch.",
+])
+def test_ordinary_personal_names_are_not_references(text):
+    assert parse_references(text) == []
+
+
+@pytest.mark.parametrize("text,expected", [
+    ("as stated in Al-Ikhlas", 112),
+    ("see Surah Maryam", 19),
+    ("chapter Yusuf describes this", 12),
+    ("Al-Baqarah discusses it", 2),
+])
+def test_qualified_or_prefixed_names_still_resolve(text, expected):
+    assert parse_references(text)[0].surah == expected
+
+
+def test_arabic_indic_digits_parse_correctly():
+    r = parse_references("٢:٢٥٥")[0]
+    assert (r.surah, r.ayah) == (2, 255)

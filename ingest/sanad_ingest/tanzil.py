@@ -39,6 +39,9 @@ class ParsedTanzil:
     attribution: str
     content_sha256: str
 
+    def __len__(self) -> int:
+        return len(self.verses)
+
 
 def parse_tanzil(raw: str) -> ParsedTanzil:
     verses: list[tuple[int, int, str]] = []
@@ -77,6 +80,9 @@ class ParsedTanzilXml:
     attribution: str
     content_sha256: str
 
+    def __len__(self) -> int:
+        return len(self.ayat)
+
 
 def parse_tanzil_xml(raw: str) -> ParsedTanzilXml:
     comment_match = _XML_COMMENT.search(raw)
@@ -107,3 +113,23 @@ def parse_tanzil_xml(raw: str) -> ParsedTanzilXml:
         attribution=attribution,
         content_sha256=hashlib.sha256(payload.encode("utf-8")).hexdigest(),
     )
+
+
+def parser_for(fmt: str):
+    """Single source of truth mapping a lockfile format to its parser.
+
+    fetch.fetch_source and both passes of build.build_corpus all call this
+    instead of choosing a parser themselves, so the format-to-parser mapping
+    lives in exactly one place and cannot drift between call sites the way
+    it did when build_corpus's translation pass called parse_tanzil
+    unconditionally instead of dispatching on the source's declared format.
+
+    load_lockfile validates format against the same two values at load
+    time, so a bad value should never reach this function in practice; the
+    ValueError here is a belt-and-braces backstop, not the primary guard.
+    """
+    if fmt == "xml":
+        return parse_tanzil_xml
+    if fmt == "txt-2":
+        return parse_tanzil
+    raise ValueError(f"unsupported source format {fmt!r}; expected 'xml' or 'txt-2'")

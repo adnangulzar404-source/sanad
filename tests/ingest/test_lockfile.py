@@ -42,6 +42,20 @@ def test_rejects_malformed_sha256(tmp_path):
         load_lockfile(p)
 
 
+def test_rejects_unsupported_format(tmp_path):
+    # A typo like "xlm" must fail at load time, naming the field and the
+    # bad value, rather than silently being treated as txt-2 by whatever
+    # dispatch reads `format` downstream.
+    p = tmp_path / "bad.toml"
+    p.write_text(
+        'lockfile_version = 1\n[[source]]\n'
+        'id="x"\nkind="quran-arabic"\nformat="xlm"\ntitle="t"\nurl="u"\n'
+        'license_id="CC-BY-3.0"\ncontent_sha256="' + "0" * 64 + '"\n'
+        'expected_lines=1\nmodifications="none"\n', encoding="utf-8")
+    with pytest.raises(LockfileError, match="format"):
+        load_lockfile(p)
+
+
 def test_rejects_unknown_lockfile_version(tmp_path):
     p = tmp_path / "bad.toml"
     p.write_text("lockfile_version = 99\n", encoding="utf-8")

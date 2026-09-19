@@ -16,6 +16,14 @@ _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 # which prepends the Bismillah to ayah 1) got chosen without anyone noticing.
 _REQUIRED = ("id", "kind", "format", "title", "url", "license_id",
              "content_sha256", "expected_lines", "modifications")
+# Keep in sync with sanad_ingest.tanzil.parser_for, which maps each of
+# these to a parser. Validated here too, not just there, so a typo like
+# "xlm" fails at lockfile-load time with a message naming the source and
+# the bad value -- as early as possible -- rather than surfacing later as
+# parser_for's ValueError (kept as a belt-and-braces backstop) or, worse,
+# being silently accepted by a naive dispatch that treats "anything but
+# xml" as the pipe format.
+_VALID_FORMATS = frozenset({"xml", "txt-2"})
 
 
 class LockfileError(Exception):
@@ -56,6 +64,10 @@ def load_lockfile(path: str | Path) -> list[LockedSource]:
         if missing:
             raise LockfileError(
                 f"source {entry.get('id', '<unnamed>')!r} missing: {', '.join(missing)}")
+        if entry["format"] not in _VALID_FORMATS:
+            raise LockfileError(
+                f"source {entry['id']!r} has an unsupported format "
+                f"{entry['format']!r}; expected one of {sorted(_VALID_FORMATS)}")
         if not _SHA256.match(entry["content_sha256"]):
             raise LockfileError(
                 f"source {entry['id']!r} has a malformed sha256")

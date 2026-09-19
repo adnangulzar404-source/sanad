@@ -2,7 +2,7 @@ import hashlib
 from pathlib import Path
 
 import pytest
-from sanad_ingest.tanzil import TanzilParseError, parse_tanzil, parse_tanzil_xml
+from sanad_ingest.tanzil import TanzilParseError, parse_tanzil, parse_tanzil_xml, parser_for
 
 FIXTURE = Path("tests/fixtures/tanzil_excerpt.txt")
 XML_FIXTURE = Path("tests/fixtures/tanzil_excerpt.xml")
@@ -109,6 +109,19 @@ def test_xml_bismillah_absent_for_ordinary_verse(parsed_xml):
     assert bismillah is None
 
 
+def test_xml_bismillah_not_contained_in_its_own_verse_text(parsed_xml):
+    # text does not contain the Bismillah; the attribute does.
+    text, bismillah = _by_ref(parsed_xml)[(112, 1)]
+    assert bismillah not in text
+
+
+def test_xml_bismillah_count_matches_expected(parsed_xml):
+    # Of the fixture's 4 ayat (1:1, 9:1, 112:1, 112:2), exactly one --
+    # 112:1 -- carries a bismillah attribute.
+    count = sum(1 for _, _, _, b in parsed_xml.ayat if b is not None)
+    assert count == 1
+
+
 def test_xml_at_tawbah_has_no_bismillah(parsed_xml):
     _, bismillah = _by_ref(parsed_xml)[(9, 1)]
     assert bismillah is None
@@ -159,3 +172,23 @@ def test_xml_malformed_input_raises():
 def test_xml_empty_input_raises():
     with pytest.raises(TanzilParseError, match="no aya"):
         parse_tanzil_xml('<?xml version="1.0" encoding="utf-8" ?><quran></quran>')
+
+
+# --- parser_for ---------------------------------------------------------
+#
+# The single place a lockfile format maps to a parser. fetch.py and both
+# passes of build.py must all go through this rather than choosing a
+# parser themselves -- that duplication is exactly how build_corpus's
+# translation pass ended up ignoring format and always using parse_tanzil.
+
+def test_parser_for_xml_returns_the_xml_parser():
+    assert parser_for("xml") is parse_tanzil_xml
+
+
+def test_parser_for_txt2_returns_the_pipe_parser():
+    assert parser_for("txt-2") is parse_tanzil
+
+
+def test_parser_for_rejects_unknown_format():
+    with pytest.raises(ValueError, match="xlm"):
+        parser_for("xlm")

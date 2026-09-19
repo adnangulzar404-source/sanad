@@ -180,25 +180,23 @@ def test_fts_indexes_translation_text(built_with_translation):
 # independent of the committed database (see tests/ingest/test_real_corpus.py
 # for the equivalent checks against data/sanad-quran.db itself).
 
-_SURA_OPEN = re.compile(r'<sura index="(\d+)"')
-_AYA = re.compile(r'<aya index="(\d+)" text="([^"]*)"')
+_TAG = re.compile(r'<sura index="(\d+)"|<aya index="(\d+)" text="([^"]*)"')
 
 
 def _xml_payload_sha256(raw: str) -> str:
     # Deliberately reimplemented with plain regex, not by calling
     # parse_tanzil_xml, so this fixture doesn't just check the parser
-    # against itself.
+    # against itself. Scans tag-by-tag in document order (not line-by-line)
+    # so it doesn't care whether a fixture puts one tag per line or several
+    # tags on one line.
     surah = None
     lines = []
-    for line in raw.split("\n"):
-        sura_match = _SURA_OPEN.search(line)
-        if sura_match:
-            surah = int(sura_match.group(1))
-            continue
-        aya_match = _AYA.search(line)
-        if aya_match and surah is not None:
-            ayah, text = int(aya_match.group(1)), aya_match.group(2)
-            lines.append(f"{surah}|{ayah}|{text}")
+    for m in _TAG.finditer(raw):
+        sura_index, aya_index, aya_text = m.groups()
+        if sura_index is not None:
+            surah = int(sura_index)
+        elif surah is not None:
+            lines.append(f"{surah}|{int(aya_index)}|{aya_text}")
     payload = "\n".join(lines)
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
@@ -257,3 +255,74 @@ def test_xml_build_ordinary_verse_has_no_bismillah_field(built_from_xml):
     out, _ = built_from_xml
     rec = db.get_record(db.connect(out), "quran:112:2")
     assert rec.bismillah is None
+
+
+# --- Regression: build_corpus's translation pass must dispatch on format --
+#
+# build_corpus's translation pass used to call parse_tanzil unconditionally,
+# ignoring locked.format, even though fetch_source (and the Arabic pass)
+# already dispatched correctly. An XML-format translation source would be
+# hash-verified with parse_tanzil_xml and then handed to parse_tanzil to be
+# loaded -- which raises TanzilParseError, since XML doesn't match the
+# "surah|ayah|text" line shape. This fixture uses an XML-format translation
+# source specifically to prove the translation pass now dispatches too.
+
+_XML_TRANSLATION_URL = "https://example.invalid/xml-trans"
+_XML_TRANSLATION_RAW = (
+    '<?xml version="1.0" encoding="utf-8" ?>\n'
+    "<!-- copyright -->\n"
+    "<quran>"
+    '<sura index="1" name="s">'
+    '<aya index="1" text="In the name of Allah, the Beneficent, the Merciful." />'
+    '<aya index="2" text="Praise be to Allah, Lord of the Worlds," />'
+    "</sura>"
+    '<sura index="112" name="s2">'
+    '<aya index="1" text="Say: He is Allah, the One!" />'
+    '<aya index="2" text="Allah, the eternally Besought of all!" />'
+    "</sura>"
+    "</quran>\n"
+)
+
+
+@pytest.fixture()
+def built_with_xml_translation(tmp_path, monkeypatch):
+    raw_ar = FIXTURE.read_text(encoding="utf-8")
+    sha_ar = _payload_sha256(raw_ar)
+
+    raw_en = _XML_TRANSLATION_RAW
+    sha_en = _xml_payload_sha256(raw_en)
+
+    lock = tmp_path / "corpus.lock.toml"
+    lock.write_text(
+        'lockfile_version = 1\n'
+        '[[source]]\n'
+        'id = "tanzil-uthmani-1.1"\nkind = "quran-arabic"\nformat = "txt-2"\n'
+        'title = "Tanzil Uthmani"\npublisher = "Tanzil Project"\n'
+        'edition = "1.1"\n'
+        f'url = "{_ARABIC_URL}"\n'
+        'license_id = "CC-BY-3.0"\nlicense_url = "https://tanzil.net/docs/text_license"\n'
+        f'content_sha256 = "{sha_ar}"\nexpected_lines = 4\nmodifications = "none"\n'
+        '\n'
+        '[[source]]\n'
+        'id = "some-xml-translation"\nkind = "quran-translation"\nformat = "xml"\n'
+        'title = "Test XML Translation"\n'
+        f'url = "{_XML_TRANSLATION_URL}"\n'
+        'license_id = "public-domain"\n'
+        f'content_sha256 = "{sha_en}"\nexpected_lines = 4\nmodifications = "none"\n',
+        encoding="utf-8")
+
+    raws = {_ARABIC_URL: raw_ar, _XML_TRANSLATION_URL: raw_en}
+    monkeypatch.setattr("sanad_ingest.fetch._download", lambda url: raws[url])
+    out = tmp_path / "sanad.db"
+    stats = build_corpus(lock, out, tmp_path / "cache")
+    return out, stats
+
+
+def test_translation_pass_dispatches_on_xml_format(built_with_xml_translation):
+    out, stats = built_with_xml_translation
+    assert stats["translations"] == 4
+    conn = db.connect(out)
+    row = conn.execute(
+        "SELECT text FROM translations WHERE record_id='quran:112:1' "
+        "AND source_id='some-xml-translation'").fetchone()
+    assert row["text"] == "Say: He is Allah, the One!"

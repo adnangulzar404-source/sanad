@@ -6,7 +6,7 @@ from pathlib import Path
 import httpx
 
 from .lockfile import LockedSource
-from .tanzil import parse_tanzil, parse_tanzil_xml
+from .tanzil import parser_for
 
 log = logging.getLogger(__name__)
 
@@ -22,13 +22,10 @@ def _download(url: str) -> str:
 
 
 def _verse_count_and_hash(src: LockedSource, raw: str) -> tuple[int, str]:
-    """Dispatch on the lockfile's declared format so each export is parsed,
-    and hash-verified, with the parser that matches its actual shape."""
-    if src.format == "xml":
-        parsed_xml = parse_tanzil_xml(raw)
-        return len(parsed_xml.ayat), parsed_xml.content_sha256
-    parsed = parse_tanzil(raw)
-    return len(parsed.verses), parsed.content_sha256
+    """Dispatch on the lockfile's declared format (via parser_for) so each
+    export is hash-verified with the parser that matches its actual shape."""
+    parsed = parser_for(src.format)(raw)
+    return len(parsed), parsed.content_sha256
 
 
 def fetch_source(src: LockedSource, cache_dir: Path) -> str:

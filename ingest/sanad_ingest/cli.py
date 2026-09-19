@@ -9,6 +9,7 @@ from pathlib import Path
 from .build import build_corpus
 from .fetch import HashMismatch
 from .lockfile import LockfileError
+from .tanzil import TanzilParseError
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -28,7 +29,7 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         stats = build_corpus(args.lockfile, args.out, args.cache)
-    except (LockfileError, HashMismatch) as exc:
+    except (LockfileError, HashMismatch, TanzilParseError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
 

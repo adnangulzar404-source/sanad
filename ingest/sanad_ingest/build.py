@@ -13,7 +13,7 @@ from sanad.corpus.surahs import surah_name
 
 from .fetch import fetch_source
 from .lockfile import LockedSource, load_lockfile
-from .tanzil import ParsedTanzil, ParsedTanzilXml, parse_tanzil, parse_tanzil_xml
+from .tanzil import ParsedTanzil, ParsedTanzilXml, parser_for
 
 log = logging.getLogger(__name__)
 
@@ -33,18 +33,23 @@ def _register_source(conn: sqlite3.Connection, locked: LockedSource,
 _Ayat = list[tuple[int, int, str, str | None]]
 
 
-def _parse_arabic(locked: LockedSource,
-                  raw: str) -> tuple[ParsedTanzil | ParsedTanzilXml, _Ayat]:
-    """Returns the parsed source plus (surah, ayah, text, bismillah) tuples,
-    dispatching on the lockfile's declared format. Only the XML export
-    carries a bismillah; the pipe (txt-2) export has none to give, since it
-    prepends the Bismillah into the ayah 1 text itself instead of modelling
-    it separately."""
-    if locked.format == "xml":
-        parsed_xml = parse_tanzil_xml(raw)
-        return parsed_xml, list(parsed_xml.ayat)
-    parsed = parse_tanzil(raw)
-    return parsed, [(s, a, t, None) for s, a, t in parsed.verses]
+def _parse(locked: LockedSource, raw: str) -> ParsedTanzil | ParsedTanzilXml:
+    """The one call site both passes route through to turn raw source text
+    into a parsed result -- via parser_for, the single place where a
+    lockfile format maps to a parser. Do not call parse_tanzil /
+    parse_tanzil_xml directly from build_corpus; that duplication is
+    exactly how the translation pass ended up ignoring format entirely."""
+    return parser_for(locked.format)(raw)
+
+
+def _as_ayat(parsed: ParsedTanzil | ParsedTanzilXml) -> _Ayat:
+    """Normalizes either parser's output to (surah, ayah, text, bismillah)
+    tuples. Only the XML export carries a bismillah; the pipe (txt-2)
+    export has none to give, since it prepends the Bismillah into the
+    ayah 1 text itself instead of modelling it separately."""
+    if isinstance(parsed, ParsedTanzilXml):
+        return list(parsed.ayat)
+    return [(s, a, t, None) for s, a, t in parsed.verses]
 
 
 def build_corpus(lockfile: Path, out_db: Path, cache_dir: Path) -> dict[str, int]:
@@ -66,11 +71,11 @@ def build_corpus(lockfile: Path, out_db: Path, cache_dir: Path) -> dict[str, int
             continue
 
         raw = fetch_source(locked, cache_dir)
-        parsed, ayat = _parse_arabic(locked, raw)
+        parsed = _parse(locked, raw)
         _register_source(conn, locked, parsed, today)
 
         records = []
-        for surah, ayah, text, bismillah in ayat:
+        for surah, ayah, text, bismillah in _as_ayat(parsed):
             name_ar, name_en = surah_name(surah)
             records.append(Record(
                 id=f"quran:{surah}:{ayah}", source_id=locked.id, kind="ayah",
@@ -96,12 +101,12 @@ def build_corpus(lockfile: Path, out_db: Path, cache_dir: Path) -> dict[str, int
             continue
 
         raw = fetch_source(locked, cache_dir)
-        parsed = parse_tanzil(raw)
+        parsed = _parse(locked, raw)
         _register_source(conn, locked, parsed, today)
 
         translations = [
             (f"quran:{surah}:{ayah}", locked.id, "en", text)
-            for surah, ayah, text in parsed.verses
+            for surah, ayah, text, _bismillah in _as_ayat(parsed)
         ]
         db.insert_translations(conn, translations)
         log.info("inserted %d translations from %s", len(translations), locked.id)

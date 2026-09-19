@@ -121,9 +121,23 @@ the lockfile. A corpus that cannot be reproduced is not shipped.
   card that draws on it.
 - **Qur'an translation.** Public domain only. Pickthall (d. 1936) is clean
   worldwide under life+70. Yusuf Ali (d. 1953) is clean in life+70
-  jurisdictions as of 2024 but not uniformly; prefer Pickthall unless a
-  stronger candidate is confirmed at ingest time. **Saheeh International is
-  not permissively licensed and must not be bundled.**
+  jurisdictions as of 2024 but not uniformly; prefer Pickthall. **Saheeh
+  International is not permissively licensed and must not be bundled.**
+
+  **Tanzil is not a valid source for the translation layer.** Verified
+  2026-09-19: tanzil.net/trans states *"The translations provided at this page
+  are for non-commercial purposes only. If used otherwise, you need to obtain
+  necessary permission from the translator or the publisher."* That is a
+  non-commercial restriction applied to Tanzil's whole translation collection,
+  distinct from the CC BY 3.0 that covers their Arabic text. A public-domain
+  translator does not cure a restrictive redistribution term on that particular
+  copy. The translation must come from a distributor that imposes no terms
+  beyond the work's own public-domain status.
+
+  This does not block Stage A. Per §7, verification is Arabic-against-Arabic
+  and never consults a translation — the translation layer is display only. The
+  `translations` table and its loader are built in Stage A and populated when a
+  clean source is confirmed, the same pattern used for the Hadith slot.
 - **Hadith Arabic matn.** The classical text is public domain. The copyright
   risk sits in modern critical editions, vowelling, apparatus, and publisher
   numbering. Ingest must record which digital edition was used and what its
@@ -441,8 +455,13 @@ schema already accommodates it.
    to automated access, so its API terms could not be verified from this
    machine. **This must be settled before the Hadith ingest is written.** The
    Qur'an layer does not depend on it and proceeds in parallel.
-2. **Qur'an translation edition** — confirm Pickthall's exact digital source
-   and that the specific file is an unmodified public-domain text.
+2. **Qur'an translation source.** Tanzil is ruled out (see §5.2 — their
+   translations carry a non-commercial restriction). Need a Pickthall
+   transcription from a distributor imposing no terms beyond the work's own
+   public-domain status. A faithful transcription of a public-domain text
+   attracts no new copyright, so the question is purely about the
+   distributor's asserted terms, not the text. Display-only layer; does not
+   gate Stage A.
 3. **Deployment target** — Fly.io, Render, or self-hosted. Affects only the
    deploy workflow; the container is the same.
 4. **Embedding model** — must be Arabic-capable. Local sentence-transformers

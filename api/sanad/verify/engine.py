@@ -281,7 +281,38 @@ def _classify(conn: sqlite3.Connection, span: Span,
     if verdict is Verdict.NOT_FOUND:
         stripped = _strip_bismillah_prefix(conn, span.text)
         if stripped is not None:
-            verdict, record, tier, score, diff, also_at = _match_text(conn, stripped, given)
+            retry = _match_text(conn, stripped, given)
+            retry_record = retry[1]
+            retry_also_at = retry[5]
+            # A stripped-prefix retry is only a legitimate "Bismillah + its
+            # own surah's opening ayah" quotation when EVERY record tied on
+            # the stripped text is itself a surah's first ayah that carries
+            # a Bismillah. Checking only the selected record is not enough:
+            # some Qur'anic wording repeats verbatim across otherwise
+            # unrelated ayat (e.g. 39:1, 45:2, and 46:2 all read "تَنزِيلُ
+            # ٱلْكِتَٰبِ مِنَ ٱللَّهِ ٱلْعَزِيزِ ٱلْحَكِيمِ"), so a stripped
+            # remainder can tie between a genuine Bismillah-bearing opener
+            # (39:1) and non-opening ayat with no Bismillah of their own
+            # (45:2, 46:2). Accepting the selected 39:1 alone would still
+            # report "Bismillah + 45:2's text" as EXACT, which is exactly
+            # the false verification this fix exists to prevent -- the
+            # citation is genuinely ambiguous, and the honest response is
+            # silence, not a guess. More generally: without this check, ANY
+            # text sharing a light/standard-tier prefix-stripped form with
+            # ANY record -- e.g. Al-Ikhlas's Bismillah stitched onto Ayat
+            # al-Kursi, or onto any ayah of At-Tawbah, the one surah with no
+            # Bismillah at all (`bismillah IS NULL` for the whole surah) --
+            # would report a multi-ayah quotation, which is not a single
+            # corpus record, as EXACT. Discard an illegitimate retry and
+            # fall through to whatever the unstripped text produces on its
+            # own (step 3); `verdict`/`record`/etc are simply left as step
+            # 1's NOT_FOUND.
+            candidate_ids = [retry_record.id] + retry_also_at if retry_record else []
+            candidates = [db.get_record(conn, cid) for cid in candidate_ids]
+            if candidates and all(
+                    c is not None and c.ayah == 1 and c.bismillah is not None
+                    for c in candidates):
+                verdict, record, tier, score, diff, also_at = retry
 
     # 3. Last resort: fuzzy match on the text exactly as quoted.
     if verdict is Verdict.NOT_FOUND:

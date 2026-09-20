@@ -82,11 +82,19 @@ def run_eval(conn, cases: list[Case]) -> Metrics:
             m.by_verdict[verdict] = m.by_verdict.get(verdict, 0) + 1
 
         # The gate: a case whose expectation is not a verified verdict must
-        # never actually produce one.
-        if case.expect_verdict not in VERIFIED and verdict in VERIFIED:
+        # never actually produce one -- in ANY span, not just the first. A
+        # false verification landing in a second or later span (e.g. a
+        # two-quotation case where only the second is the fabrication) is
+        # exactly as dangerous as one in the first, and must not be invisible
+        # to CI just because `matches[0]` happened to be clean. Per-case
+        # verdict/record assertions below stay scoped to `top` -- only this
+        # gate broadens to scan every match.
+        if case.expect_verdict not in VERIFIED and any(
+                mt.verdict.value in VERIFIED for mt in matches):
             m.false_verifications += 1
             problems.append(
-                f"FALSE VERIFICATION: expected {case.expect_verdict}, got {verdict}")
+                f"FALSE VERIFICATION: expected {case.expect_verdict}, got "
+                f"{[mt.verdict.value for mt in matches]}")
 
         if case.expect_verdict is not None and verdict != case.expect_verdict:
             problems.append(f"verdict: expected {case.expect_verdict}, got {verdict}")

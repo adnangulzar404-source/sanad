@@ -17,3 +17,29 @@
   expect_record: null
   rationale: >-
     Qur'anic register and cadence, invented content.
+- id: bismillah-retry-first-plus-second-ayah
+  text: '«بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ ٱللَّهُ لَآ إِلَٰهَ إِلَّا هُوَ ٱلْحَىُّ ٱلْقَيُّومُ لَا تَأْخُذُهُۥ سِنَةٌ وَلَا نَوْمٌ لَّهُۥ مَا فِى ٱلسَّمَٰوَٰتِ وَمَا فِى ٱلْأَرْضِ مَن ذَا ٱلَّذِى يَشْفَعُ عِندَهُۥٓ إِلَّا بِإِذْنِهِۦ يَعْلَمُ مَا بَيْنَ أَيْدِيهِمْ وَمَا خَلْفَهُمْ وَلَا يُحِيطُونَ بِشَىْءٍ مِّنْ عِلْمِهِۦٓ إِلَّا بِمَا شَآءَ وَسِعَ كُرْسِيُّهُ ٱلسَّمَٰوَٰتِ وَٱلْأَرْضَ وَلَا يَـُٔودُهُۥ حِفْظُهُمَا وَهُوَ ٱلْعَلِىُّ ٱلْعَظِيمُ»'
+  expect_verdict: NEAR_MATCH
+  expect_record: quran:2:255
+  rationale: >-
+    Regression pin for the Bismillah-retry false verification (Fix 1): Qur'an 1:1,
+    which IS the surah's Bismillah, immediately followed by 2:255 verbatim used to
+    verify EXACT at tier light against quran:2:255, because the retry stripped the
+    leading Bismillah-shaped text and matched the remainder without checking that
+    the matched record was actually a Bismillah-bearing first ayah. After the fix
+    the stripped match is discarded and the text falls through to the pre-existing
+    aggressive-tier fuzzy fallback, which -- because 2:255 is long enough that a
+    short prepended Bismillah barely moves the similarity ratio -- correctly and
+    safely reports NEAR_MATCH (score ~0.91) with a visible diff rather than the
+    NOT_FOUND a shorter two-ayah pair would get. The critical, gated invariant is
+    unchanged either way: this must never again report EXACT or EXACT_ORTHOGRAPHY.
+- id: bismillah-retry-rejects-at-tawbah
+  text: '«بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ بَرَآءَةٌ مِّنَ ٱللَّهِ وَرَسُولِهِۦٓ إِلَى ٱلَّذِينَ عَٰهَدتُّم مِّنَ ٱلْمُشْرِكِينَ»'
+  expect_verdict: NOT_FOUND
+  expect_record: null
+  rationale: >-
+    Regression pin for the Bismillah-retry false verification (Fix 1): a Bismillah
+    prepended to At-Tawbah 9:1 -- the one surah with no Bismillah of its own
+    (bismillah IS NULL for all of it) -- used to verify EXACT for 129 of 129
+    At-Tawbah verses, because the retry never checked that the matched record was a
+    genuine first ayah carrying its own Bismillah. Must return NOT_FOUND.

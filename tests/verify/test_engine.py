@@ -196,3 +196,41 @@ def test_al_fatiha_first_ayah_still_verifies_as_itself(conn):
     m = _only(verify_spans(conn, f"«{fatiha_1}»"))
     assert m.verdict is Verdict.EXACT
     assert m.record.id == "quran:1:1"
+
+
+# --- Bismillah retry must not turn a multi-ayah quotation into a false EXACT ---
+
+
+def test_bismillah_retry_rejects_a_non_first_ayah(conn):
+    bism = db.get_record(conn, "quran:112:1").bismillah
+    kursi = db.get_record(conn, "quran:2:255").text_ar
+    m = _only(verify_spans(conn, f"«{bism} {kursi}»"))
+    assert m.verdict is not Verdict.EXACT
+    assert m.verdict is not Verdict.EXACT_ORTHOGRAPHY
+
+
+def test_bismillah_retry_rejects_at_tawbah(conn):
+    bism = db.get_record(conn, "quran:112:1").bismillah
+    tawbah = db.get_record(conn, "quran:9:1").text_ar
+    m = _only(verify_spans(conn, f"«{bism} {tawbah}»"))
+    assert m.verdict not in (Verdict.EXACT, Verdict.EXACT_ORTHOGRAPHY)
+
+
+def test_bismillah_retry_still_accepts_a_real_first_ayah(conn):
+    r = db.get_record(conn, "quran:112:1")
+    m = _only(verify_spans(conn, f"«{r.bismillah} {r.text_ar}»"))
+    assert m.verdict is Verdict.EXACT
+    assert m.record.id == "quran:112:1"
+
+
+def test_no_non_first_ayah_verifies_with_a_bismillah_prepended(conn):
+    bism = db.get_record(conn, "quran:112:1").bismillah
+    verified = {Verdict.EXACT, Verdict.EXACT_ORTHOGRAPHY}
+    leaked = []
+    for r in list(db.iter_records(conn))[:400]:
+        if r.ayah == 1 and r.bismillah is not None:
+            continue
+        for m in verify_spans(conn, f"«{bism} {r.text_ar}»"):
+            if m.verdict in verified:
+                leaked.append(r.id)
+    assert leaked == [], f"{len(leaked)} leaked, e.g. {leaked[:5]}"

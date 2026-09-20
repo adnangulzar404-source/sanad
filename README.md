@@ -85,7 +85,11 @@ Sanad is a tool about honesty, so it should not overstate what it does:
   correctly ordered. This is measured and pinned by an eval case on
   purpose, so that sliding-window multi-verse matching (planned for a
   later stage) fails loudly and gets built, instead of the gap silently
-  persisting.
+  persisting. A quotation that opens with a surah's Bismillah followed by
+  a verse that is **not** that surah's first āyah is the same case —
+  e.g. a Bismillah prepended to Ayat al-Kursi, or to any āyah of
+  At-Tawbah, the one surah with no Bismillah of its own — and also
+  returns `NOT_FOUND` rather than a false `EXACT`.
 - **A mushaf-style paste with a trailing āyah-end marker and its
   Arabic-Indic verse number returns `NEAR_MATCH`, not `EXACT`.** The
   āyah-end mark (U+06DD) is stripped as Qur'anic annotation, but the
@@ -94,6 +98,17 @@ Sanad is a tool about honesty, so it should not overstate what it does:
   and the engine falls back to fuzzy scoring (~0.93), which never falsely
   verifies but also never reports `EXACT` for this extremely common way of
   pasting a verse straight out of a printed mushaf.
+- **A wrong-direction hamza on an alef reports as orthographic variance,
+  not as a wrong word.** The `standard` tier folds `آ أ إ ٱ` to plain `ا`
+  so that omitting a hamza seat entirely — a very common, legitimate way
+  to type Arabic — still verifies as `EXACT_ORTHOGRAPHY` rather than
+  falling all the way to `NEAR_MATCH`. The same fold cannot tell that
+  omission apart from a hamza pointed the *wrong way*: Qur'an 18:71's
+  `إِمْرًا` ("a grievous thing") and `أَمْرًا` ("a matter") fold to the
+  same normalized form, so quoting one in place of the other reports as
+  orthographic variance even though the word itself changed. See
+  `docs/superpowers/specs/2026-09-19-sanad-design.md` §6 for the full
+  trade-off analysis.
 - **No Hadith corpus is bundled.** `NOT_FOUND` means "not present in this
   corpus" — it never means "fabricated," and it is not a judgment on
   whether a quotation is a genuine, licensed Hadith. See

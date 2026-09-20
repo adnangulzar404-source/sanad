@@ -73,4 +73,11 @@ def load_lockfile(path: str | Path) -> list[LockedSource]:
                 f"source {entry['id']!r} has a malformed sha256")
         out.append(LockedSource(**{k: entry.get(k) for k in
                                    list(_REQUIRED) + ["publisher", "edition", "license_url"]}))
+
+    if not out:
+        # A lockfile with zero [[source]] entries parses "successfully" and
+        # would otherwise let `build_corpus` silently emit a valid-looking
+        # but empty database -- the reproducibility contract this file is
+        # supposed to enforce, defeated by an empty file passing validation.
+        raise LockfileError(f"lockfile has no [[source]] entries: {path}")
     return out

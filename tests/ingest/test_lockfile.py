@@ -1,3 +1,5 @@
+import re
+
 import pytest
 from sanad_ingest.lockfile import LockfileError, load_lockfile
 
@@ -66,3 +68,14 @@ def test_rejects_unknown_lockfile_version(tmp_path):
 def test_missing_file_raises(tmp_path):
     with pytest.raises(LockfileError, match="not found"):
         load_lockfile(tmp_path / "nope.toml")
+
+
+def test_rejects_a_lockfile_with_no_sources(tmp_path):
+    # A syntactically valid lockfile with zero [[source]] entries must not
+    # silently return [] -- build_corpus would then emit a valid-looking but
+    # empty database with no complaint. Naming the file makes the error
+    # actionable rather than a mystery downstream.
+    p = tmp_path / "empty.toml"
+    p.write_text("lockfile_version = 1\n", encoding="utf-8")
+    with pytest.raises(LockfileError, match=re.escape(str(p))):
+        load_lockfile(p)

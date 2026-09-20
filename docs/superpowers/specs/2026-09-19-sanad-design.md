@@ -298,8 +298,40 @@ the tier that produced a match is reported to the user.
 | Tier | Transform | Purpose |
 |---|---|---|
 | `light` | NFC; strip tatweel `U+0640` | Whitespace/kashida-insensitive exact match |
-| `standard` | light + strip harakat `U+064B–U+065F`, superscript alef `U+0670`, Qur'anic annotation marks `U+06D6–U+06ED` | Undiacritized text matching |
-| `aggressive` | standard + fold `آ أ إ ٱ → ا`, `ى → ي`, `ة → ه`, strip non-Arabic | Catch sloppy transcription |
+| `standard` | light + strip harakat `U+064B–U+065F`, superscript alef `U+0670`, Qur'anic annotation marks `U+06D6–U+06ED`, fold `آ أ إ ٱ → ا` | Undiacritized text matching, tolerant of hamza-on-alef placement |
+| `aggressive` | standard + fold `ى → ي`, `ة → ه`, strip non-Arabic | Catch sloppy transcription |
+
+**Note on where the alef fold sits (reconciled 2026-09-20).** An earlier
+draft of this table placed `آ أ إ ٱ → ا` at `aggressive`. The shipped
+implementation (`api/sanad/arabic/normalize.py`) has always folded it at
+`standard`, and that divergence went unreconciled from Task 1 until the
+final pre-merge review. The ruling is that the **code stays as it is** and
+this spec is corrected to match it, for three reasons:
+
+- Measurement against the full 6,236-verse corpus found **zero** cross-verse
+  collisions caused by this fold — folding `آ أ إ ٱ` to `ا` never makes one
+  verse's normalized text equal a different verse's, so it cannot turn a
+  genuine misquote into a false verification.
+- Omitting the hamza seat entirely (typing `احد` for `أَحَدٌ`) is an
+  extremely common, legitimate way people type Arabic without an input
+  method for hamza forms. Demoting this fold to `aggressive` would report a
+  large fraction of genuine, correctly-worded quotations as `NEAR_MATCH`
+  instead of `EXACT_ORTHOGRAPHY` — a worse experience for a real behaviour
+  this common, in exchange for no measured safety gain.
+- Normalization is symmetric in both directions: a rule general enough to
+  accept a *missing* hamza (`احد` for `أَحَدٌ`) cannot simultaneously refuse
+  a *wrong-direction* hamza (`إمرا` for `أَمْرًا`) — both collapse the same
+  base letters to the same folded form. There is no tier boundary that
+  admits one without the other.
+
+The residual cost of this is real and must stay disclosed, not buried: a
+hamza-**direction** error inside an otherwise letter-for-letter-correct
+quotation now reports as `EXACT_ORTHOGRAPHY` rather than `NEAR_MATCH`. The
+measured example is Qur'an 18:71 — quoting `إِمْرًا` ("a grievous thing")
+where the corpus has `أَمْرًا` ("a matter") folds both to the same
+`standard`-tier form and reports the substitution as orthographic variance,
+not as the different word it actually is. This is the accepted trade-off,
+not an oversight.
 
 This tiering matters more than it looks. **For a verifier, over-normalization
 is a correctness bug, not a convenience.** Folding aggressively means a genuine

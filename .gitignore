@@ -11,3 +11,6 @@ secrets/
 data/sanad-audit.db*
 dist/
 *.tsbuildinfo
+web/node_modules/
+web/dist/
+.vercel/

@@ -26,6 +26,21 @@ Or with Docker, which copies the already-built corpus into the image (no network
 docker build -t sanad . && docker run -p 8000:8000 sanad
 ```
 
+## The live demo
+
+The verification engine runs at the Vercel deployment; GitHub Pages serves the
+Phase 0 prototype only, because Pages cannot run Python.
+
+Run the full stack locally:
+
+```bash
+SANAD_AUDIT_DB=/tmp/sanad-audit.db \
+  uvicorn sanad.api.app:create_app --factory --port 8000 &
+cd web && npm install && npm run dev
+```
+
+The API's interactive documentation is at `http://localhost:8000/docs`.
+
 ## What is included
 
 Stage A — the deterministic core:

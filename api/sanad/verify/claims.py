@@ -64,14 +64,31 @@ _CLAIM_RULES: list[tuple[str, re.Pattern[str], str, str]] = [
     ),
 ]
 
+# Apostrophe patterns: both straight and curly for transliteration variants
+# U+0027 APOSTROPHE (straight) and U+2019 RIGHT SINGLE QUOTATION MARK (curly)
+_APOSTROPHES = "[‘\\u2019]"
+
+# Apostrophe character class for ijma/nasa’i/shafi’i matches:
+# U+0027 APOSTROPHE (straight) and U+2019 RIGHT SINGLE QUOTATION MARK (curly)
+_APOSTROPHES = "[\u0027\u2019]"
+
 # First-person marker: direct references to asker
 _FIRST_PERSON = re.compile(r"\b(I|me|my|mine)\b|for me\b", re.IGNORECASE)
 
 # Normative marker: asking whether something is lawful/required/wrong
 _NORMATIVE = re.compile(
-    r"\b(permissible|permitted|allowed|lawful|unlawful|halal|haram|sin|sinful|"
-    r"wrong|must|obliged|obligated|required|have to|need to|should|valid|"
-    r"count|counts|ruling|obligation|rights|compliant)\b",
+    r"\b(permissible|permitted|allowed|okay|ok|alright|lawful|unlawful|halal|"
+    r"haram|forbidden|can|could|sin(?:ful|ning|s)?|wrong|must|obliged|obligated|"
+    r"required|have to|need to|should|valid|count|counts|ruling|obligation|rights|"
+    r"compliant)\b",
+    re.IGNORECASE,
+)
+
+# Faith crisis / apostasy phrases (first-person triggers PERSONAL, otherwise HIGH_RISK)
+_FAITH_CRISIS = re.compile(
+    r"\b(?:leaving|leave)\s+(?:islam|the\s+faith)|convert\s+away|"
+    r"no\s+longer\s+believe|don't\s+believe|don\'t\s+believe|lost\s+my\s+faith|"
+    r"renounce|left\s+islam",
     re.IGNORECASE,
 )
 
@@ -87,14 +104,16 @@ _PERSONAL_CIRCUMSTANCE = re.compile(
 # Explicit personal topics (belt and braces backup)
 _PERSONAL_TOPICS = re.compile(
     r"\b(can i|should i|may i|am i allowed|is it haram for me|is it halal for me|"
-    r"my (wife|husband|marriage|divorce|inheritance|loan|debt|mother|father|"
-    r"parents|fiance)|"
-    r"divorced me|give me a fatwa)\b",
+    r"my (wife|husband|ex-wife|ex-husband|marriage|divorce|inheritance|loan|debt|"
+    r"brother|sister|cousin|mother|father|parents|aunt|uncle|son|daughter|in-laws|"
+    r"fiance)|"
+    r"divorced me|give me a fatwa|he\s+can|she\s+can|he\s+could|she\s+could)\b",
     re.IGNORECASE,
 )
 
 
 # Personal ruling: (first-person + normative) OR circumstance phrase OR explicit topic
+# OR faith crisis with first-person framing
 def _is_personal_ruling(text: str) -> bool:
     # Arm 1: Conjunction — first-person marker AND normative marker
     has_first_person = _FIRST_PERSON.search(text) is not None
@@ -107,15 +126,26 @@ def _is_personal_ruling(text: str) -> bool:
     # Arm 3: Explicit personal topics catch unambiguous cases
     has_explicit_topic = _PERSONAL_TOPICS.search(text) is not None
 
-    return conjunction or has_circumstance or has_explicit_topic
+    # Arm 4: Faith crisis with first-person framing
+    has_faith_crisis = _FAITH_CRISIS.search(text) is not None
+    faith_crisis_personal = has_faith_crisis and has_first_person
+
+    return conjunction or has_circumstance or has_explicit_topic or faith_crisis_personal
 
 _HIGH_RISK = re.compile(
     r"\b(apostasy|apostate|takfir|stoning|amputation|jihad|"
-    r"child marriage|slavery|honou?r killing)\b", re.IGNORECASE)
+    r"child marriage|slavery|honou?r killing)\b|"
+    r"(?:leaving|leave)\s+(?:islam|the\s+faith)|convert\s+away|"
+    r"no\s+longer\s+believe|don't\s+believe|don\'t\s+believe|lost\s+my\s+faith|"
+    r"renounce|left\s+islam",
+    re.IGNORECASE,
+)
 
 _DISPUTED = re.compile(
-    "\\b(madhha?bs?|madhabs?|mazha?bs?|hanafi|maliki|shafi[‘’]?i|hanbali|"
-    "difference of opinion|scholars differ|ikhtilaf)\\b", re.IGNORECASE)
+    "\\b(madhha?bs?|madhabs?|mazha?bs?|hanafi|maliki|shafi" + _APOSTROPHES + "?i|"
+    "hanbali|difference of opinion|scholars differ|ikhtilaf)\\b",
+    re.IGNORECASE,
+)
 
 
 def detect_claims(text: str) -> list[Claim]:

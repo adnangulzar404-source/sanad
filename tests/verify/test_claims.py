@@ -94,3 +94,90 @@ def test_personal_circumstance_phrases_divert_without_a_normative_word(q):
 def test_abstract_doctrinal_questions_stay_general(q):
     # deliberately NOT diverted: no asker-specific framing.
     assert route_risk(q) is RiskCode.GENERAL
+
+
+def test_both_apostrophe_forms_match_ijma():
+    # Apostrophe character class must match both straight and curly quotes
+    assert "unanimity" in {c.kind for c in detect_claims("there is ijma on this")}
+    # Test with straight apostrophe
+    assert "unanimity" in {c.kind for c in detect_claims("there is ijma’ on this")}
+    # Test with right single quotation mark (U+2019)
+    assert "unanimity" in {c.kind for c in detect_claims("there is ijma’ on this")}
+
+
+def test_both_apostrophe_forms_match_shafi():
+    # Disputed pattern must recognize both apostrophe forms
+    # Test with straight apostrophe
+    assert route_risk("Follow the Shafi'i school") is RiskCode.DISPUTED
+    # Test with right single quotation mark (U+2019)
+    assert route_risk("Follow the Shafi’i school") is RiskCode.DISPUTED
+
+
+def test_apostasy_without_first_person_is_high_risk():
+    # Apostasy/faith-crisis language without first-person framing
+    assert route_risk("Someone is leaving Islam") is RiskCode.HIGH_RISK
+
+
+def test_apostasy_with_first_person_is_personal_ruling():
+    # Apostasy with first-person framing
+    assert route_risk("I'm thinking about leaving Islam") is RiskCode.PERSONAL_RULING
+    assert route_risk("I don't believe anymore") is RiskCode.PERSONAL_RULING
+
+
+def test_hadith_pattern_is_required():
+    # Verify that \bhadith\b fallback is pinned by a test
+    assert "hadith_unverifiable" in {c.kind for c in detect_claims("mentioned in hadith")}
+
+
+def test_apostasy_high_risk_pattern_is_required():
+    # Verify that apostasy/apostate pattern is pinned by a test
+    assert route_risk("Discussing apostasy in Islam") is RiskCode.HIGH_RISK
+
+
+@pytest.mark.parametrize(
+    "q",
+    [
+        "Is it okay if I skip Ramadan fasting because I'm breastfeeding?",
+        "Is it ok if I don't fast?",
+        "Is it alright for me to work on Friday?",
+    ],
+)
+def test_okay_ok_alright_register_is_caught(q):
+    # "okay", "ok", "alright" are normative markers
+    assert route_risk(q) is RiskCode.PERSONAL_RULING
+
+
+@pytest.mark.parametrize(
+    "q",
+    [
+        "Is it forbidden for me to date before marriage?",
+        "Can I date, or is it forbidden?",
+    ],
+)
+def test_forbidden_is_caught(q):
+    # "forbidden" is a normative marker
+    assert route_risk(q) is RiskCode.PERSONAL_RULING
+
+
+@pytest.mark.parametrize(
+    "q",
+    [
+        "My brother wants to know if he can stop paying his ex-wife's alimony.",
+        "She could convert if she wanted.",
+    ],
+)
+def test_third_person_about_self_with_can_could(q):
+    # "can" and "could" in third-person phrasing
+    assert route_risk(q) is RiskCode.PERSONAL_RULING
+
+
+@pytest.mark.parametrize(
+    "q",
+    [
+        "plz tell me am i sinning if i not fast today",
+        "my mom says im committing a sin if i skip prayers",
+    ],
+)
+def test_sinning_variant_is_caught(q):
+    # sin(?:ful|ning|s)? pattern must match "sinning"
+    assert route_risk(q) is RiskCode.PERSONAL_RULING

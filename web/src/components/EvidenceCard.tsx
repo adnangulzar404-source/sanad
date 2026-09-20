@@ -42,9 +42,16 @@ export function EvidenceCard({
       {verdict === "NOT_FOUND" && (
         <p
           data-testid="scope-caveat"
-          className="data"
-          style={{ marginBlockStart: "0.9rem", paddingBlockStart: "0.6rem",
-                   borderBlockStart: "var(--rule)", color: "var(--ink)" }}
+          style={{
+            marginBlockStart: "1rem",
+            paddingInlineStart: "0.9rem",
+            borderInlineStart: "2px solid var(--rubric)",
+            fontFamily: "var(--serif)",
+            fontSize: "var(--step-0)",
+            lineHeight: 1.6,
+            color: "var(--ink)",
+            maxWidth: "52ch",
+          }}
         >
           {corpusScope}
         </p>

@@ -50,4 +50,11 @@ describe("EvidenceCard", () => {
     render(<EvidenceCard quotation={q({ verdict: "WRONG_REFERENCE", given_reference: "2:255" })} corpusScope={SCOPE} />);
     expect(screen.getByText(/wrong reference/i)).toBeInTheDocument();
   });
+
+  it("sets the corpus-scope caveat as prose, not as metadata", () => {
+    render(<EvidenceCard quotation={q({ verdict: "NOT_FOUND", record: null })} corpusScope={SCOPE} />);
+    const caveat = screen.getByTestId("scope-caveat");
+    expect(caveat.className).not.toContain("data");
+    expect(caveat).toHaveStyle({ fontFamily: "var(--serif)" });
+  });
 });

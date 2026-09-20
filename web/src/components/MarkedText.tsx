@@ -47,7 +47,8 @@ export function MarkedText({
           background: "transparent",
           color: "inherit",
           textDecoration: `underline ${UNDERLINE[verdict]}`,
-          textUnderlineOffset: "0.3em",
+          textUnderlineOffset: "0.5em",
+          textDecorationThickness: "2px",
           textDecorationSkipInk: "none",
         }}
       >

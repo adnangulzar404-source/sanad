@@ -54,6 +54,15 @@ describe("Verify screen", () => {
     await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent(/cannot reach the verifier/i));
   });
 
+  it("treats a 503 as not-up-yet rather than a bare error, since that is what a cold start returns", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(reply({ detail: "cold start" }, 503)));
+    const user = userEvent.setup();
+    render(<Verify />);
+    await user.type(screen.getByRole("textbox"), "anything");
+    await user.click(screen.getByRole("button", { name: /verify/i }));
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent(/cannot reach the verifier/i));
+  });
+
   it("distinguishes no-quotations-found from not-in-corpus", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(reply({
       ...verified, quotations: [], overall: "insufficient_span",

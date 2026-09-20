@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import sqlite3
+import threading
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -48,9 +49,20 @@ def _open_audit_conn(path: Path) -> sqlite3.Connection:
     request than the one that opened the connection at startup -- so
     SQLite's default `check_same_thread=True` raises `ProgrammingError` on
     the very first request. This is the standard fix for SQLite behind a web
-    framework (see FastAPI's own SQL databases tutorial), not a hack, and
-    audit-log writes are still safe: requests are handled one at a time per
-    worker here, so there is no concurrent write to the same connection.
+    framework (see FastAPI's own SQL databases tutorial), not a hack.
+
+    IMPORTANT -- `check_same_thread=False` on its own is NOT enough. It only
+    disables SQLite's thread-affinity *check*; it does nothing to make one
+    shared connection safe for concurrent `execute`/`commit` calls from
+    Starlette's threadpool, which really does run multiple worker threads at
+    once. Under real concurrency, two threads' writes can interleave and one
+    thread's `commit()` finds no transaction of its own left to commit,
+    raising `sqlite3.OperationalError: cannot commit - no transaction is
+    active` (or, worse, silently committing the wrong row). A prior revision
+    of this comment claimed "requests are handled one at a time per worker,
+    so there is no concurrent write" -- that was false; nothing here
+    serialized anything. The actual safety net is `app.state.audit_lock`,
+    held across the write AND its commit as one unit -- see `routes.verify()`.
     """
     path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(path, check_same_thread=False)
@@ -79,6 +91,11 @@ def create_app() -> FastAPI:
     # file's bytes.
     app.state.conn = _open_corpus_conn(corpus_path)
     app.state.audit_conn = _open_audit_conn(audit_path)
+    # Guards every audit write-and-commit as one atomic unit against
+    # Starlette's threadpool. Locking only the `execute()` is not enough --
+    # see `_open_audit_conn`'s docstring for why the commit must be inside
+    # the same critical section.
+    app.state.audit_lock = threading.Lock()
     app.state.db_path = corpus_path
     app.state.db_sha256 = file_sha256(corpus_path)
     log.info("corpus %s sha256=%s (read-only)", corpus_path, app.state.db_sha256)

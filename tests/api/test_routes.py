@@ -201,3 +201,75 @@ def test_audit_rows_are_written_to_the_audit_database(client):
     client.post("/api/verify", json={"text": f"«{IKHLAS_1}»"})
     n = client.app.state.audit_conn.execute("SELECT count(*) FROM audit_log").fetchone()[0]
     assert n > 0
+
+
+# --- Concurrency -----------------------------------------------------
+#
+# `check_same_thread=False` (see app.py) only disables SQLite's thread-
+# affinity check. A burst of concurrent requests can still interleave two
+# threads' execute/commit pairs on the one shared audit connection, and one
+# thread's commit finds no transaction of its own left to commit --
+# `sqlite3.OperationalError: cannot commit - no transaction is active`,
+# surfaced to the caller as an HTTP 500. Fixed by holding `audit_lock`
+# across the write AND its commit as a single atomic unit (routes.verify()).
+# This test reproduces the failure mode directly rather than trusting the
+# fix by inspection.
+
+def test_concurrent_verify_requests_do_not_error(client):
+    from concurrent.futures import ThreadPoolExecutor
+
+    payloads = [
+        {"text": f"«{IKHLAS_1}»"},
+        {"text": "Can I marry my cousin?"},
+        {"text": "All scholars agree on this."},
+        {"text": "Plain English with no Arabic at all."},
+    ] * 20
+
+    audit_conn = client.app.state.audit_conn
+    before = audit_conn.execute("SELECT count(*) FROM audit_log").fetchone()[0]
+
+    with ThreadPoolExecutor(max_workers=16) as pool:
+        results = list(pool.map(lambda p: client.post("/api/verify", json=p), payloads))
+
+    bad = [r.status_code for r in results if r.status_code != 200]
+    assert bad == [], f"{len(bad)} requests failed: {bad[:10]}"
+
+    after = audit_conn.execute("SELECT count(*) FROM audit_log").fetchone()[0]
+    assert after - before == len(payloads), (
+        f"expected exactly {len(payloads)} new audit rows from {len(payloads)} "
+        f"requests, got {after - before} -- a race is still producing "
+        "missing or spurious writes")
+
+
+# --- Search: English text is indexed and must be findable --------------
+#
+# `routes.search()` used to run `normalize(q, "aggressive")` unconditionally,
+# which strips everything outside the Arabic block -- so an English query
+# like "mercy" became the empty string and `fts_candidates` returned zero
+# results no matter what, even though `db.rebuild_fts` indexes the Pickthall
+# `translation` column for all 6,236 records. Fixed by `_normalize_query`,
+# which normalizes Arabic content at the aggressive tier as before and
+# separately cleans up non-Arabic content instead of discarding it.
+
+def test_search_finds_english_text(client):
+    body = client.get("/api/search", params={"q": "mercy"}).json()
+    assert body["count"] > 0
+    assert any(r["id"].startswith("quran:") for r in body["results"])
+
+
+def test_search_finds_arabic_text(client):
+    body = client.get("/api/search", params={"q": "الصمد"}).json()
+    assert "quran:112:2" in {r["id"] for r in body["results"]}
+
+
+def test_search_english_returns_the_expected_verse(client):
+    # Pickthall renders 105:1 with "elephant" ("the owners of the Elephant").
+    body = client.get("/api/search", params={"q": "elephant"}).json()
+    assert "quran:105:1" in {r["id"] for r in body["results"]}
+
+
+def test_search_results_include_english_translation(client):
+    body = client.get("/api/search", params={"q": "elephant"}).json()
+    hit = next(r for r in body["results"] if r["id"] == "quran:105:1")
+    assert hit["translation_en"] is not None
+    assert "elephant" in hit["translation_en"].lower()

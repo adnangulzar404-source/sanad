@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 import uuid
 from datetime import datetime, timezone
@@ -27,6 +28,42 @@ TANZIL_TRANSLATION_DISCLAIMER = (
     "No translation of Quran can be a hundred percent accurate, nor can it be "
     "used as a replacement of the Quran text."
 )
+
+# Arabic block (matches `arabic.normalize._NON_ARABIC`'s complement), used
+# only to decide which cleanup a search query needs -- see `_normalize_query`.
+_ARABIC_CHAR = re.compile(r"[؀-ۿ]")
+
+
+def _normalize_query(q: str) -> str:
+    """Script-aware query normalization for `/api/search`.
+
+    `normalize(q, "aggressive")` strips everything outside the Arabic block,
+    so an English query like "mercy" was silently reduced to the empty
+    string and `search()` returned zero results unconditionally -- even
+    though `db.rebuild_fts` indexes the Pickthall `translation` column for
+    every one of the corpus's 6,236 records. Half the corpus was
+    unsearchable. Fix: normalize the Arabic portion of the query (if any) at
+    the aggressive tier as before, and separately lowercase/clean the
+    non-Arabic portion so it can still match `translation`. A query mixing
+    both scripts searches both -- `db.fts_candidates`'s token-OR match
+    doesn't care which half of this string a given token came from.
+    """
+    parts = []
+    if _ARABIC_CHAR.search(q):
+        ar = normalize(q, "aggressive")
+        if ar:
+            parts.append(ar)
+    # Non-Arabic cleanup: drop any Arabic characters already handled above,
+    # lowercase (FTS5's unicode61 tokenizer case-folds ASCII on both sides
+    # anyway, but this keeps the two normalized halves visually consistent),
+    # and collapse whitespace. `db.fts_candidates` still does its own
+    # metacharacter stripping downstream; this only needs to not hand it an
+    # empty string for ordinary English text.
+    non_arabic = _ARABIC_CHAR.sub(" ", q)
+    en = " ".join(non_arabic.lower().split())
+    if en:
+        parts.append(en)
+    return " ".join(parts)
 
 
 def _conn(request: Request) -> sqlite3.Connection:
@@ -98,17 +135,29 @@ def verify(payload: VerifyRequest, request: Request) -> VerifyResponse:
     # and any extracted quotation text are NEVER written here -- the spec
     # forbids retaining user conversation data. Written to the SEPARATE
     # audit database, never the (read-only) corpus connection -- see app.py.
+    #
+    # The write and its commit are one atomic unit under `audit_lock`.
+    # `check_same_thread=False` (see app.py) only disables SQLite's thread
+    # affinity check -- it does not make a single shared connection safe for
+    # concurrent execute/commit from Starlette's threadpool. Without the
+    # lock, two interleaved requests can each start a transaction and then
+    # have one thread's `commit()` find the other thread already closed it,
+    # raising `sqlite3.OperationalError: cannot commit - no transaction is
+    # active`, or worse, silently attributing one request's row to another's
+    # commit. Locking only `execute()` would not fix this -- the commit must
+    # be inside the same critical section as the write it is committing.
     audit_conn = _audit_conn(request)
-    audit_conn.execute(
-        "INSERT INTO audit_log (ts, request_id, stage, verdict, detail_json) "
-        "VALUES (?,?,?,?,?)",
-        (datetime.now(timezone.utc).isoformat(), str(uuid.uuid4()), "verify",
-         risk.value,
-         json.dumps({"verdicts": [q.verdict for q in quotations],
-                     "record_ids": [q.record.id for q in quotations if q.record],
-                     "claim_kinds": [c.kind for c in claims]})),
-    )
-    audit_conn.commit()
+    with request.app.state.audit_lock:
+        audit_conn.execute(
+            "INSERT INTO audit_log (ts, request_id, stage, verdict, detail_json) "
+            "VALUES (?,?,?,?,?)",
+            (datetime.now(timezone.utc).isoformat(), str(uuid.uuid4()), "verify",
+             risk.value,
+             json.dumps({"verdicts": [q.verdict for q in quotations],
+                         "record_ids": [q.record.id for q in quotations if q.record],
+                         "claim_kinds": [c.kind for c in claims]})),
+        )
+        audit_conn.commit()
 
     return VerifyResponse(
         quotations=quotations, claims=claims, risk=risk.value,
@@ -138,17 +187,28 @@ def get_record(record_id: str, request: Request) -> dict:
 
 @router.get("/search")
 def search(q: str, request: Request, limit: int = 20) -> dict:
-    """Corpus browse. Spec section 9. Lexical only -- no embeddings in Stage A."""
+    """Corpus browse. Spec section 9. Lexical only -- no embeddings in Stage A.
+
+    Searches both the Arabic text and the (also indexed) English Pickthall
+    translation -- see `_normalize_query` for why a purely-Arabic
+    normalization used to make English queries return nothing.
+    """
     if not q.strip():
         raise HTTPException(status_code=422, detail="q must not be blank")
     limit = max(1, min(limit, 100))
-    hits = db.fts_candidates(_conn(request), normalize(q, "aggressive"), limit)
+    conn = _conn(request)
+    hits = db.fts_candidates(conn, _normalize_query(q), limit)
     return {
         "query": q,
         "count": len(hits),
         "results": [
-            {"id": r.id, "reference_display": r.reference_display,
-             "text_ar": r.text_ar, "surah": r.surah, "ayah": r.ayah}
+            {
+                "id": r.id, "reference_display": r.reference_display,
+                "text_ar": r.text_ar, "surah": r.surah, "ayah": r.ayah,
+                # English is now findable (see _normalize_query), so a user
+                # searching in English needs to see what actually matched.
+                "translation_en": _fetch_translation(conn, r.id)[0],
+            }
             for r in hits
         ],
     }

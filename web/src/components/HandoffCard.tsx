@@ -1,6 +1,6 @@
 const COPY: Record<string, { heading: string; body: string }> = {
   PERSONAL_RULING: {
-    heading: "This needs a qualified person, not software",
+    heading: "This question deserves a person",
     body: "You are asking about your own situation. Sanad checks whether a quotation is genuine; it cannot weigh your circumstances, and it will not try. Take this to a qualified scholar who can ask you the questions that matter.",
   },
   HIGH_RISK: {

@@ -86,10 +86,16 @@ Sanad is a tool about honesty, so it should not overstate what it does:
   purpose, so that sliding-window multi-verse matching (planned for a
   later stage) fails loudly and gets built, instead of the gap silently
   persisting. A quotation that opens with a surah's Bismillah followed by
-  a verse that is **not** that surah's first āyah is the same case —
-  e.g. a Bismillah prepended to Ayat al-Kursi, or to any āyah of
-  At-Tawbah, the one surah with no Bismillah of its own — and also
-  returns `NOT_FOUND` rather than a false `EXACT`.
+  a verse that is **not** that surah's own first āyah falls into the same
+  gap. Most such pairings return `NOT_FOUND` — including 111 of At-Tawbah's
+  129 verses, the one surah with no Bismillah of its own — but where the
+  appended verse is long enough, the aggressive-tier fuzzy fallback can
+  instead report `NEAR_MATCH` with a character diff: a Bismillah prepended
+  to Ayat al-Kursi scores 0.91, and the remaining 18 (longer) verses of
+  At-Tawbah cross the same 0.86 fuzzy threshold and get `NEAR_MATCH` too.
+  Neither outcome is a verified verdict, so no misquote is ever certified
+  — but the quotation itself is not recognised as the two verses it
+  actually contains.
 - **A mushaf-style paste with a trailing āyah-end marker and its
   Arabic-Indic verse number returns `NEAR_MATCH`, not `EXACT`.** The
   āyah-end mark (U+06DD) is stripped as Qur'anic annotation, but the

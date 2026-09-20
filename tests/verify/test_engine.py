@@ -223,6 +223,27 @@ def test_bismillah_retry_still_accepts_a_real_first_ayah(conn):
     assert m.record.id == "quran:112:1"
 
 
+def test_bismillah_retry_accepts_a_qualifying_tie_even_when_others_dont(conn):
+    # 39:1, 45:2, and 46:2 share byte-identical wording, but only 39:1 is a
+    # genuine Bismillah-bearing first ayah. Requiring EVERY tied candidate to
+    # qualify (rather than ANY) would let 45:2 and 46:2 veto a real mushaf
+    # paste of 39:1. The text really is 39:1's text, and 39:1 really does
+    # carry that Bismillah, so this must verify EXACT, with the other two
+    # disclosed via `also_at` rather than silently hidden or wrongly refused.
+    r39 = db.get_record(conn, "quran:39:1")
+    assert db.get_record(conn, "quran:45:2").text_ar == r39.text_ar
+    assert db.get_record(conn, "quran:46:2").text_ar == r39.text_ar
+    m = _only(verify_spans(conn, f"«{r39.bismillah} {r39.text_ar}»"))
+    assert m.verdict is Verdict.EXACT
+    assert m.record.id == "quran:39:1"
+    assert set(m.also_at) == {"quran:45:2", "quran:46:2"}
+
+    # An explicit, correct citation must not change the outcome.
+    m2 = _only(verify_spans(conn, f"«{r39.bismillah} {r39.text_ar}» (39:1)"))
+    assert m2.verdict is Verdict.EXACT
+    assert m2.record.id == "quran:39:1"
+
+
 def test_no_non_first_ayah_verifies_with_a_bismillah_prepended(conn):
     bism = db.get_record(conn, "quran:112:1").bismillah
     verified = {Verdict.EXACT, Verdict.EXACT_ORTHOGRAPHY}

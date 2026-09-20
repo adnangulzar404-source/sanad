@@ -267,6 +267,69 @@ def _strip_bismillah_prefix(conn: sqlite3.Connection, text: str) -> str | None:
     return remainder or None
 
 
+def _accept_bismillah_retry(
+    conn: sqlite3.Connection, stripped: str, given: Reference | None
+) -> _MatchCore | None:
+    """Run the full pipeline on a Bismillah-stripped remainder, but only
+    accept the result when at least one record tied on that remainder is
+    itself a legitimate Bismillah-bearing first ayah. Returns `None` when
+    the retry must be discarded (the caller then falls through to whatever
+    the unstripped text produces on its own).
+
+    A stripped-prefix retry is only a legitimate "Bismillah + its own
+    surah's opening ayah" quotation when SOME record tied on the stripped
+    text is a surah's first ayah that carries a Bismillah -- not necessarily
+    the one `_match_text` happened to select. Some Qur'anic wording repeats
+    verbatim across otherwise unrelated ayat -- e.g. 39:1, 45:2, and 46:2 all
+    read "تَنزِيلُ ٱلْكِتَٰبِ مِنَ ٱللَّهِ ٱلْعَزِيزِ ٱلْحَكِيمِ" -- so a
+    stripped remainder can tie between a genuine Bismillah-bearing opener
+    (39:1) and non-opening ayat with no Bismillah of their own (45:2, 46:2).
+    Requiring *every* tied candidate to qualify (an earlier, over-corrected
+    version of this check) rejected genuine mushaf pastes of 39:1 outright,
+    because 45:2 and 46:2 -- which merely share its wording -- vetoed it.
+
+    The correct rule is: when a non-qualifying record's text happens to be
+    byte-identical to a qualifying record's, the input is genuinely
+    ambiguous -- "Bismillah + <text>" is indistinguishable from a legitimate
+    paste of the qualifying ayah -- so attributing it to that ayah (and
+    disclosing the others through `also_at`) is the honest reading, not a
+    guess and not a false verification: the text really is that ayah's
+    text, and that ayah really does carry that Bismillah. Only when NO tied
+    candidate qualifies (e.g. Al-Ikhlas's Bismillah stitched onto Ayat
+    al-Kursi, or onto any ayah of At-Tawbah -- the one surah with no
+    Bismillah at all, `bismillah IS NULL` for the whole surah) is the retry
+    discarded.
+    """
+    _retry_verdict, retry_record, retry_tier, retry_score, _retry_diff, retry_also_at = (
+        _match_text(conn, stripped, given))
+    if retry_record is None:
+        return None
+
+    tied_ids = [retry_record.id] + retry_also_at
+    tied = [db.get_record(conn, cid) for cid in tied_ids]
+    tied = [c for c in tied if c is not None]
+    tied.sort(key=lambda c: (c.surah or 0, c.ayah or 0, c.id))
+
+    qualifying = [c for c in tied if c.ayah == 1 and c.bismillah is not None]
+    if not qualifying:
+        return None
+
+    selected, agreed = _select_by_reference(qualifying, given)
+    also_at = [c.id for c in tied if c.id != selected.id]
+
+    if retry_tier == "aggressive":
+        # Aggressive-tier matches may never assert WRONG_REFERENCE (see
+        # `_match_text`'s docstring) and need their diff rebuilt against
+        # whichever candidate was actually selected here.
+        verdict = _TIER_VERDICT["aggressive"]
+        diff = _build_diff(stripped, selected.text_ar)
+    else:
+        verdict = Verdict.WRONG_REFERENCE if (given and not agreed) else _TIER_VERDICT[retry_tier]
+        diff = None
+
+    return verdict, selected, retry_tier, retry_score, diff, also_at
+
+
 def _classify(conn: sqlite3.Connection, span: Span,
               refs: list[Reference]) -> Match:
     given = _nearest_reference_to_span(refs, span)
@@ -281,37 +344,8 @@ def _classify(conn: sqlite3.Connection, span: Span,
     if verdict is Verdict.NOT_FOUND:
         stripped = _strip_bismillah_prefix(conn, span.text)
         if stripped is not None:
-            retry = _match_text(conn, stripped, given)
-            retry_record = retry[1]
-            retry_also_at = retry[5]
-            # A stripped-prefix retry is only a legitimate "Bismillah + its
-            # own surah's opening ayah" quotation when EVERY record tied on
-            # the stripped text is itself a surah's first ayah that carries
-            # a Bismillah. Checking only the selected record is not enough:
-            # some Qur'anic wording repeats verbatim across otherwise
-            # unrelated ayat (e.g. 39:1, 45:2, and 46:2 all read "تَنزِيلُ
-            # ٱلْكِتَٰبِ مِنَ ٱللَّهِ ٱلْعَزِيزِ ٱلْحَكِيمِ"), so a stripped
-            # remainder can tie between a genuine Bismillah-bearing opener
-            # (39:1) and non-opening ayat with no Bismillah of their own
-            # (45:2, 46:2). Accepting the selected 39:1 alone would still
-            # report "Bismillah + 45:2's text" as EXACT, which is exactly
-            # the false verification this fix exists to prevent -- the
-            # citation is genuinely ambiguous, and the honest response is
-            # silence, not a guess. More generally: without this check, ANY
-            # text sharing a light/standard-tier prefix-stripped form with
-            # ANY record -- e.g. Al-Ikhlas's Bismillah stitched onto Ayat
-            # al-Kursi, or onto any ayah of At-Tawbah, the one surah with no
-            # Bismillah at all (`bismillah IS NULL` for the whole surah) --
-            # would report a multi-ayah quotation, which is not a single
-            # corpus record, as EXACT. Discard an illegitimate retry and
-            # fall through to whatever the unstripped text produces on its
-            # own (step 3); `verdict`/`record`/etc are simply left as step
-            # 1's NOT_FOUND.
-            candidate_ids = [retry_record.id] + retry_also_at if retry_record else []
-            candidates = [db.get_record(conn, cid) for cid in candidate_ids]
-            if candidates and all(
-                    c is not None and c.ayah == 1 and c.bismillah is not None
-                    for c in candidates):
+            retry = _accept_bismillah_retry(conn, stripped, given)
+            if retry is not None:
                 verdict, record, tier, score, diff, also_at = retry
 
     # 3. Last resort: fuzzy match on the text exactly as quoted.

@@ -1,0 +1,76 @@
+@import "@fontsource/amiri/400.css";
+@import "@fontsource/amiri/700.css";
+@import "@fontsource/spectral/400.css";
+@import "@fontsource/spectral/600.css";
+@import "@fontsource/ibm-plex-mono/400.css";
+
+:root {
+  /* Manuscript pigments. Cool paper, not cream — this is an instrument,
+     not a facsimile. See the Stage A spec §10. */
+  --page:      #E6E8E6;
+  --ink:       #241F1C;
+  --rubric:    #9E2B25;  /* red is apparatus in manuscript, not alarm */
+  --verdigris: #2F6B5E;
+  --gold:      #A8842C;  /* used once: the rosette on a complete chain */
+
+  --ink-60: color-mix(in srgb, var(--ink) 60%, var(--page));
+  --ink-30: color-mix(in srgb, var(--ink) 30%, var(--page));
+  --ink-12: color-mix(in srgb, var(--ink) 12%, var(--page));
+
+  --serif: "Spectral", Georgia, serif;
+  --naskh: "Amiri", "Noto Naskh Arabic", serif;
+  --mono:  "IBM Plex Mono", ui-monospace, monospace;
+
+  --step--1: 0.833rem;
+  --step-0:  1rem;
+  --step-1:  1.2rem;
+  --step-2:  1.44rem;
+  --step-3:  1.728rem;
+
+  --measure: 62ch;
+  --rule: 1px solid var(--ink-12);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--ink);
+  font-family: var(--serif);
+  font-size: var(--step-0);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Canonical Qur'an text. Set large so diacritics are legible — this is a
+   requirement, not a preference: the product asks people to compare
+   individual marks. */
+.arabic {
+  font-family: var(--naskh);
+  font-size: var(--step-3);
+  line-height: 2.1;
+  direction: rtl;
+  text-align: right;
+  font-feature-settings: "calt" 1, "liga" 1;
+}
+
+.data {
+  font-family: var(--mono);
+  font-size: var(--step--1);
+  letter-spacing: -0.01em;
+  color: var(--ink-60);
+}
+
+:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

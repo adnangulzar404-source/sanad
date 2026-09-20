@@ -109,8 +109,18 @@ export function IsnadTrace({
       <Link id="source" label="source" last index={4}>
         {rec ? (
           <span className="data">
-            {source?.title ?? "Tanzil Uthmani"} · {source?.license_id ?? "CC-BY-3.0"} · ⌗
-            {rec.text_ar_sha256.slice(0, 8)}
+            {source ? (
+              <>{source.title} · {source.license_id} · </>
+            ) : (
+              <>{rec.id} · </>
+            )}
+            ⌗{rec.text_ar_sha256.slice(0, 8)}
+            {!source && (
+              <>
+                {" · "}
+                <a href="#provenance" style={{ color: "inherit" }}>see corpus provenance</a>
+              </>
+            )}
           </span>
         ) : (
           <span className="data">—</span>

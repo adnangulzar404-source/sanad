@@ -16,7 +16,7 @@ export function ProvenancePanel({ onClose }: { onClose: () => void }) {
   if (!corpus) return <p className="data">Loading the corpus manifest…</p>;
 
   return (
-    <section style={{ maxWidth: "var(--measure)" }}>
+    <section id="provenance" style={{ maxWidth: "var(--measure)" }}>
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
         <h2 style={{ fontSize: "var(--step-2)", margin: "0 0 0.5rem" }}>What this corpus is</h2>
         <button onClick={onClose} className="data"
@@ -78,12 +78,21 @@ export function ProvenancePanel({ onClose }: { onClose: () => void }) {
           </dl>
 
           {/* Verbatim. Tanzil's notice says it must not be changed, and Stage A
-              stores it byte-for-byte; rendering it any other way would undo that. */}
+              stores it byte-for-byte; rendering it any other way would undo that.
+
+              Colour: the licence text is load-bearing content, not muted
+              metadata, so it is set in --ink rather than the .data class's
+              --ink-60 — at --ink-60 this combination measured 3.34:1 against
+              WCAG's 4.5:1 floor even after darkening the token (see
+              tests/theme/tokens.test.tsx). --ink against this background
+              measures well clear; the background is also lightened slightly
+              so the block still reads as a distinct quote against the page. */}
           <pre
             data-testid={`attribution-${s.id}`}
             className="data"
             style={{ whiteSpace: "pre-wrap", margin: 0, padding: "0.75rem",
-                     background: "color-mix(in srgb, var(--page) 90%, var(--ink))",
+                     background: "color-mix(in srgb, var(--page) 95%, var(--ink))",
+                     color: "var(--ink)",
                      border: "var(--rule)", overflowX: "auto" }}
           >{s.attribution}</pre>
         </article>

@@ -21,6 +21,22 @@ describe("MarkedText", () => {
     expect(screen.getByTestId("marked").textContent).not.toContain("احد ");
   });
 
+  it("renders the typed text even when the corpus holds a different reading", () => {
+    const typed = "قل هو الله احدق";              // a misquote, with an extra letter
+    const corpusReading = "قُلْ هُوَ ٱللَّهُ أَحَدٌ";   // what the engine matched
+    const q = {
+      start: 0, end: typed.length, verdict: "NEAR_MATCH", quoted_text: typed,
+      tier: "aggressive", score: 0.93, given_reference: null, diff: null, also_at: [],
+      record: { id: "quran:112:1", reference_display: "Al-Ikhlas 112:1",
+                text_ar: corpusReading, text_ar_sha256: "x".repeat(64),
+                surah: 112, ayah: 1, translation_en: null, translation_disclaimer: null },
+    } as unknown as QuotationOut;
+
+    render(<MarkedText text={typed} quotations={[q]} />);
+    expect(screen.getByTestId("marked").textContent).toBe(typed);
+    expect(screen.getByTestId("marked").textContent).not.toContain(corpusReading);
+  });
+
   it("marks each span with its verdict", () => {
     render(<MarkedText text="aaaabbbb" quotations={[span(0, 4, "EXACT"), span(4, 8, "NOT_FOUND")]} />);
     expect(screen.getByTestId("span-0")).toHaveAttribute("data-verdict", "EXACT");
@@ -59,5 +75,18 @@ describe("MarkedText", () => {
     const text = "abc";
     render(<MarkedText text={text} quotations={[span(0, 99, "EXACT")]} />);
     expect(screen.getByTestId("marked").textContent).toBe(text);
+  });
+
+  it("withholds all marks when marksWithheld is set, even with quotations present", () => {
+    const text = "aaaabbbb";
+    render(
+      <MarkedText
+        text={text}
+        quotations={[span(0, 4, "EXACT"), span(4, 8, "NOT_FOUND")]}
+        marksWithheld
+      />
+    );
+    expect(screen.getByTestId("marked").textContent).toBe(text);
+    expect(document.querySelectorAll("mark")).toHaveLength(0);
   });
 });

@@ -15,14 +15,23 @@ const UNDERLINE: Record<Verdict, string> = {
  * The text is never rewritten. Sanad's non-goals forbid silently correcting a
  * quotation, and this component is where that promise is kept: it renders the
  * exact input string, adding marks around ranges and nothing else.
+ *
+ * `marksWithheld` is distinct from passing an empty `quotations` array. An
+ * empty array is itself a claim — "no spans were found here" — which is not
+ * true on a handoff: quotations may well exist, but the verdict vocabulary
+ * built to explain them (WRONG_REFERENCE, NOT_FOUND, …) must not appear on a
+ * screen the product promises will carry no verdict. `marksWithheld` says
+ * that explicitly, so a caller can never confuse "nothing found" with
+ * "found, but suppressed."
  */
 export function MarkedText({
-  text, quotations,
+  text, quotations, marksWithheld = false,
 }: {
   text: string;
   quotations: QuotationOut[];
+  marksWithheld?: boolean;
 }) {
-  const spans = [...quotations].sort((a, b) => a.start - b.start);
+  const spans = marksWithheld ? [] : [...quotations].sort((a, b) => a.start - b.start);
   const parts: React.ReactNode[] = [];
   let cursor = 0;
 

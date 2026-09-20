@@ -77,6 +77,27 @@ describe("IsnadTrace", () => {
     expect(screen.getByTestId("link-quoted").textContent).toContain(canonical);
   });
 
+  it("does not invent a licence when no source metadata was passed", () => {
+    render(<IsnadTrace quotation={base} />);
+    expect(screen.queryByText(/Tanzil Uthmani/)).toBeNull();
+    expect(screen.queryByText(/CC-BY-3\.0/)).toBeNull();
+    expect(screen.getByTestId("link-source")).toHaveTextContent("quran:112:1");
+    const link = screen.getByTestId("link-source").querySelector("a");
+    expect(link).toHaveAttribute("href", "#provenance");
+  });
+
+  it("shows the real source metadata instead of a fallback when it is passed", () => {
+    render(
+      <IsnadTrace
+        quotation={base}
+        source={{ title: "Tanzil Qur'an Text (Uthmani)", license_id: "CC-BY-3.0" }}
+      />
+    );
+    expect(screen.getByTestId("link-source")).toHaveTextContent("Tanzil Qur'an Text (Uthmani)");
+    expect(screen.getByTestId("link-source")).toHaveTextContent("CC-BY-3.0");
+    expect(screen.getByTestId("link-source").querySelector("a")).toBeNull();
+  });
+
   it("renders every link when the user prefers reduced motion", () => {
     vi.stubGlobal("matchMedia", (q: string) => ({
       matches: q.includes("prefers-reduced-motion"),

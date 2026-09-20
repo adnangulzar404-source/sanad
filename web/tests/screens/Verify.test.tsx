@@ -45,6 +45,26 @@ describe("Verify screen", () => {
     expect(screen.queryByRole("status")).toBeNull();
   });
 
+  it("shows no verdict vocabulary at all on a handoff, including marks", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(reply({
+      ...verified,
+      quotations: [
+        ...verified.quotations,
+        { quoted_text: "إنما الأعمال بالنيات", start: 20, end: 41, verdict: "NOT_FOUND",
+          tier: null, score: 0, record: null, given_reference: null, diff: null, also_at: [] },
+      ],
+      risk: "PERSONAL_RULING", requires_handoff: true, overall: "handoff",
+    })));
+    const user = userEvent.setup();
+    render(<Verify />);
+    await user.type(screen.getByRole("textbox"), "Can I marry my cousin? قُلْ هُوَ ٱللَّهُ أَحَدٌ");
+    await user.click(screen.getByRole("button", { name: /verify/i }));
+    await screen.findByRole("alert");
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(document.querySelectorAll("mark")).toHaveLength(0);
+    expect(screen.queryByTitle(/wrong reference|not in this corpus|verified/i)).toBeNull();
+  });
+
   it("says the verifier is unreachable rather than rendering an empty result", async () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("failed to fetch")));
     const user = userEvent.setup();

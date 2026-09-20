@@ -11,5 +11,10 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     setupFiles: ["./tests/setup.ts"],
+    // Vitest stubs CSS imports to an empty module by default (CSS normally
+    // can't affect a jsdom test outcome). tests/theme/tokens.test.tsx needs
+    // the real contents of tokens.css (via a `?raw` import) so its contrast
+    // checks measure what actually ships, not a copy that can drift.
+    css: true,
   },
 });

@@ -63,7 +63,11 @@ export function Verify() {
         <>
           <section style={{ marginBlockEnd: "2rem" }}>
             <h2 className="data" style={{ margin: "0 0 0.6rem" }}>your text</h2>
-            <MarkedText text={text} quotations={result.quotations} />
+            <MarkedText
+              text={text}
+              quotations={result.quotations}
+              marksWithheld={result.requires_handoff}
+            />
           </section>
 
           {result.requires_handoff ? (

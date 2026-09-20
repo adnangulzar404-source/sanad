@@ -13,7 +13,11 @@
   --verdigris: #2F6B5E;
   --gold:      #A8842C;  /* used once: the rosette on a complete chain */
 
-  --ink-60: color-mix(in srgb, var(--ink) 60%, var(--page));
+  /* 65% (not 60%): at 60% this measures 4.04:1 against --page, below the
+     4.5:1 WCAG AA floor for body text, and this token is used for error
+     copy and the NOT_FOUND badge. 65% measures 4.68:1. See
+     tests/theme/tokens.test.tsx for the measured ratio. */
+  --ink-60: color-mix(in srgb, var(--ink) 65%, var(--page));
   --ink-30: color-mix(in srgb, var(--ink) 30%, var(--page));
   --ink-12: color-mix(in srgb, var(--ink) 12%, var(--page));
 

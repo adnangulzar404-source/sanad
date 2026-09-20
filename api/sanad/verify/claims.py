@@ -64,18 +64,23 @@ _CLAIM_RULES: list[tuple[str, re.Pattern[str], str, str]] = [
     ),
 ]
 
-# First-person marker: asker asking about their own situation
-# Includes direct "I/me/my/mine" and indirect "my situation/position/case"
-_FIRST_PERSON = re.compile(
-    r"\b(I|me|my|mine)\b|for me\b|my\s+(situation|position|case|circumstances)",
-    re.IGNORECASE,
-)
+# First-person marker: direct references to asker
+_FIRST_PERSON = re.compile(r"\b(I|me|my|mine)\b|for me\b", re.IGNORECASE)
 
 # Normative marker: asking whether something is lawful/required/wrong
 _NORMATIVE = re.compile(
     r"\b(permissible|permitted|allowed|lawful|unlawful|halal|haram|sin|sinful|"
     r"wrong|must|obliged|obligated|required|have to|need to|should|valid|"
     r"count|counts|ruling|obligation|rights|compliant)\b",
+    re.IGNORECASE,
+)
+
+# Explicit personal circumstance phrases: sufficient alone to mark as personal
+# Matches: "my situation", "in my case", "someone in my position", etc.
+_PERSONAL_CIRCUMSTANCE = re.compile(
+    r"\b(my|a|someone)\s+\w{0,15}?"
+    r"(situation|position|case|circumstances|predicament)"
+    r"|\bin\s+(my|a)\s+(situation|case|circumstances|position)",
     re.IGNORECASE,
 )
 
@@ -89,17 +94,20 @@ _PERSONAL_TOPICS = re.compile(
 )
 
 
-# Personal ruling: first-person + normative, OR explicit topic
+# Personal ruling: (first-person + normative) OR circumstance phrase OR explicit topic
 def _is_personal_ruling(text: str) -> bool:
-    # Conjunction: both first-person marker AND normative marker
+    # Arm 1: Conjunction — first-person marker AND normative marker
     has_first_person = _FIRST_PERSON.search(text) is not None
     has_normative = _NORMATIVE.search(text) is not None
     conjunction = has_first_person and has_normative
 
-    # Backup: explicit personal topics catch unambiguous cases
+    # Arm 2: Personal circumstance phrases alone are sufficient
+    has_circumstance = _PERSONAL_CIRCUMSTANCE.search(text) is not None
+
+    # Arm 3: Explicit personal topics catch unambiguous cases
     has_explicit_topic = _PERSONAL_TOPICS.search(text) is not None
 
-    return conjunction or has_explicit_topic
+    return conjunction or has_circumstance or has_explicit_topic
 
 _HIGH_RISK = re.compile(
     r"\b(apostasy|apostate|takfir|stoning|amputation|jihad|"

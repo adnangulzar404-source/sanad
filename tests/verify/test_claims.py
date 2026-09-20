@@ -68,3 +68,29 @@ def test_handoff_required_for_personal_and_high_risk():
 )
 def test_personal_ruling_phrasings_are_all_diverted(q):
     assert route_risk(q) is RiskCode.PERSONAL_RULING
+
+
+@pytest.mark.parametrize(
+    "q",
+    [
+        "For a woman in my position, what are the inheritance rules?",
+        "For someone facing my situation, what does Islam say?",
+        "Given my circumstances, what does the Quran advise?",
+        "In my case, how is the estate divided?",
+        "What should a person in my circumstances do?",
+    ],
+)
+def test_personal_circumstance_phrases_divert_without_a_normative_word(q):
+    assert route_risk(q) is RiskCode.PERSONAL_RULING
+
+
+@pytest.mark.parametrize(
+    "q",
+    [
+        "Is it permitted to work in banking?",
+        "Is it permissible for a woman to go out without mahram?",
+    ],
+)
+def test_abstract_doctrinal_questions_stay_general(q):
+    # deliberately NOT diverted: no asker-specific framing.
+    assert route_risk(q) is RiskCode.GENERAL

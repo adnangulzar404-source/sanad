@@ -1,0 +1,13 @@
+.git
+.github
+.venv
+.corpus-cache
+__pycache__
+*.pyc
+.pytest_cache
+.ruff_cache
+htmlcov
+sanad.egg-info
+web/node_modules
+tests
+data/sanad-audit.db*

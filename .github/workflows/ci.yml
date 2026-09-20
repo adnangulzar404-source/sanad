@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      - name: Install
+        run: pip install -e ".[dev]"
+      - name: Lint
+        run: ruff check api ingest eval
+      - name: Unit tests
+        run: pytest -v --cov=sanad --cov=sanad_ingest
+      - name: Adversarial evaluation gate
+        run: python eval/runner.py
+      - name: Verify the committed corpus matches a fresh build
+        # This step re-downloads Tanzil's source files (per
+        # ingest/corpus.lock.toml) and rebuilds the corpus, then compares a
+        # content fingerprint against the committed database. It needs
+        # outbound network access to tanzil.net. If this step fails because
+        # the runner cannot reach Tanzil (a network/DNS error rather than an
+        # assertion failure), that is an environment problem, not a corpus
+        # defect -- do not read a transient network failure here as proof the
+        # corpus has drifted.
+        #
+        # The comparison is over CONTENT, not row counts: two databases with
+        # the same number of records but different verse text would pass a
+        # count-only check and still be silently wrong. Hashing every
+        # (id, text_ar_sha256) pair catches that.
+        run: |
+          sanad-ingest build --out /tmp/rebuilt.db
+          python - <<'PY'
+          import hashlib
+
+          from sanad.corpus import db
+
+
+          def fingerprint(path):
+              conn = db.connect(path)
+              rows = conn.execute(
+                  "SELECT id, text_ar_sha256 FROM records ORDER BY id"
+              ).fetchall()
+              return hashlib.sha256(
+                  "".join(f"{r[0]}:{r[1]}" for r in rows).encode()
+              ).hexdigest()
+
+
+          committed = fingerprint("data/sanad-quran.db")
+          rebuilt = fingerprint("/tmp/rebuilt.db")
+          assert committed == rebuilt, (
+              f"committed corpus differs from a fresh build: "
+              f"{committed} != {rebuilt}"
+          )
+          print("corpus fingerprint:", committed)
+          PY

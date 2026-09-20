@@ -1,7 +1,5 @@
 # Repository status
 
-This package is ready to push to a new GitHub repository and deploy with GitHub Pages.
-
 ## Current status
 
 - [x] Static prototype
@@ -9,15 +7,14 @@ This package is ready to push to a new GitHub repository and deploy with GitHub 
 - [x] Source accumulator
 - [x] Licensing notes
 - [x] Roadmap
-- [ ] Git remote configured
-- [ ] Full Tanzil import
-- [ ] Licensed Hadith subset
-- [ ] Backend/API
-
-## First commit suggestion
-
-```bash
-git add .
-git commit -m "Create Sanad evidence-first prototype"
-git branch -M main
-```
+- [x] Git remote configured
+- [x] Full Tanzil import, hash-verified
+- [x] Pickthall English translation bundled, on the work's own public-domain
+      basis rather than a Tanzil grant — see spec §5.2
+- [x] Deterministic verification API
+- [x] Adversarial evaluation gate in CI
+- [x] CI: lint, unit tests, evaluation gate, corpus-reproducibility check
+- [x] Container image (corpus copied in, no network access needed to run)
+- [ ] Licensed Hadith subset — blocked, see spec §14.1
+- [ ] Ask pipeline — Stage B
+- [ ] React frontend — Stage C

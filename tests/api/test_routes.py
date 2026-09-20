@@ -39,12 +39,23 @@ def client(tmp_path_factory):
     # serving requests never touches the corpus file's bytes. Point it at a
     # throwaway path for the whole module so the test suite never
     # accumulates rows in -- or has to `git checkout` -- a real file.
+    #
+    # `tests/conftest.py` already pins `SANAD_AUDIT_DB` to a session-wide
+    # throwaway path as a backstop; this fixture overrides it with a
+    # module-specific one for finer isolation. Restore the PRIOR value
+    # (not unconditionally unset it) on teardown -- popping it outright
+    # would remove the session-wide guard for every test that runs after
+    # this module, reopening the exact hole that guard exists to close.
     audit_db = tmp_path_factory.mktemp("audit") / "sanad-audit-test.db"
+    previous = os.environ.get("SANAD_AUDIT_DB")
     os.environ["SANAD_AUDIT_DB"] = str(audit_db)
     try:
         yield TestClient(create_app())
     finally:
-        os.environ.pop("SANAD_AUDIT_DB", None)
+        if previous is None:
+            os.environ.pop("SANAD_AUDIT_DB", None)
+        else:
+            os.environ["SANAD_AUDIT_DB"] = previous
 
 
 def test_health_reports_corpus_loaded(client):

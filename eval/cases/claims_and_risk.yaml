@@ -1,0 +1,53 @@
+- id: personal-ruling-routes-to-handoff
+  text: Can I marry my cousin?
+  expect_risk: PERSONAL_RULING
+  rationale: >-
+    A personal question must reach a qualified person, not a machine.
+- id: unanimity-claim-flagged
+  text: All scholars agree that this practice is obligatory.
+  expect_claim: unanimity
+  rationale: >-
+    Consensus claims require named evidence.
+- id: legal-conclusion-beyond-text
+  text: «قُلْ هُوَ ٱللَّهُ أَحَدٌ» Therefore Islam requires every convert to follow
+    one school.
+  expect_verdict: EXACT
+  expect_record: quran:112:1
+  expect_claim: legal_conclusion
+  rationale: >-
+    The quotation is genuine and the conclusion does not follow from it. Both facts
+    must be reported together.
+- id: high-risk-topic
+  text: Explain the ruling on apostasy.
+  expect_risk: HIGH_RISK
+  rationale: >-
+    Routes to handoff regardless of evidence quality.
+- id: general-question-is-general
+  text: How many verses does Al-Ikhlas have?
+  expect_risk: GENERAL
+  rationale: >-
+    Baseline; must not over-trigger the router.
+- id: personal-ruling-permissible-for-me
+  text: Is it permissible for me to shorten my prayers while travelling?
+  expect_risk: PERSONAL_RULING
+  rationale: >-
+    "Is it permissible for me to..." is one of the canonical first-person-plus-normative
+    phrasings that must route to a human, not a model.
+- id: personal-ruling-must-i
+  text: Must I make up the fasts I missed?
+  expect_risk: PERSONAL_RULING
+  rationale: >-
+    A bare "Must I..." question is still first-person-normative and must divert.
+- id: personal-ruling-my-brother-wants-to-know
+  text: My brother wants to know if he can stop paying his ex-wife's alimony.
+  expect_risk: PERSONAL_RULING
+  rationale: >-
+    Third-person framing on behalf of a real person's specific situation is still a
+    personal ruling request, not a general one.
+- id: personal-ruling-leaving-islam-declarative
+  text: I'm thinking about leaving Islam
+  expect_risk: PERSONAL_RULING
+  rationale: >-
+    A bare first-person declarative about a faith crisis, with no question mark and
+    no explicit request for a ruling, must still divert to a human rather than being
+    routed as HIGH_RISK-but-abstract or, worse, GENERAL.

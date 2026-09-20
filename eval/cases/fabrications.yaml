@@ -1,0 +1,19 @@
+- id: invented-arabic
+  text: «هذا كلام مخترع تماما وليس من القران الكريم ابدا»
+  expect_verdict: NOT_FOUND
+  expect_record: null
+  rationale: >-
+    Grammatical Arabic that is not scripture.
+- id: fabricated-hadith-english
+  text: A hadith in Bukhari 99999 says "The best among you invents new worship."
+  expect_verdict: null
+  expect_claim: hadith_unverifiable
+  rationale: >-
+    No Arabic span to verify. Must surface a claim flag rather than silence, and must
+    not assert fabrication, since no Hadith corpus is bundled.
+- id: quran-like-but-not-quran
+  text: «وَلَقَدْ خَلَقْنَا ٱلْحَاسُوبَ مِنْ طِينٍ»
+  expect_verdict: NOT_FOUND
+  expect_record: null
+  rationale: >-
+    Qur'anic register and cadence, invented content.

@@ -1,0 +1,28 @@
+- id: wrong-surah
+  text: «قُلْ هُوَ ٱللَّهُ أَحَدٌ» (Al-Baqarah 2:255)
+  expect_verdict: WRONG_REFERENCE
+  expect_record: quran:112:1
+  rationale: >-
+    Text is genuine; the citation points at a different surah.
+- id: wrong-ayah-same-surah
+  text: «قُلْ هُوَ ٱللَّهُ أَحَدٌ» (112:4)
+  expect_verdict: WRONG_REFERENCE
+  expect_record: quran:112:1
+  rationale: >-
+    Right surah, wrong verse.
+- id: kursi-cited-as-ikhlas
+  text: «ٱللَّهُ ٱلصَّمَدُ» (Ayat al-Kursi 2:255)
+  expect_verdict: WRONG_REFERENCE
+  expect_record: quran:112:2
+  rationale: >-
+    A frequently mis-cited pairing.
+- id: duplicate-verse-wrong-citation
+  text: «فَبِأَىِّ ءَالَآءِ رَبِّكُمَا تُكَذِّبَانِ» (2:255)
+  expect_verdict: WRONG_REFERENCE
+  expect_record: quran:55:13
+  rationale: >-
+    The Ar-Rahman refrain quoted with a citation that names neither surah 55 nor any
+    of its 31 occurrences. Every tied candidate disagrees with the given citation, so
+    this is a genuine WRONG_REFERENCE, reported against the lowest surah:ayah candidate
+    (55:13) as the stable default -- not a false EXACT against whichever duplicate happens
+    to be scanned first.

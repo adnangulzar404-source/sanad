@@ -1,0 +1,58 @@
+- id: mutation-appended-letter
+  text: «قل هو الله احدق»
+  expect_verdict: NEAR_MATCH
+  expect_record: quran:112:1
+  rationale: >-
+    One letter appended. Must never report as verified.
+- id: mutation-substituted-letter
+  text: «قل هو اللة احد»
+  expect_verdict: NEAR_MATCH
+  expect_record: quran:112:1
+  rationale: >-
+    Ta marbuta substituted into the divine name. Tier-3 fold only.
+- id: mutation-dropped-word
+  text: «قل هو احد»
+  expect_verdict: NOT_FOUND
+  expect_record: null
+  rationale: >-
+    A whole word removed (25% of the ayah). Measured, not assumed: this drops the aggressive-tier
+    similarity to ~0.64, below the 0.86 NEAR_MATCH floor, so the engine abstains with
+    NOT_FOUND rather than locating the verse. Encoded as NOT_FOUND -- not the NEAR_MATCH
+    one might guess -- because this suite reports what the engine actually does, never
+    an assumption. Either outcome is safe: neither is a false verification.
+- id: mutation-word-order-swapped
+  text: «هو قل الله احد»
+  expect_verdict: NOT_FOUND
+  expect_record: null
+  rationale: >-
+    Reordering two of four words changes meaning and must not verify. Measured similarity
+    (~0.71) also falls under the NEAR_MATCH floor, so the engine reports NOT_FOUND rather
+    than NEAR_MATCH here. Encoded as measured, not guessed; still no false verification
+    either way.
+- id: fold-only-misquote-with-conflicting-citation
+  text: «ذَٰلِكَ ٱلْكِتَٰبُ لَا رَيْبَ فِيهِ هُدًي لِّلْمُتَّقِينَ» (2:255)
+  expect_verdict: NEAR_MATCH
+  expect_record: quran:2:2
+  rationale: >-
+    Alef maksura (U+0649) swapped for yeh (U+064A) is exactly the lossy fold the aggressive
+    tier applies, so this misquote becomes byte-identical to the real ayah only after
+    that fold -- and carries a citation (2:255) that conflicts with the true reference
+    (2:2). An aggressive-tier match may NEVER assert WRONG_REFERENCE (the fold could
+    itself have manufactured the agreement or the conflict), so this must stay NEAR_MATCH
+    with a diff, never a verified or a wrong-reference verdict.
+- id: mushaf-ayah-end-marker
+  text: «قُلْ هُوَ ٱللَّهُ أَحَدٌ۝١»
+  expect_verdict: NEAR_MATCH
+  expect_record: quran:112:1
+  rationale: >-
+    A genuine ayah with a trailing ayah-end mark (U+06DD) and its Arabic-Indic verse
+    number, exactly as it is typeset in a printed mushaf and commonly pasted verbatim.
+    Measured, not assumed: the mark itself is stripped as a Qur'anic annotation at the
+    standard/aggressive tiers, but the Arabic-Indic digit is NOT -- it sits inside the
+    Arabic block (U+0600-U+06FF) alongside real letters -- so the exact tiers miss and
+    the engine falls through to the fuzzy tier, scoring ~0.93 and reporting NEAR_MATCH
+    rather than EXACT. This is judged an acceptable, non-gating outcome for Stage A:
+    it never falsely verifies and it still points at the right ayah with a diff, though
+    a future stage could strip a trailing ayah-end mark plus digits the same way a leading
+    Bismillah is already stripped, so this everyday paste reports EXACT instead of a
+    near-miss.

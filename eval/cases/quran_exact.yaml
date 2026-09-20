@@ -1,0 +1,80 @@
+- id: exact-ikhlas-1
+  text: «قُلْ هُوَ ٱللَّهُ أَحَدٌ»
+  expect_verdict: EXACT
+  expect_record: quran:112:1
+  rationale: >-
+    Verbatim Uthmani text, no reference given.
+- id: exact-with-correct-reference
+  text: The Qur'an says «قُلْ هُوَ ٱللَّهُ أَحَدٌ» (Al-Ikhlas 112:1).
+  expect_verdict: EXACT
+  expect_record: quran:112:1
+  rationale: >-
+    Verbatim text with a matching reference.
+- id: undiacritized-is-orthography-only
+  text: «قل هو الله احد»
+  expect_verdict: EXACT_ORTHOGRAPHY
+  expect_record: quran:112:1
+  rationale: >-
+    Diacritics removed; the letters are unchanged.
+- id: plain-alef-for-wasla
+  text: «قُلْ هُوَ اللَّهُ أَحَدٌ»
+  expect_verdict: EXACT_ORTHOGRAPHY
+  expect_record: quran:112:1
+  rationale: >-
+    Plain alef for alef wasla is the commonest real-world variation.
+- id: duplicate-verse-verifies-first-citation
+  text: «فَبِأَىِّ ءَالَآءِ رَبِّكُمَا تُكَذِّبَانِ» (55:13)
+  expect_verdict: EXACT
+  expect_record: quran:55:13
+  rationale: >-
+    Ar-Rahman's refrain repeats verbatim 31 times. An earlier bug made 30 of the 31
+    occurrences report WRONG_REFERENCE even when cited correctly, because only one tied
+    candidate was ever considered. Quoting it with its first occurrence's own citation
+    must verify EXACT against exactly that record.
+- id: duplicate-verse-verifies-last-citation
+  text: «فَبِأَىِّ ءَالَآءِ رَبِّكُمَا تُكَذِّبَانِ» (55:77)
+  expect_verdict: EXACT
+  expect_record: quran:55:77
+  rationale: >-
+    Same duplicate-text regression as duplicate-verse-verifies-first-citation, checked
+    against the LAST of the 31 occurrences, so a fix that merely special-cased the first
+    one cannot silently pass this suite.
+- id: bismillah-prefixed-first-ayah
+  text: «بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ إِنَّآ أَعْطَيْنَٰكَ ٱلْكَوْثَرَ»
+  expect_verdict: EXACT
+  expect_record: quran:108:1
+  rationale: >-
+    112 records carry a separate Bismillah. Quoting a first ayah WITH its Bismillah,
+    as printed in a mushaf, must verify -- not return NOT_FOUND because the Bismillah
+    was never stripped.
+- id: short-verse-ar-rahman-55-1
+  text: «ٱلرَّحْمَٰنُ»
+  expect_verdict: EXACT
+  expect_record: quran:55:1
+  rationale: >-
+    33 ayat are under 8 normalized characters and were silently unextractable at one
+    point. This one-word ayah pins that extraction floor.
+- id: short-verse-al-fajr-89-1
+  text: «وَٱلْفَجْرِ»
+  expect_verdict: EXACT
+  expect_record: quran:89:1
+  rationale: >-
+    A second short ayah, from a different surah, pinning the same extraction floor.
+- id: short-verse-qum-fa-anzir-74-2
+  text: «قُمْ فَأَنذِرْ»
+  expect_verdict: EXACT
+  expect_record: quran:74:2
+  rationale: >-
+    A short two-word ayah at the 8-character boundary itself, not comfortably above
+    it like the other two short-verse cases.
+- id: multi-ayah-quotation-known-limitation
+  text: «قُلْ هُوَ ٱللَّهُ أَحَدٌ ٱللَّهُ ٱلصَّمَدُ»
+  expect_verdict: NOT_FOUND
+  expect_record: null
+  rationale: >-
+    KNOWN LIMITATION, accepted for Stage A: two consecutive genuine ayat quoted together
+    (112:1 followed by 112:2) do not match anything, because the engine only ever compares
+    a span against single-record text. This is NOT correct behaviour -- a real, verbatim
+    two-ayah quotation should verify -- but it is measured and pinned here on purpose
+    so that when Stage B adds sliding-window multi-ayah matching, this case fails loudly
+    and gets updated, instead of the gap silently persisting forever.

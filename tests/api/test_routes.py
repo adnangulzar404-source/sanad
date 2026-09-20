@@ -1,3 +1,8 @@
+import hashlib
+import os
+import pathlib
+import sqlite3
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -23,8 +28,23 @@ RAHMAN_REFRAIN = "\u0641\u064e\u0628\u0650\u0623\u064e\u0649\u0651\u0650 \u0621\
 
 
 @pytest.fixture(scope="module")
-def client():
-    return TestClient(create_app())
+def client(tmp_path_factory):
+    # `tmp_path_factory` is a real, built-in pytest fixture (session-scoped,
+    # so it is legal for a module-scoped fixture to depend on it) -- this is
+    # not the invalid `monkeypatch_module=None` parameter the brief had,
+    # which pytest would try and fail to resolve as a fixture request.
+    #
+    # The audit log now lives in its own database (see
+    # `settings.resolve_audit_db_path`), separate from the corpus, so that
+    # serving requests never touches the corpus file's bytes. Point it at a
+    # throwaway path for the whole module so the test suite never
+    # accumulates rows in -- or has to `git checkout` -- a real file.
+    audit_db = tmp_path_factory.mktemp("audit") / "sanad-audit-test.db"
+    os.environ["SANAD_AUDIT_DB"] = str(audit_db)
+    try:
+        yield TestClient(create_app())
+    finally:
+        os.environ.pop("SANAD_AUDIT_DB", None)
 
 
 def test_health_reports_corpus_loaded(client):
@@ -130,10 +150,54 @@ def test_also_at_empty_for_unique_verse(client):
 
 
 def test_verify_does_not_echo_text_into_audit_log(client):
-    # the spec forbids storing user text
+    # the spec forbids storing user text. Re-verified against the audit
+    # database (a separate file from the corpus as of this task's fix for
+    # the corpus-mutation defect below) -- `_conn_for_tests()` now returns
+    # the audit connection specifically.
     client.post("/api/verify", json={"text": f"«{IKHLAS_1}» secret phrase"})
     from sanad.api.app import _conn_for_tests
     rows = _conn_for_tests().execute("SELECT detail_json FROM audit_log").fetchall()
     assert rows, "audit log should have at least one row after several verify calls"
     assert all("secret phrase" not in r[0] for r in rows)
     assert all(IKHLAS_1 not in r[0] for r in rows)
+
+
+# --- Corpus immutability -----------------------------------------------
+#
+# Sanad's provenance story is "here is the corpus's SHA-256, here is the
+# recipe that reproduces it, rebuild it and check." That claim is false if
+# serving a request changes the file. `audit_log` used to live inside the
+# same SQLite file as the corpus data; the fix is a second, separate,
+# writable database for the audit log, and a corpus connection that is
+# read-only at the SQLite level, not just by convention. See
+# `api/sanad/api/app.py` (`_open_corpus_conn`, `_open_audit_conn`) and
+# `api/sanad/corpus/schema.py` (`AUDIT_SCHEMA_SQL`).
+
+_CORPUS_PATH = pathlib.Path("data/sanad-quran.db")
+
+
+def test_serving_a_request_does_not_modify_the_corpus_file(client, tmp_path):
+    before = hashlib.sha256(_CORPUS_PATH.read_bytes()).hexdigest()
+    client.post("/api/verify", json={"text": f"«{IKHLAS_1}»"})
+    client.post("/api/verify", json={"text": "Can I marry my cousin?"})
+    after = hashlib.sha256(_CORPUS_PATH.read_bytes()).hexdigest()
+    assert before == after, "serving traffic must not mutate the corpus"
+
+
+def test_corpus_connection_is_read_only(client):
+    conn = client.app.state.conn
+    with pytest.raises(sqlite3.OperationalError):
+        conn.execute("CREATE TABLE nope (x)")
+
+
+def test_reported_corpus_hash_matches_the_file_after_requests(client):
+    client.post("/api/verify", json={"text": f"«{IKHLAS_1}»"})
+    reported = client.get("/api/corpus").json()["db_sha256"]
+    actual = hashlib.sha256(_CORPUS_PATH.read_bytes()).hexdigest()
+    assert reported == actual
+
+
+def test_audit_rows_are_written_to_the_audit_database(client):
+    client.post("/api/verify", json={"text": f"«{IKHLAS_1}»"})
+    n = client.app.state.audit_conn.execute("SELECT count(*) FROM audit_log").fetchone()[0]
+    assert n > 0

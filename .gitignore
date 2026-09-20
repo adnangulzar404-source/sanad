@@ -8,3 +8,4 @@ secrets/
 .venv/
 .corpus-cache/
 *.egg-info/
+data/sanad-audit.db*

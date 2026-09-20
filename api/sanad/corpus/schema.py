@@ -1,4 +1,14 @@
-"""Corpus DDL. Stage A creates the full spec schema so Stage B needs no migration."""
+"""Corpus DDL. Stage A creates the full spec schema so Stage B needs no migration.
+
+`audit_log` is deliberately NOT in `SCHEMA_SQL` -- see `AUDIT_SCHEMA_SQL` below.
+The corpus database is shipped, content-addressed data: its SHA-256 is meant
+to be a stable, reproducible fact ("rebuild from the lockfile, hash it,
+compare"). A table that every `/api/verify` request writes to cannot live in
+that same file without making the hash drift the moment the product is
+used -- which is exactly what an earlier revision of this schema did, and
+Task 11 corrected by giving the audit log its own database. See
+`api/sanad/settings.resolve_audit_db_path` and `api/sanad/api/app.py`.
+"""
 
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS sources (
@@ -65,6 +75,18 @@ CREATE TABLE IF NOT EXISTS embeddings (
   vec       BLOB NOT NULL
 );
 
+CREATE VIRTUAL TABLE IF NOT EXISTS records_fts USING fts5(
+  record_id UNINDEXED,
+  norm_standard,
+  norm_aggressive,
+  translation,
+  tokenize = "unicode61 remove_diacritics 2"
+);
+"""
+
+# The audit log's own schema, for its own database file (never the corpus
+# file). Table shape is unchanged from the original single-file design.
+AUDIT_SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS audit_log (
   id          INTEGER PRIMARY KEY,
   ts          TEXT NOT NULL,
@@ -72,13 +94,5 @@ CREATE TABLE IF NOT EXISTS audit_log (
   stage       TEXT NOT NULL,
   verdict     TEXT NOT NULL,
   detail_json TEXT NOT NULL
-);
-
-CREATE VIRTUAL TABLE IF NOT EXISTS records_fts USING fts5(
-  record_id UNINDEXED,
-  norm_standard,
-  norm_aggressive,
-  translation,
-  tokenize = "unicode61 remove_diacritics 2"
 );
 """

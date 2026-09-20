@@ -30,7 +30,13 @@ TANZIL_TRANSLATION_DISCLAIMER = (
 
 
 def _conn(request: Request) -> sqlite3.Connection:
+    """The read-only corpus connection. Never written to -- see app.py."""
     return request.app.state.conn
+
+
+def _audit_conn(request: Request) -> sqlite3.Connection:
+    """The writable audit-log connection, a separate database from the corpus."""
+    return request.app.state.audit_conn
 
 
 def _fetch_translation(conn: sqlite3.Connection, record_id: str) -> tuple[str | None, str | None]:
@@ -90,8 +96,10 @@ def verify(payload: VerifyRequest, request: Request) -> VerifyResponse:
 
     # Audit: verdicts, record ids, and claim kinds only. The submitted text
     # and any extracted quotation text are NEVER written here -- the spec
-    # forbids retaining user conversation data.
-    conn.execute(
+    # forbids retaining user conversation data. Written to the SEPARATE
+    # audit database, never the (read-only) corpus connection -- see app.py.
+    audit_conn = _audit_conn(request)
+    audit_conn.execute(
         "INSERT INTO audit_log (ts, request_id, stage, verdict, detail_json) "
         "VALUES (?,?,?,?,?)",
         (datetime.now(timezone.utc).isoformat(), str(uuid.uuid4()), "verify",
@@ -100,7 +108,7 @@ def verify(payload: VerifyRequest, request: Request) -> VerifyResponse:
                      "record_ids": [q.record.id for q in quotations if q.record],
                      "claim_kinds": [c.kind for c in claims]})),
     )
-    conn.commit()
+    audit_conn.commit()
 
     return VerifyResponse(
         quotations=quotations, claims=claims, risk=risk.value,

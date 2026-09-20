@@ -29,6 +29,21 @@ def resolve_db_path() -> Path:
         "no corpus found. Run: sanad-ingest build --out data/sanad-quran.db")
 
 
+def resolve_audit_db_path() -> Path:
+    """`SANAD_AUDIT_DB` env var if set, else `data/sanad-audit.db`.
+
+    Unlike `resolve_db_path()`, this path is generated state, not shipped
+    data: the audit log records verdicts and record ids for every
+    `/api/verify` call, so it is created on first use rather than required
+    to already exist. Kept in a separate file from the corpus database on
+    purpose -- see `corpus.schema.AUDIT_SCHEMA_SQL` for why.
+    """
+    override = os.environ.get("SANAD_AUDIT_DB")
+    if override:
+        return Path(override)
+    return Path("data/sanad-audit.db")
+
+
 def file_sha256(path: Path) -> str:
     h = hashlib.sha256()
     with path.open("rb") as fh:

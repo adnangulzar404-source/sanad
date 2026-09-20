@@ -30,7 +30,8 @@ _CLAIM_RULES: list[tuple[str, re.Pattern[str], str, str]] = [
         "unanimity",
         re.compile(
             "\\b(ijma[‘\u2019]?|unanimous(ly)?|all scholars agree|"
-            "every scholar agrees|consensus of the scholars)\\b", re.IGNORECASE
+            "every scholar agrees|consensus of the scholars)\\b",
+            re.IGNORECASE,
         ),
         "Unanimity claimed",
         (
@@ -63,10 +64,42 @@ _CLAIM_RULES: list[tuple[str, re.Pattern[str], str, str]] = [
     ),
 ]
 
-_PERSONAL = re.compile(
+# First-person marker: asker asking about their own situation
+# Includes direct "I/me/my/mine" and indirect "my situation/position/case"
+_FIRST_PERSON = re.compile(
+    r"\b(I|me|my|mine)\b|for me\b|my\s+(situation|position|case|circumstances)",
+    re.IGNORECASE,
+)
+
+# Normative marker: asking whether something is lawful/required/wrong
+_NORMATIVE = re.compile(
+    r"\b(permissible|permitted|allowed|lawful|unlawful|halal|haram|sin|sinful|"
+    r"wrong|must|obliged|obligated|required|have to|need to|should|valid|"
+    r"count|counts|ruling|obligation|rights|compliant)\b",
+    re.IGNORECASE,
+)
+
+# Explicit personal topics (belt and braces backup)
+_PERSONAL_TOPICS = re.compile(
     r"\b(can i|should i|may i|am i allowed|is it haram for me|is it halal for me|"
-    r"my (wife|husband|marriage|divorce|inheritance|loan|debt|mother|father)|"
-    r"divorced me|give me a fatwa)\b", re.IGNORECASE)
+    r"my (wife|husband|marriage|divorce|inheritance|loan|debt|mother|father|"
+    r"parents|fiance)|"
+    r"divorced me|give me a fatwa)\b",
+    re.IGNORECASE,
+)
+
+
+# Personal ruling: first-person + normative, OR explicit topic
+def _is_personal_ruling(text: str) -> bool:
+    # Conjunction: both first-person marker AND normative marker
+    has_first_person = _FIRST_PERSON.search(text) is not None
+    has_normative = _NORMATIVE.search(text) is not None
+    conjunction = has_first_person and has_normative
+
+    # Backup: explicit personal topics catch unambiguous cases
+    has_explicit_topic = _PERSONAL_TOPICS.search(text) is not None
+
+    return conjunction or has_explicit_topic
 
 _HIGH_RISK = re.compile(
     r"\b(apostasy|apostate|takfir|stoning|amputation|jihad|"
@@ -85,7 +118,7 @@ def detect_claims(text: str) -> list[Claim]:
 
 def route_risk(text: str) -> RiskCode:
     # order matters: a personal framing changes who should answer, so it wins
-    if _PERSONAL.search(text):
+    if _is_personal_ruling(text):
         return RiskCode.PERSONAL_RULING
     if _HIGH_RISK.search(text):
         return RiskCode.HIGH_RISK

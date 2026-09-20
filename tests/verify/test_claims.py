@@ -1,3 +1,4 @@
+import pytest
 from sanad.verify.claims import RiskCode, detect_claims, requires_handoff, route_risk
 
 
@@ -50,3 +51,20 @@ def test_handoff_required_for_personal_and_high_risk():
     assert requires_handoff(RiskCode.PERSONAL_RULING) is True
     assert requires_handoff(RiskCode.HIGH_RISK) is True
     assert requires_handoff(RiskCode.GENERAL) is False
+
+
+@pytest.mark.parametrize(
+    "q",
+    [
+        "Is it permissible for me to delay my prayers when travelling?",
+        "Is it permitted to pay zakat to my parents?",
+        "Must I make up the fasts I missed?",
+        "Would it be wrong for me to take this job?",
+        "Am I obliged to pray if I am sick?",
+        "Am I required to fast while pregnant?",
+        "Do I have to repay a debt my father left?",
+        "Is it a sin for me to miss Friday prayer for work?",
+    ],
+)
+def test_personal_ruling_phrasings_are_all_diverted(q):
+    assert route_risk(q) is RiskCode.PERSONAL_RULING

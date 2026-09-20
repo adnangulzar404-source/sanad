@@ -28,8 +28,8 @@ export function ProvenancePanel({ onClose }: { onClose: () => void }) {
       <p>{corpus.scope}</p>
 
       <dl className="data" style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "0.3rem 1rem", margin: "1rem 0" }}>
-        <dt>records</dt><dd style={{ margin: 0 }}>{corpus.stats.records.toLocaleString()}</dd>
-        <dt>translations</dt><dd style={{ margin: 0 }}>{corpus.stats.translations.toLocaleString()}</dd>
+        <dt>records</dt><dd data-testid="stat-records" style={{ margin: 0 }}>{corpus.stats.records.toLocaleString()}</dd>
+        <dt>translations</dt><dd data-testid="stat-translations" style={{ margin: 0 }}>{corpus.stats.translations.toLocaleString()}</dd>
         <dt>database</dt><dd style={{ margin: 0, wordBreak: "break-all" }}>⌗{corpus.db_sha256}</dd>
       </dl>
 
@@ -41,6 +41,29 @@ export function ProvenancePanel({ onClose }: { onClose: () => void }) {
             {s.license_url && <> · <a href={s.license_url} style={{ color: "inherit" }}>licence</a></>}
             {" · "}retrieved {s.retrieved_at} · modifications: {s.modifications}
           </p>
+
+          {/* Where to go to check this yourself, and exactly what number to
+              expect when you do. upstream_sha256 is deliberately NOT a hash of
+              the downloaded file — see the note below — so mislabelling it would
+              send a sceptic to sha256sum, get a different number, and reasonably
+              conclude we lied. */}
+          <dl className="data" style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "0.3rem 1rem", margin: "0 0 0.75rem" }}>
+            <dt>source</dt>
+            <dd data-testid={`source-url-${s.id}`} style={{ margin: 0, wordBreak: "break-all" }}>
+              <a href={s.url} style={{ color: "inherit" }}>{s.url}</a>
+            </dd>
+            <dt>content sha256</dt>
+            <dd data-testid={`upstream-sha256-${s.id}`} style={{ margin: 0, wordBreak: "break-all" }}>
+              ⌗{s.upstream_sha256}
+              <span style={{ display: "block", color: "var(--ink-60)" }}>
+                of the verse payload only — the "surah|ayah|text" lines joined
+                with newlines, excluding the trailing copyright block, which
+                embeds the current year and would otherwise change this number
+                every January
+              </span>
+            </dd>
+          </dl>
+
           {/* Verbatim. Tanzil's notice says it must not be changed, and Stage A
               stores it byte-for-byte; rendering it any other way would undo that. */}
           <pre

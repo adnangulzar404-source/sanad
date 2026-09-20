@@ -37,7 +37,18 @@ describe("ProvenancePanel", () => {
   it("shows the record count", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify(corpus), { status: 200 })));
     render(<ProvenancePanel onClose={() => {}} />);
-    await waitFor(() => expect(screen.getByText(/6,?236/)).toBeInTheDocument());
+    await waitFor(() => {
+      expect(screen.getByTestId("stat-records")).toHaveTextContent("6,236");
+    });
+  });
+
+  it("lets a sceptic get back to the upstream source and its content checksum", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify(corpus), { status: 200 })));
+    render(<ProvenancePanel onClose={() => {}} />);
+    await waitFor(() => {
+      expect(screen.getByTestId("source-url-tanzil-uthmani-1.1")).toHaveTextContent("https://tanzil.net/");
+      expect(screen.getByTestId("upstream-sha256-tanzil-uthmani-1.1")).toHaveTextContent("36da55e2");
+    });
   });
 
   it("says the verifier is unreachable when the corpus cannot be fetched", async () => {

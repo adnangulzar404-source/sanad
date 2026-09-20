@@ -9,3 +9,5 @@ secrets/
 .corpus-cache/
 *.egg-info/
 data/sanad-audit.db*
+dist/
+*.tsbuildinfo

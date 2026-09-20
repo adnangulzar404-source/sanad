@@ -51,6 +51,25 @@ describe("ProvenancePanel", () => {
     });
   });
 
+  it("names the XML export and the separate Bismillah attribute, so a sceptic does not hash the wrong download", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify(corpus), { status: 200 })));
+    render(<ProvenancePanel onClose={() => {}} />);
+    await waitFor(() => {
+      const sha = screen.getByTestId("upstream-sha256-tanzil-uthmani-1.1");
+      expect(sha).toHaveTextContent(/XML export/i);
+      expect(sha).toHaveTextContent(/Bismillah/i);
+    });
+  });
+
+  it("shows publisher and edition, so a reader knows which Tanzil text this is", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify(corpus), { status: 200 })));
+    render(<ProvenancePanel onClose={() => {}} />);
+    await waitFor(() => {
+      expect(screen.getByTestId("publisher-tanzil-uthmani-1.1")).toHaveTextContent("Tanzil Project");
+      expect(screen.getByTestId("edition-tanzil-uthmani-1.1")).toHaveTextContent("1.1");
+    });
+  });
+
   it("says the verifier is unreachable when the corpus cannot be fetched", async () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("failed to fetch")));
     render(<ProvenancePanel onClose={() => {}} />);

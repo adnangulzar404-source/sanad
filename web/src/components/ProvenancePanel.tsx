@@ -42,12 +42,24 @@ export function ProvenancePanel({ onClose }: { onClose: () => void }) {
             {" · "}retrieved {s.retrieved_at} · modifications: {s.modifications}
           </p>
 
-          {/* Where to go to check this yourself, and exactly what number to
-              expect when you do. upstream_sha256 is deliberately NOT a hash of
-              the downloaded file — see the note below — so mislabelling it would
-              send a sceptic to sha256sum, get a different number, and reasonably
-              conclude we lied. */}
+          {/* Which text this is, where to go to check it yourself, and exactly
+              what number to expect when you do. upstream_sha256 is deliberately
+              NOT a hash of the downloaded file — see the note below — so
+              mislabelling it would send a sceptic to sha256sum, get a different
+              number, and reasonably conclude we lied. Naming the XML export and
+              the Bismillah explicitly is not decoration: an earlier build of
+              this corpus used Tanzil's txt-2 export, which prepends the
+              Bismillah to the first ayah of every surah except At-Tawbah,
+              silently corrupting 112 records (see
+              tests/ingest/test_real_corpus.py). A sceptic who reasonably grabs
+              "the Tanzil Uthmani download" without this clause will fetch that
+              same export, hash something that includes the Bismillah, get a
+              different number from ours, and conclude we are misreporting. */}
           <dl className="data" style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "0.3rem 1rem", margin: "0 0 0.75rem" }}>
+            <dt>publisher</dt>
+            <dd data-testid={`publisher-${s.id}`} style={{ margin: 0 }}>{s.publisher}</dd>
+            <dt>edition</dt>
+            <dd data-testid={`edition-${s.id}`} style={{ margin: 0 }}>{s.edition}</dd>
             <dt>source</dt>
             <dd data-testid={`source-url-${s.id}`} style={{ margin: 0, wordBreak: "break-all" }}>
               <a href={s.url} style={{ color: "inherit" }}>{s.url}</a>
@@ -56,10 +68,11 @@ export function ProvenancePanel({ onClose }: { onClose: () => void }) {
             <dd data-testid={`upstream-sha256-${s.id}`} style={{ margin: 0, wordBreak: "break-all" }}>
               ⌗{s.upstream_sha256}
               <span style={{ display: "block", color: "var(--ink-60)" }}>
-                of the verse payload only — the "surah|ayah|text" lines joined
-                with newlines, excluding the trailing copyright block, which
-                embeds the current year and would otherwise change this number
-                every January
+                of the verse payload only — the "surah|ayah|text" lines from the
+                XML export ({"<aya text=\"…\">"}, which holds the Bismillah
+                separately), joined with newlines and excluding the trailing
+                copyright block, which embeds the current year and would
+                otherwise change this number every January
               </span>
             </dd>
           </dl>

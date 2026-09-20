@@ -118,3 +118,81 @@ def test_duplicate_verse_reports_its_other_locations(conn):
 def test_unique_verse_has_no_also_at(conn):
     m = _only(verify_spans(conn, "«" + db.get_record(conn, "quran:2:255").text_ar + "»"))
     assert m.also_at == []
+
+
+# --- Finding 1: an aggressive-tier match may never assert WRONG_REFERENCE ---
+# ى ALEF MAKSURA -> ي YEH is exactly the lossy fold _LOSSY_FOLDS
+# applies at the aggressive tier (see normalize.py); both letters are written
+# as explicit escapes here rather than literal glyphs, since they are
+# visually near-identical and this substitution is precisely what is under
+# test.
+
+
+def test_aggressive_match_with_conflicting_citation_is_near_match_not_wrong_reference(conn):
+    rec = db.get_record(conn, "quran:2:2")
+    assert "ى" in rec.text_ar
+    variant = rec.text_ar.replace("ى", "ي")
+    m = _only(verify_spans(conn, f"«{variant}» (2:255)"))
+    assert m.verdict is Verdict.NEAR_MATCH
+    assert m.tier == "aggressive"
+    assert m.given_reference is not None
+    assert m.given_reference.surah == 2
+    assert m.diff is not None
+
+
+# --- Finding 2: the tier -> verdict map must be load-bearing, not decorative ---
+
+
+def test_aggressive_tier_can_never_produce_a_verified_verdict():
+    from sanad.verify.engine import _TIER_VERDICT
+
+    assert _TIER_VERDICT["aggressive"] is Verdict.NEAR_MATCH
+
+
+def test_no_aggressive_match_is_ever_reported_as_verified(conn):
+    verified = {Verdict.EXACT, Verdict.EXACT_ORTHOGRAPHY}
+    checked = 0
+    for r in list(db.iter_records(conn))[:300]:
+        variant = r.text_ar.replace("ى", "ي")
+        if variant == r.text_ar:
+            continue
+        for suffix in ("", " (2:255)"):
+            for m in verify_spans(conn, f"«{variant}»{suffix}"):
+                assert m.verdict not in verified, (r.id, suffix, m.verdict)
+                checked += 1
+    assert checked > 0, "test exercised nothing"
+
+
+# --- Finding 3: pin the span-edge reference-window fix ---
+
+
+def test_citation_after_a_long_verse_is_still_associated(conn):
+    kursi = db.get_record(conn, "quran:2:255").text_ar
+    assert len(kursi) > 300, "fixture must be long enough to exercise the window"
+    m = _only(verify_spans(conn, f"«{kursi}» (Al-Fatiha 1:5)"))
+    assert m.verdict is Verdict.WRONG_REFERENCE
+
+
+def test_citation_before_a_long_verse_is_still_associated(conn):
+    kursi = db.get_record(conn, "quran:2:255").text_ar
+    m = _only(verify_spans(conn, f"(Al-Fatiha 1:5) «{kursi}»"))
+    assert m.verdict is Verdict.WRONG_REFERENCE
+
+
+# --- Bismillah retry: a common, real quotation shape (a mushaf-style verse) ---
+
+
+def test_prepended_bismillah_still_verifies_the_ayah(conn):
+    bismillah = db.get_record(conn, "quran:112:1").bismillah
+    m = _only(verify_spans(conn, f"«{bismillah} {IKHLAS_1}»"))
+    assert m.verdict is Verdict.EXACT
+    assert m.record.id == "quran:112:1"
+
+
+def test_al_fatiha_first_ayah_still_verifies_as_itself(conn):
+    # quran:1:1 IS the Bismillah -- the retry must not swallow it and leave
+    # nothing to match.
+    fatiha_1 = db.get_record(conn, "quran:1:1").text_ar
+    m = _only(verify_spans(conn, f"«{fatiha_1}»"))
+    assert m.verdict is Verdict.EXACT
+    assert m.record.id == "quran:1:1"

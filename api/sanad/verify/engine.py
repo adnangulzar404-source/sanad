@@ -164,39 +164,130 @@ def _nearest_reference_to_span(refs: list[Reference], span: Span) -> Reference |
     return near_start or near_end
 
 
+_MatchCore = tuple[Verdict, Record | None, Tier | None, float,
+                    list[tuple[str, str]] | None, list[str]]
+
+
+def _match_text(
+    conn: sqlite3.Connection, text: str, given: Reference | None, *, include_fuzzy: bool = True
+) -> _MatchCore:
+    """Core three-tier-then-fuzzy lookup, independent of any particular `Span`.
+
+    Returns `(verdict, record, tier, score, diff, also_at)`. Split out of
+    `_classify` so the Bismillah-retry path can run this exact pipeline a
+    second time, on a second candidate string, without duplicating -- and
+    risking drifting from -- the tier logic.
+
+    `_TIER_VERDICT[tier]` is the single source of truth for what a tier's
+    match means; every return path derives its verdict from it rather than
+    a hardcoded literal, EXCEPT the `WRONG_REFERENCE` override below, which
+    is a separate, orthogonal signal (correct text, wrong citation) and
+    applies only at `light`/`standard` tier. An `aggressive`-tier match may
+    NEVER become `WRONG_REFERENCE`: the fold that produced it (ى/ي, ة/ه) can
+    itself have manufactured the agreement OR the disagreement, so the only
+    honest claim about the citation is silence -- `given_reference` is still
+    populated for the caller to display, but the verdict stays `NEAR_MATCH`
+    regardless of whether a citation is present or conflicts.
+
+    `include_fuzzy=False` skips the aggressive/fuzzy fallback and reports
+    `NOT_FOUND` on an exact-tier miss instead. `_classify` uses this to probe
+    the un-stripped text without letting the fuzzy layer's global candidate
+    search fire on it -- a long verse with a Bismillah stuck to the front is
+    close enough (in edit-distance terms) to its own bare text to clear
+    `NEAR_THRESHOLD` on its own, and a short one is close enough to the
+    Bismillah-as-verse record (`quran:1:1`) to do the same, which would both
+    report a misleading `NEAR_MATCH` for what is actually a clean, exact
+    quotation once the Bismillah is accounted for.
+    """
+    for tier in ("light", "standard"):
+        candidates = _exact_at_tier(conn, text, tier)
+        if not candidates:
+            continue
+        selected, agreed = _select_by_reference(candidates, given)
+        also_at = [c.id for c in candidates if c.id != selected.id]
+        verdict = Verdict.WRONG_REFERENCE if (given and not agreed) else _TIER_VERDICT[tier]
+        return verdict, selected, tier, 1.0, None, also_at
+
+    if not include_fuzzy:
+        return Verdict.NOT_FOUND, None, None, 0.0, None, []
+
+    candidates, score = _best_fuzzy(conn, text)
+    if candidates and score >= NEAR_THRESHOLD:
+        tier: Tier = "aggressive"
+        selected, _agreed = _select_by_reference(candidates, given)
+        also_at = [c.id for c in candidates if c.id != selected.id]
+        diff = _build_diff(text, selected.text_ar)
+        return _TIER_VERDICT[tier], selected, tier, score, diff, also_at
+
+    return Verdict.NOT_FOUND, None, None, score, None, []
+
+
+def _strip_bismillah_prefix(conn: sqlite3.Connection, text: str) -> str | None:
+    """If `text` opens with a Bismillah, return the remainder after it.
+
+    Returns `None` when no leading Bismillah is detected (including when
+    `text` is nothing but the Bismillah, so there is no remainder to match).
+    Comparison is at the "standard" tier (diacritics stripped, alef forms
+    folded): a quoted Bismillah's harakat may not match a stored ayah's
+    styling exactly, and the phrase's skeleton is identical across surahs.
+
+    This is a narrow fix for one common, real quotation shape -- a verse
+    quoted as it appears in a mushaf, with its surah's opening Bismillah
+    prepended -- not a general multi-span matcher. Callers must only invoke
+    this after the FULL text has already failed to match at every tier: for
+    `quran:1:1`, the Bismillah IS the verse, and a verbatim quote of it
+    matches directly on the first attempt, so this path never runs for it.
+    """
+    row = conn.execute(
+        "SELECT bismillah FROM records WHERE bismillah IS NOT NULL LIMIT 1").fetchone()
+    if row is None:
+        return None
+    target = normalize(row["bismillah"], "standard")
+    if not target:
+        return None
+    # Find the LARGEST raw prefix whose standard-tier form still equals the
+    # canonical Bismillah, not the smallest. The smallest match lands right
+    # after the last base letter but before any diacritic still attached to
+    # it (e.g. the closing kasra on "الرحيم"); since normalize() strips
+    # diacritics, a shorter and a longer prefix can normalize identically.
+    # Stopping at the smallest leaves that diacritic as the first character
+    # of the "remainder" -- a combining mark `.lstrip()` will not remove --
+    # which then fails a light-tier (byte-exact) match on the retry even
+    # though the actual verse text is untouched.
+    limit = min(len(text), len(row["bismillah"]) + 15)
+    best_k = None
+    for k in range(1, limit + 1):
+        if normalize(text[:k], "standard") == target:
+            best_k = k
+        elif best_k is not None:
+            break  # prefix has grown past the Bismillah; stop extending
+    if best_k is None:
+        return None
+    remainder = text[best_k:].lstrip()
+    return remainder or None
+
+
 def _classify(conn: sqlite3.Connection, span: Span,
               refs: list[Reference]) -> Match:
     given = _nearest_reference_to_span(refs, span)
 
-    for tier in ("light", "standard"):
-        candidates = _exact_at_tier(conn, span.text, tier)
-        if not candidates:
-            continue
-        verdict = _TIER_VERDICT[tier]
-        selected, agreed = _select_by_reference(candidates, given)
-        also_at = [c.id for c in candidates if c.id != selected.id]
-        if given and not agreed:
-            return Match(span, Verdict.WRONG_REFERENCE, selected, tier, 1.0, given,
-                         also_at=also_at)
-        return Match(span, verdict, selected, tier, 1.0, given, also_at=also_at)
+    # 1. Exact tiers on the text as quoted (no fuzzy fallback yet -- see
+    #    `_match_text`'s docstring for why the fuzzy layer must not see the
+    #    un-stripped text before the Bismillah retry gets a chance).
+    verdict, record, tier, score, diff, also_at = _match_text(
+        conn, span.text, given, include_fuzzy=False)
 
-    candidates, score = _best_fuzzy(conn, span.text)
-    if candidates:
-        selected, agreed = _select_by_reference(candidates, given)
-        also_at = [c.id for c in candidates if c.id != selected.id]
-        diff = _build_diff(span.text, selected.text_ar)
-        if score >= 1.0:
-            # matches only after lossy folding -> never "verified"
-            if given and not agreed:
-                return Match(span, Verdict.WRONG_REFERENCE, selected, "aggressive", score,
-                             given, diff, also_at)
-            return Match(span, Verdict.NEAR_MATCH, selected, "aggressive", score, given,
-                         diff, also_at)
-        if score >= NEAR_THRESHOLD:
-            return Match(span, Verdict.NEAR_MATCH, selected, "aggressive", score, given,
-                         diff, also_at)
+    # 2. A leading Bismillah, stripped, run through the full pipeline.
+    if verdict is Verdict.NOT_FOUND:
+        stripped = _strip_bismillah_prefix(conn, span.text)
+        if stripped is not None:
+            verdict, record, tier, score, diff, also_at = _match_text(conn, stripped, given)
 
-    return Match(span, Verdict.NOT_FOUND, None, None, score, given)
+    # 3. Last resort: fuzzy match on the text exactly as quoted.
+    if verdict is Verdict.NOT_FOUND:
+        verdict, record, tier, score, diff, also_at = _match_text(conn, span.text, given)
+
+    return Match(span, verdict, record, tier, score, given, diff, also_at)
 
 
 def verify_spans(conn: sqlite3.Connection, text: str) -> list[Match]:

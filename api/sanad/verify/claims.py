@@ -25,11 +25,16 @@ class Claim:
     note: str
 
 
+# Apostrophe character class for ijma/nasa'i/shafi'i matches:
+# U+0027 APOSTROPHE (straight) and U+2019 RIGHT SINGLE QUOTATION MARK (curly)
+_APOSTROPHES = "['’]"
+
+
 _CLAIM_RULES: list[tuple[str, re.Pattern[str], str, str]] = [
     (
         "unanimity",
         re.compile(
-            "\\b(ijma[‘\u2019]?|unanimous(ly)?|all scholars agree|"
+            "\\b(ijma" + _APOSTROPHES + "?|unanimous(ly)?|all scholars agree|"
             "every scholar agrees|consensus of the scholars)\\b",
             re.IGNORECASE,
         ),
@@ -55,7 +60,7 @@ _CLAIM_RULES: list[tuple[str, re.Pattern[str], str, str]] = [
     (
         "hadith_unverifiable",
         re.compile(
-            "\\b(bukhari|muslim|tirmidhi|abu dawud|nasa[‘’]?i|ibn majah)\\s*"
+            "\\b(bukhari|muslim|tirmidhi|abu dawud|nasa" + _APOSTROPHES + "?i|ibn majah)\\s*"
             "[#no.]*\\s*\\d+|\\bhadith\\b",
             re.IGNORECASE,
         ),
@@ -63,14 +68,6 @@ _CLAIM_RULES: list[tuple[str, re.Pattern[str], str, str]] = [
         "No licensed Hadith edition is bundled in this corpus. Treat as unverified.",
     ),
 ]
-
-# Apostrophe patterns: both straight and curly for transliteration variants
-# U+0027 APOSTROPHE (straight) and U+2019 RIGHT SINGLE QUOTATION MARK (curly)
-_APOSTROPHES = "[‘\\u2019]"
-
-# Apostrophe character class for ijma/nasa’i/shafi’i matches:
-# U+0027 APOSTROPHE (straight) and U+2019 RIGHT SINGLE QUOTATION MARK (curly)
-_APOSTROPHES = "[\u0027\u2019]"
 
 # First-person marker: direct references to asker
 _FIRST_PERSON = re.compile(r"\b(I|me|my|mine)\b|for me\b", re.IGNORECASE)
@@ -85,10 +82,17 @@ _NORMATIVE = re.compile(
 )
 
 # Faith crisis / apostasy phrases (first-person triggers PERSONAL, otherwise HIGH_RISK)
+# Verb inflections: believ(e/es/ing), los(e/es/t/ing), leav(e/es/ing), becom(e/es/ing)
+# Negations: don't, doesn't, do not, does not, no longer, not anymore, anymore
+# Self-description: atheist, agnostic, apostate, ex-muslim
 _FAITH_CRISIS = re.compile(
-    r"\b(?:leaving|leave)\s+(?:islam|the\s+faith)|convert\s+away|"
-    r"no\s+longer\s+believe|don't\s+believe|don\'t\s+believe|lost\s+my\s+faith|"
-    r"renounce|left\s+islam",
+    r"\b(?:leav(?:e|es|ing)|leaving|left)\s+(?:islam|the\s+faith)|"
+    r"(?:becom(?:e|es|ing)|becoming)\s+(?:an\s+)?(?:atheist|agnostic)|"
+    r"(?:believ(?:e|es|ing)|believe)\s+(?:no\s+longer|not\s+anymore|anymore|not\s+in\s+islam)|"
+    r"(?:don|does)n't\s+believe|"
+    r"(?:do(?:es)?\s+)?not\s+believe|no\s+longer\s+believ(?:e|es)|"
+    r"(?:los(?:e|es|t|ing)|lost)\s+(?:my\s+)?faith|"
+    r"convert\s+away|renounce|ex-?muslim|apostate",
     re.IGNORECASE,
 )
 
@@ -135,9 +139,13 @@ def _is_personal_ruling(text: str) -> bool:
 _HIGH_RISK = re.compile(
     r"\b(apostasy|apostate|takfir|stoning|amputation|jihad|"
     r"child marriage|slavery|honou?r killing)\b|"
-    r"(?:leaving|leave)\s+(?:islam|the\s+faith)|convert\s+away|"
-    r"no\s+longer\s+believe|don't\s+believe|don\'t\s+believe|lost\s+my\s+faith|"
-    r"renounce|left\s+islam",
+    r"(?:leav(?:e|es|ing)|leaving|left)\s+(?:islam|the\s+faith)|"
+    r"(?:becom(?:e|es|ing)|becoming)\s+(?:an\s+)?(?:atheist|agnostic)|"
+    r"(?:believ(?:e|es|ing)|believe)\s+(?:no\s+longer|not\s+anymore|anymore|not\s+in\s+islam)|"
+    r"(?:don|does)n't\s+believe|"
+    r"(?:do(?:es)?\s+)?not\s+believe|no\s+longer\s+believ(?:e|es)|"
+    r"(?:los(?:e|es|t|ing)|lost)\s+(?:my\s+)?faith|"
+    r"convert\s+away|renounce|ex-?muslim",
     re.IGNORECASE,
 )
 

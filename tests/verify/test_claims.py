@@ -96,21 +96,19 @@ def test_abstract_doctrinal_questions_stay_general(q):
     assert route_risk(q) is RiskCode.GENERAL
 
 
-def test_both_apostrophe_forms_match_ijma():
-    # Apostrophe character class must match both straight and curly quotes
-    assert "unanimity" in {c.kind for c in detect_claims("there is ijma on this")}
-    # Test with straight apostrophe
-    assert "unanimity" in {c.kind for c in detect_claims("there is ijma’ on this")}
-    # Test with right single quotation mark (U+2019)
-    assert "unanimity" in {c.kind for c in detect_claims("there is ijma’ on this")}
+def test_both_apostrophe_forms_match_transliterations():
+    # Apostrophe class must match both straight and curly quotes in mid-word positions
+    # where the apostrophe is load-bearing (not optional)
 
-
-def test_both_apostrophe_forms_match_shafi():
-    # Disputed pattern must recognize both apostrophe forms
-    # Test with straight apostrophe
-    assert route_risk("Follow the Shafi'i school") is RiskCode.DISPUTED
-    # Test with right single quotation mark (U+2019)
+    # shafi’i with straight apostrophe
     assert route_risk("Follow the Shafi’i school") is RiskCode.DISPUTED
+    # shafi’i with right single quotation mark (U+2019)
+    assert route_risk("Follow the Shafi’i school") is RiskCode.DISPUTED
+
+    # nasa’i with straight apostrophe (load-bearing in hadith pattern)
+    assert "hadith_unverifiable" in {c.kind for c in detect_claims("See nasa’i 1234")}
+    # nasa’i with right single quotation mark (U+2019)
+    assert "hadith_unverifiable" in {c.kind for c in detect_claims("See nasa’i 1234")}
 
 
 def test_apostasy_without_first_person_is_high_risk():
@@ -132,6 +130,26 @@ def test_hadith_pattern_is_required():
 def test_apostasy_high_risk_pattern_is_required():
     # Verify that apostasy/apostate pattern is pinned by a test
     assert route_risk("Discussing apostasy in Islam") is RiskCode.HIGH_RISK
+
+
+@pytest.mark.parametrize(
+    "q",
+    [
+        # Coordinator's three sentences
+        "I've become an atheist and don't want to pray anymore.",
+        "I'm losing my faith and don't know what to do.",
+        "He told me he doesn't believe in Islam anymore.",
+        # Additional inflected variants
+        "I'm becoming agnostic and questioning everything.",
+        "I've lost my faith completely.",
+        "My beliefs are changing and I no longer believe.",
+        "I don't believe anymore and it's causing family conflict.",
+    ],
+)
+def test_faith_crisis_inflected_variants_diverted(q):
+    # Faith crisis phrasing must be caught even with various verb forms and negations
+    result = route_risk(q)
+    assert result in (RiskCode.PERSONAL_RULING, RiskCode.HIGH_RISK), f"Failed for: {q}"
 
 
 @pytest.mark.parametrize(

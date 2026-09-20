@@ -28,6 +28,14 @@ export function MarkedText({
 
   spans.forEach((s, i) => {
     if (s.start > cursor) parts.push(<span key={`t${i}`}>{text.slice(cursor, s.start)}</span>);
+
+    // A span may overlap one already rendered. Clamp to the cursor so no
+    // character is emitted twice: this component's contract is that its
+    // output equals its input, and that must not depend on an upstream
+    // deduplication.
+    const from = Math.max(s.start, cursor);
+    if (from >= s.end) return; // fully consumed by an earlier span
+
     const verdict = s.verdict as Verdict;
     parts.push(
       <mark
@@ -43,10 +51,10 @@ export function MarkedText({
           textDecorationSkipInk: "none",
         }}
       >
-        {text.slice(s.start, s.end)}
+        {text.slice(from, s.end)}
       </mark>
     );
-    cursor = Math.max(cursor, s.end);
+    cursor = s.end;
   });
 
   if (cursor < text.length) parts.push(<span key="tail">{text.slice(cursor)}</span>);

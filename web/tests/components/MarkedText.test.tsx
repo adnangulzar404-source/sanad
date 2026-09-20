@@ -42,4 +42,22 @@ describe("MarkedText", () => {
     render(<MarkedText text="aaaa" quotations={[span(0, 4, "WRONG_REFERENCE")]} />);
     expect(screen.getByTestId("span-0")).toHaveAttribute("title", expect.stringMatching(/wrong reference/i));
   });
+
+  it("emits no character twice when spans overlap", () => {
+    const text = "abcdefghij";
+    render(<MarkedText text={text} quotations={[span(0, 6, "EXACT"), span(4, 10, "NOT_FOUND")]} />);
+    expect(screen.getByTestId("marked").textContent).toBe(text);
+  });
+
+  it("drops a span entirely consumed by an earlier one", () => {
+    const text = "abcdefghij";
+    render(<MarkedText text={text} quotations={[span(0, 8, "EXACT"), span(2, 5, "NOT_FOUND")]} />);
+    expect(screen.getByTestId("marked").textContent).toBe(text);
+  });
+
+  it("still renders exactly the input for a span pathologically past the end", () => {
+    const text = "abc";
+    render(<MarkedText text={text} quotations={[span(0, 99, "EXACT")]} />);
+    expect(screen.getByTestId("marked").textContent).toBe(text);
+  });
 });

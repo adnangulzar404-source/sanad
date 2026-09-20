@@ -109,6 +109,63 @@ export interface components {
             /** Note */
             note: string;
         };
+        /** CorpusResponse */
+        CorpusResponse: {
+            /** Db Sha256 */
+            db_sha256: string;
+            /** Db Path */
+            db_path: string;
+            stats: components["schemas"]["CorpusStatsOut"];
+            /** Scope */
+            scope: string;
+            /** Sources */
+            sources: components["schemas"]["CorpusSourceOut"][];
+        };
+        /**
+         * CorpusSourceOut
+         * @description One row of `sources` -- mirrors its columns exactly (see
+         *     `corpus.schema.AUDIT_SCHEMA_SQL`'s sibling, the corpus schema's `sources`
+         *     table). This is the provenance panel's data: license, attribution, and
+         *     the verbatim Tanzil notice. A field added to the table but not here would
+         *     be silently dropped from every API response that lists sources -- the
+         *     same "two things meant to agree, quietly diverging" failure this project
+         *     keeps hitting, just moved into the response layer instead of the client.
+         */
+        CorpusSourceOut: {
+            /** Id */
+            id: string;
+            /** Kind */
+            kind: string;
+            /** Title */
+            title: string;
+            /** Publisher */
+            publisher?: string | null;
+            /** Edition */
+            edition?: string | null;
+            /** Url */
+            url: string;
+            /** License Id */
+            license_id: string;
+            /** License Url */
+            license_url?: string | null;
+            /** Attribution */
+            attribution: string;
+            /** Retrieved At */
+            retrieved_at: string;
+            /** Upstream Sha256 */
+            upstream_sha256: string;
+            /** Modifications */
+            modifications: string;
+        };
+        /** CorpusStatsOut */
+        CorpusStatsOut: {
+            /** Records */
+            records: number;
+            /** Sources */
+            sources: number;
+            /** Translations */
+            translations: number;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -138,6 +195,36 @@ export interface components {
                 string,
                 string
             ][] | null;
+        };
+        /**
+         * RecordDetailOut
+         * @description `GET /api/records/{id}`'s full response -- a superset of `RecordOut`
+         *     (which is what `QuotationOut.record` embeds). This endpoint additionally
+         *     surfaces the surah's bilingual name and the full source record, so it
+         *     gets its own model rather than reusing `RecordOut`.
+         */
+        RecordDetailOut: {
+            /** Id */
+            id: string;
+            /** Reference Display */
+            reference_display: string;
+            /** Text Ar */
+            text_ar: string;
+            /** Text Ar Sha256 */
+            text_ar_sha256: string;
+            /** Surah */
+            surah?: number | null;
+            /** Ayah */
+            ayah?: number | null;
+            /** Surah Name Ar */
+            surah_name_ar?: string | null;
+            /** Surah Name En */
+            surah_name_en?: string | null;
+            /** Translation En */
+            translation_en?: string | null;
+            /** Translation Disclaimer */
+            translation_disclaimer?: string | null;
+            source?: components["schemas"]["CorpusSourceOut"] | null;
         };
         /** RecordOut */
         RecordOut: {
@@ -250,9 +337,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["RecordDetailOut"];
                 };
             };
             /** @description Validation Error */
@@ -315,9 +400,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["CorpusResponse"];
                 };
             };
         };

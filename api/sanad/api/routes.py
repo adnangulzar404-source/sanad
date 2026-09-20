@@ -13,7 +13,17 @@ from ..corpus import db
 from ..corpus.models import Record
 from ..verify.claims import detect_claims, requires_handoff, route_risk
 from ..verify.engine import Verdict, verify_spans
-from .schemas import ClaimOut, QuotationOut, RecordOut, VerifyRequest, VerifyResponse
+from .schemas import (
+    ClaimOut,
+    CorpusResponse,
+    CorpusSourceOut,
+    CorpusStatsOut,
+    QuotationOut,
+    RecordDetailOut,
+    RecordOut,
+    VerifyRequest,
+    VerifyResponse,
+)
 
 router = APIRouter(prefix="/api")
 
@@ -167,22 +177,22 @@ def verify(payload: VerifyRequest, request: Request) -> VerifyResponse:
     )
 
 
-@router.get("/records/{record_id}")
-def get_record(record_id: str, request: Request) -> dict:
+@router.get("/records/{record_id}", response_model=RecordDetailOut)
+def get_record(record_id: str, request: Request) -> RecordDetailOut:
     conn = _conn(request)
     rec = db.get_record(conn, record_id)
     if rec is None:
         raise HTTPException(status_code=404, detail=f"no record {record_id!r}")
     src = conn.execute("SELECT * FROM sources WHERE id = ?", (rec.source_id,)).fetchone()
     translation_en, disclaimer = _fetch_translation(conn, rec.id)
-    return {
-        "id": rec.id, "reference_display": rec.reference_display,
-        "text_ar": rec.text_ar, "text_ar_sha256": rec.text_ar_sha256,
-        "surah": rec.surah, "ayah": rec.ayah,
-        "surah_name_ar": rec.surah_name_ar, "surah_name_en": rec.surah_name_en,
-        "translation_en": translation_en, "translation_disclaimer": disclaimer,
-        "source": dict(src) if src else None,
-    }
+    return RecordDetailOut(
+        id=rec.id, reference_display=rec.reference_display,
+        text_ar=rec.text_ar, text_ar_sha256=rec.text_ar_sha256,
+        surah=rec.surah, ayah=rec.ayah,
+        surah_name_ar=rec.surah_name_ar, surah_name_en=rec.surah_name_en,
+        translation_en=translation_en, translation_disclaimer=disclaimer,
+        source=CorpusSourceOut(**dict(src)) if src else None,
+    )
 
 
 @router.get("/search")
@@ -214,16 +224,16 @@ def search(q: str, request: Request, limit: int = 20) -> dict:
     }
 
 
-@router.get("/corpus")
-def corpus(request: Request) -> dict:
+@router.get("/corpus", response_model=CorpusResponse)
+def corpus(request: Request) -> CorpusResponse:
     conn = _conn(request)
-    return {
-        "db_sha256": request.app.state.db_sha256,
-        "db_path": str(request.app.state.db_path),
-        "stats": db.corpus_stats(conn),
-        "scope": CORPUS_SCOPE,
-        "sources": [dict(r) for r in conn.execute("SELECT * FROM sources")],
-    }
+    return CorpusResponse(
+        db_sha256=request.app.state.db_sha256,
+        db_path=str(request.app.state.db_path),
+        stats=CorpusStatsOut(**db.corpus_stats(conn)),
+        scope=CORPUS_SCOPE,
+        sources=[CorpusSourceOut(**dict(r)) for r in conn.execute("SELECT * FROM sources")],
+    )
 
 
 @router.get("/health")

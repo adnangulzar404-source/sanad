@@ -72,6 +72,24 @@ def test_corpus_manifest_exposes_license_and_attribution(client):
     assert len(body["db_sha256"]) == 64
 
 
+def test_corpus_endpoint_matches_its_response_model(client):
+    # `/api/corpus` used to return a bare dict with no Pydantic response
+    # model, so FastAPI's OpenAPI schema documented it as
+    # `{[key: string]: unknown}` and the generated TypeScript client could
+    # not derive a real type for it -- a hand-written interface sitting
+    # inside the very feature meant to eliminate hand-written API types.
+    # This is that endpoint's response validated against `CorpusResponse`
+    # (via FastAPI's `response_model`) and checked against real values, not
+    # just shape.
+    body = client.get("/api/corpus").json()
+    assert body["stats"]["records"] == 6236
+    assert len(body["sources"]) == 2
+    tanzil = next(s for s in body["sources"] if s["kind"] == "quran-arabic")
+    assert tanzil["license_id"] == "CC-BY-3.0"
+    assert "PLEASE DO NOT REMOVE" in tanzil["attribution"]
+    assert len(body["db_sha256"]) == 64
+
+
 def test_verify_exact_quote(client):
     r = client.post("/api/verify", json={"text": f"«{IKHLAS_1}»"})
     assert r.status_code == 200

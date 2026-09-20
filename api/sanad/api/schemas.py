@@ -63,3 +63,61 @@ class VerifyResponse(BaseModel):
     # absence from a Qur'an-only corpus proves nothing about a quotation that
     # might be genuine Hadith, tafsir, or scholarly text Stage A does not hold.
     corpus_scope: str
+
+
+class CorpusSourceOut(BaseModel):
+    """One row of `sources` -- mirrors its columns exactly (see
+    `corpus.schema.AUDIT_SCHEMA_SQL`'s sibling, the corpus schema's `sources`
+    table). This is the provenance panel's data: license, attribution, and
+    the verbatim Tanzil notice. A field added to the table but not here would
+    be silently dropped from every API response that lists sources -- the
+    same "two things meant to agree, quietly diverging" failure this project
+    keeps hitting, just moved into the response layer instead of the client.
+    """
+
+    id: str
+    kind: str
+    title: str
+    publisher: str | None = None
+    edition: str | None = None
+    url: str
+    license_id: str
+    license_url: str | None = None
+    attribution: str
+    retrieved_at: str
+    upstream_sha256: str
+    modifications: str
+
+
+class CorpusStatsOut(BaseModel):
+    records: int
+    sources: int
+    translations: int
+
+
+class CorpusResponse(BaseModel):
+    db_sha256: str
+    db_path: str
+    stats: CorpusStatsOut
+    scope: str
+    sources: list[CorpusSourceOut]
+
+
+class RecordDetailOut(BaseModel):
+    """`GET /api/records/{id}`'s full response -- a superset of `RecordOut`
+    (which is what `QuotationOut.record` embeds). This endpoint additionally
+    surfaces the surah's bilingual name and the full source record, so it
+    gets its own model rather than reusing `RecordOut`.
+    """
+
+    id: str
+    reference_display: str
+    text_ar: str
+    text_ar_sha256: str
+    surah: int | None = None
+    ayah: int | None = None
+    surah_name_ar: str | None = None
+    surah_name_en: str | None = None
+    translation_en: str | None = None
+    translation_disclaimer: str | None = None
+    source: CorpusSourceOut | None = None

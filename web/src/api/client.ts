@@ -4,6 +4,10 @@ export type VerifyResponse = components["schemas"]["VerifyResponse"];
 export type QuotationOut = components["schemas"]["QuotationOut"];
 export type RecordOut = components["schemas"]["RecordOut"];
 export type ClaimOut = components["schemas"]["ClaimOut"];
+export type RecordDetailOut = components["schemas"]["RecordDetailOut"];
+export type CorpusResponse = components["schemas"]["CorpusResponse"];
+export type CorpusSourceOut = components["schemas"]["CorpusSourceOut"];
+export type CorpusStatsOut = components["schemas"]["CorpusStatsOut"];
 
 /** The API could not be reached at all. Distinct from an error it returned. */
 export class ApiUnreachable extends Error {
@@ -46,29 +50,6 @@ export function verify(text: string): Promise<VerifyResponse> {
     method: "POST",
     body: JSON.stringify({ text }),
   });
-}
-
-export interface CorpusSource {
-  id: string;
-  kind: string;
-  title: string;
-  publisher: string | null;
-  edition: string | null;
-  url: string;
-  license_id: string;
-  license_url: string | null;
-  attribution: string;
-  retrieved_at: string;
-  upstream_sha256: string;
-  modifications: string;
-}
-
-export interface CorpusResponse {
-  db_sha256: string;
-  db_path: string;
-  stats: { records: number; sources: number; translations: number };
-  scope: string;
-  sources: CorpusSource[];
 }
 
 export function getCorpus(): Promise<CorpusResponse> {

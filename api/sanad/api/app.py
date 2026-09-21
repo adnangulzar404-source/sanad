@@ -7,6 +7,9 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.types import Scope
 
 from ..corpus.schema import AUDIT_SCHEMA_SQL
 from ..settings import file_sha256, resolve_audit_db_path, resolve_db_path
@@ -14,6 +17,31 @@ from .routes import router
 
 log = logging.getLogger(__name__)
 _APP: FastAPI | None = None
+
+
+class _SPAStaticFiles(StaticFiles):
+    """`StaticFiles(html=True)` only serves `index.html` for the mount's own
+    root and per-directory index files -- it has no notion of a single-page
+    app's client-side routes (e.g. `/verify/quran:112:1`), so a request for
+    one of those 404s instead of loading the app shell. This is the
+    standard `try_files $uri /index.html;` fallback: any GET/HEAD that does
+    not resolve to a real file on disk still gets `index.html`, so a
+    hard refresh on a client-side route works.
+
+    Never falls back for a path under `api/` -- this mount only ever sees
+    those when no `/api/*` route matched (see `create_app`'s mount-order
+    comment), and such a request must still 404 as JSON, not silently
+    return the HTML shell.
+    """
+
+    async def get_response(self, path: str, scope: Scope):
+        try:
+            return await super().get_response(path, scope)
+        except StarletteHTTPException as exc:
+            is_api = path == "api" or path.startswith("api/") or path.startswith("api\\")
+            if exc.status_code == 404 and not is_api:
+                return await super().get_response("index.html", scope)
+            raise
 
 
 def _open_corpus_conn(path: Path) -> sqlite3.Connection:
@@ -102,6 +130,18 @@ def create_app() -> FastAPI:
     log.info("audit log %s", audit_path)
 
     app.include_router(router)
+
+    # Serve the built frontend when it is present. Mounted last so /api/*
+    # always wins over the SPA catch-all. Guarded because the tests and a
+    # bare `uvicorn` run have no build. Vercel's Python preset routes every
+    # request to this app, so the app itself -- not vercel.json -- is
+    # responsible for serving the static React build outside /api/*. See
+    # the Stage C spec: "the frontend is a static build that can be served
+    # by the API or by any CDN."
+    _dist = Path(__file__).resolve().parents[3] / "web" / "dist"
+    if _dist.is_dir():
+        app.mount("/", _SPAStaticFiles(directory=_dist, html=True), name="web")
+
     _APP = app
     return app
 

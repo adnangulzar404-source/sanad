@@ -123,7 +123,7 @@ EVIDENCE — one isnad trace per span
 │ ├─ matched        Al-Ikhlas 112:1                        │
 │ ├─ you cited      Al-Baqarah 2:255              ✕ broken │
 │ ├─ source         Tanzil Uthmani 1.1                     │
-│ └─ licence        CC BY 3.0 · ⌗2816ad6e…                 │
+│ └─ licence        CC BY 3.0 · ⌗8774f388…                 │
 └────────────────────────────────────────────────────────┘
 ```
 

@@ -61,7 +61,10 @@ modifications  = "none"
 id             = "tanzil-en-pickthall"
 kind           = "quran-translation"
 format         = "txt-2"
-title          = "The Meaning of the Glorious Koran (Pickthall)"
+# Displayed title uses the modern transliteration. The work was published in
+# 1930 as "The Meaning of the Glorious Koran"; that spelling is on the original
+# title page and in library catalogues.
+title          = "The Meaning of the Glorious Qur'an (Pickthall)"
 publisher      = "Tanzil Project (distribution)"
 edition        = "en.pickthall, last updated 2010-09-04"
 url            = "https://tanzil.net/trans/?transID=en.pickthall&type=txt-2"

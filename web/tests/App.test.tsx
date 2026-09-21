@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import App from "../src/App";
 
 const corpusFixture = {
-  db_sha256: "2816ad6e161e621c21b410290f373aebec2983bb88e4cfb7acb8f4e555f640",
+  db_sha256: "8774f3883d2547401c423e682f148af3012623872b33797b27207a141b3b2d79",
   db_path: "data/sanad-quran.db",
   stats: { records: 6236, sources: 2, translations: 6236 },
   scope: "This corpus contains the Qur'an only.",

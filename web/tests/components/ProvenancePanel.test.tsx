@@ -5,7 +5,7 @@ import { ProvenancePanel } from "../../src/components/ProvenancePanel";
 const NOTICE = "# PLEASE DO NOT REMOVE OR CHANGE THIS COPYRIGHT BLOCK\n#  Tanzil Quran Text (Uthmani, Version 1.1)\n#  License: Creative Commons Attribution 3.0";
 
 const corpus = {
-  db_sha256: "2816ad6e161e621c21b410290f373aebec2983bb88e4cfb7acb8f4e555f64021",
+  db_sha256: "8774f3883d2547401c423e682f148af3012623872b33797b27207a141b3b2d79",
   db_path: "data/sanad-quran.db",
   stats: { records: 6236, sources: 2, translations: 6236 },
   scope: "This corpus contains the Qur'an only.",
@@ -23,7 +23,7 @@ describe("ProvenancePanel", () => {
   it("shows the corpus checksum", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify(corpus), { status: 200 })));
     render(<ProvenancePanel onClose={() => {}} />);
-    await waitFor(() => expect(screen.getByText(/2816ad6e/)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/8774f388/)).toBeInTheDocument());
   });
 
   it("reproduces the licence notice verbatim, not summarised", async () => {

@@ -44,6 +44,7 @@ CREATE TABLE IF NOT EXISTS records (
   bismillah         TEXT,
   isnad_ar          TEXT,
   addenda_ar        TEXT,
+  unscorable_reason TEXT,
   norm_light        TEXT NOT NULL,
   norm_standard     TEXT NOT NULL,
   norm_aggressive   TEXT NOT NULL,

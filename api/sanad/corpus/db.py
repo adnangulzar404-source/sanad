@@ -11,7 +11,8 @@ from .schema import SCHEMA_SQL
 _RECORD_COLS = (
     "id", "source_id", "kind", "surah", "ayah", "surah_name_ar", "surah_name_en",
     "collection", "book_no", "chapter_ar", "hadith_no", "numbering_scheme",
-    "text_ar", "text_ar_sha256", "bismillah", "isnad_ar", "addenda_ar", "norm_light",
+    "text_ar", "text_ar_sha256", "bismillah", "isnad_ar", "addenda_ar",
+    "unscorable_reason", "norm_light",
     "norm_standard", "norm_aggressive", "reference_display",
 )
 
@@ -72,13 +73,21 @@ def insert_translations(conn: sqlite3.Connection,
 
 
 def rebuild_fts(conn: sqlite3.Connection) -> None:
+    """Rebuild the search index over every SCORABLE record's own norms.
+
+    `unscorable_reason IS NULL` is the whole of the filter: a record whose
+    stored text is the edition's editorial apparatus rather than a narration
+    (see `Record.unscorable_reason`) must not be a match candidate, and
+    keeping it out of the index is how the fuzzy layer never sees it. It is
+    still in `records`, still fetched by `get_record`, still displayed.
+    """
     conn.execute("DELETE FROM records_fts")
     conn.execute(
         "INSERT INTO records_fts (record_id, norm_standard, norm_aggressive, translation) "
         "SELECT r.id, r.norm_standard, r.norm_aggressive,"
         "       COALESCE((SELECT group_concat(t.text, ' ') FROM translations t"
         "                 WHERE t.record_id = r.id), '')"
-        " FROM records r")
+        " FROM records r WHERE r.unscorable_reason IS NULL")
     conn.commit()
 
 

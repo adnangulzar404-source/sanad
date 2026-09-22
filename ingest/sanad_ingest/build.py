@@ -119,6 +119,9 @@ def _hadith_records(parsed: ParsedOpeniti, locked: LockedSource) -> list[Record]
             text_ar=text,
             isnad_ar=u.isnad_ar,
             addenda_ar=u.addenda_ar,
+            # Carried straight through from the audited list in openiti.py.
+            # The build never decides this; it only refuses to lose it.
+            unscorable_reason=u.unscorable_reason,
             text_ar_sha256=hashlib.sha256(text.encode("utf-8")).hexdigest(),
             norm_light=normalize(text, "light"),
             norm_standard=normalize(text, "standard"),

@@ -54,3 +54,14 @@ class Record:
     # on the 155 records that carry one, and dropped them out of reach of the
     # 0.86 threshold.
     addenda_ar: str | None = None
+    # Why this record's text is not an independently quotable text, or None.
+    # Where a narration repeats one already given in full, the al-Bugha
+    # edition prints a pointer -- "bi-hadha", "mithlahu", "nahwahu" -- in
+    # place of the matn. Those strings are everyday Arabic, and scoring them
+    # made Sanad answer a commonplace with EXACT 1.0 and a Bukhari citation.
+    # A record with a reason here keeps its id, its text and its citation and
+    # stays reachable by reference lookup; it is simply never a match
+    # candidate -- excluded from the FTS index (see `rebuild_fts`) and from
+    # the exact-tier lookup (see `verify.engine._exact_at_tier`). The list of
+    # 17 is an audit of the pinned edition; see `openiti._UNSCORABLE`.
+    unscorable_reason: str | None = None

@@ -62,3 +62,68 @@ def test_exactly_112_records_carry_a_bismillah():
     conn = db.connect(DB_PATH)
     n = conn.execute("SELECT count(*) FROM records WHERE bismillah IS NOT NULL").fetchone()[0]
     assert n == 112  # 114 surahs, minus Al-Fatiha where it is verse 1, minus At-Tawbah
+
+
+# --- fix round 3: an editorial pointer is not a verifiable quotation -------
+#
+# These run against the SHIPPED database, because the hazard is what the
+# product answers, not what the build produces. Every Arabic literal is built
+# from codepoints for the reason given at the top of this file.
+
+_BI_HADHA = "".join(chr(c) for c in (0x0628, 0x0647, 0x0630, 0x0627))   # بهذا
+_MITHLAHU = "".join(chr(c) for c in (0x0645, 0x062B, 0x0644, 0x0647))   # مثله
+_NAHWAHU = "".join(chr(c) for c in (0x0646, 0x062D, 0x0648, 0x0647))    # نحوه
+# "al-harb khud'a" -- war is deceit. Sahih al-Bukhari 2866, 10 characters,
+# genuine, and shorter than three of the seventeen excluded records.
+_AL_HARB_KHUDA = "".join(chr(c) for c in (
+    0x0627, 0x0644, 0x062D, 0x0631, 0x0628, 0x0020, 0x062E, 0x062F, 0x0639, 0x0629))
+# Surah Ta-Ha, ayah 1 -- two characters, the shortest record in the corpus.
+_TA_HA = "".join(chr(c) for c in (0x0637, 0x0647))
+
+_UNSCORABLE_IDS = tuple(f"hadith:bukhari:{n}" for n in (
+    "127", "237", "335", "394", "549", "557", "1379", "1915", "2483", "3457",
+    "3750", "3777", "3801", "3957", "4540", "5454", "5837",
+))
+
+
+def test_an_editorial_pointer_is_not_verified_as_a_hadith():
+    from sanad.verify.engine import Verdict, verify_spans
+    conn = db.connect(DB_PATH)
+    for phrase in (_BI_HADHA, _MITHLAHU, _NAHWAHU):
+        matches = verify_spans(conn, f"«{phrase}»")
+        assert len(matches) == 1
+        assert matches[0].verdict is Verdict.NOT_FOUND, phrase
+        assert matches[0].record is None, phrase
+
+
+def test_a_famous_short_hadith_still_verifies_exactly():
+    from sanad.verify.engine import Verdict, verify_spans
+    conn = db.connect(DB_PATH)
+    matches = verify_spans(conn, f"«{_AL_HARB_KHUDA}»")
+    assert len(matches) == 1
+    assert matches[0].verdict is Verdict.EXACT
+    assert matches[0].record.id == "hadith:bukhari:2866"
+
+
+def test_the_shortest_ayah_still_verifies_exactly():
+    from sanad.verify.engine import Verdict, verify_spans
+    conn = db.connect(DB_PATH)
+    matches = verify_spans(conn, f"«{_TA_HA}»")
+    assert len(matches) == 1
+    assert matches[0].verdict is Verdict.EXACT
+    assert matches[0].record.id == "quran:20:1"
+
+
+def test_every_unscorable_record_still_resolves_by_reference():
+    """Sahih al-Bukhari 1379 is a real hadith and must still be reachable.
+
+    This is the lookup behind GET /records/{id}: excluded from scoring, still
+    in the corpus, still citable, still displayable with its full text and the
+    further narrations the edition appends.
+    """
+    conn = db.connect(DB_PATH)
+    for record_id in _UNSCORABLE_IDS:
+        rec = db.get_record(conn, record_id)
+        assert rec is not None, record_id
+        assert rec.text_ar.strip(), record_id
+        assert rec.reference_display, record_id

@@ -69,12 +69,20 @@ def _exact_at_tier(conn: sqlite3.Connection, text: str, tier: Tier) -> list[Reco
     WRONG_REFERENCE even though the citation was exactly right. Callers must
     consider every tied candidate and prefer whichever agrees with a nearby
     reference; see `_select_by_reference`.
+
+    `unscorable_reason IS NULL` excludes the records whose stored text is the
+    edition's editorial apparatus rather than a narration -- see
+    `Record.unscorable_reason`. The FTS filter in `rebuild_fts` already keeps
+    them out of the fuzzy layer, but this tier reads `records` directly, and
+    it is the tier that was doing the damage: "bi-hadha" normalizes to itself
+    and tied four records exactly, verdict EXACT, score 1.0.
     """
     needle = normalize(text, tier)
     if not needle:
         return []
     rows = conn.execute(
-        f"SELECT id FROM records WHERE {_NORM_COLUMN[tier]} = ? ORDER BY surah, ayah, id",
+        f"SELECT id FROM records WHERE {_NORM_COLUMN[tier]} = ?"
+        " AND unscorable_reason IS NULL ORDER BY surah, ayah, id",
         (needle,)).fetchall()
     return [db.get_record(conn, row["id"]) for row in rows]
 

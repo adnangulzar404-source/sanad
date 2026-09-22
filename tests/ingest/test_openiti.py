@@ -692,3 +692,51 @@ def test_a_one_token_primary_is_not_a_boundary():
     baa = chr(0x0628)
     stub = f"{baa * 8} {_HADDATHANA} {baa * 6} {_AN} {baa * 6}"
     assert _split_secondary(stub) == (stub, None)
+
+
+# --- fix round 3: editorial pointers are not quotable text -----------------
+#
+# "bi-hadha" ("with this") is what the edition prints where a narration
+# repeats one already given in full. It is an Arabic commonplace, and until
+# this round Sanad answered it with EXACT 1.0, Sahih al-Bukhari 1379 --
+# manufacturing a hadith citation out of an everyday phrase.
+
+_BI_HADHA = "".join(chr(c) for c in (0x0628, 0x0647, 0x0630, 0x0627))   # بهذا
+
+
+def _one_unit(number: str, matn: str) -> str:
+    baa = chr(0x0628)
+    return (f"{_HEADER}\n### | {baa * 5}\n"
+            f"# {number} {_HADDATHANA} {baa * 6} {_AN} {baa * 6} * {matn}\n")
+
+
+def test_an_audited_editorial_pointer_is_marked_unscorable():
+    unit = parse_openiti(_one_unit("1379", _BI_HADHA)).units[0]
+    assert unit.unscorable_reason is not None
+    # Marked, never rewritten: the edition's word is still the stored text.
+    assert unit.matn_ar == _BI_HADHA
+
+
+def test_the_mark_belongs_to_the_audited_record_not_to_the_words():
+    """2866's matn is "al-harb khud'a" -- war is deceit -- and is genuine.
+
+    The list is an audit of 17 named records, not a vocabulary of forbidden
+    words. A record that is not on it stays scorable whatever it says, which
+    is the only reason a four-letter matn like "bi-hadha" can be excluded
+    without putting every short hadith at risk.
+    """
+    unit = parse_openiti(_one_unit("2866", _BI_HADHA)).units[0]
+    assert unit.unscorable_reason is None
+
+
+def test_the_audited_list_is_checked_against_the_text_it_audited():
+    """Each entry pins the sha256 of the matn that was read in the source.
+
+    An id alone would silently transfer the verdict to whatever a future
+    edition prints under that number. The classification was made by reading
+    one specific string; if that string changes, the build must stop and the
+    record must be read again.
+    """
+    baa = chr(0x0628)
+    with pytest.raises(ValueError, match="1379"):
+        parse_openiti(_one_unit("1379", baa * 4))

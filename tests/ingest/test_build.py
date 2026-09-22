@@ -586,14 +586,24 @@ def test_no_addendum_is_reachable_through_the_search_index(real_corpus):
     test_fts_indexes_the_record_norms_and_nothing_else, which pins the index
     to the record's own norms. Together: the addendum is not in the norms,
     and the index is nothing but the norms.
+
+    394, not 395: hadith 237 both carries an addendum and is on the
+    unscorable audit list (its matn is a "bayna" clause ending at the
+    chain-transfer mark), so it has no index row at all. The two counts are
+    asserted separately rather than relaxed into one, so that a record
+    silently falling out of the index cannot hide inside this total.
     """
     out, _, _ = real_corpus
-    rows = db.connect(out).execute(
+    conn = db.connect(out)
+    assert conn.execute(
+        "SELECT count(*) FROM records WHERE addenda_ar IS NOT NULL"
+        " AND unscorable_reason IS NOT NULL").fetchone()[0] == 1
+    rows = conn.execute(
         "SELECT r.id, r.text_ar, r.addenda_ar, f.norm_standard,"
         "       f.norm_aggressive FROM records r"
         " JOIN records_fts f ON f.record_id = r.id"
         " WHERE r.addenda_ar IS NOT NULL").fetchall()
-    assert len(rows) == 395
+    assert len(rows) == 394
     for row in rows:
         assert row["addenda_ar"] not in row["text_ar"], row["id"]
         for form in ("standard", "aggressive"):
@@ -632,3 +642,76 @@ def test_an_empty_scored_text_aborts_the_build():
         content_sha256="0" * 64, modifications="none", expected_records=1)
     with pytest.raises(BuildError, match="empty scored text"):
         _hadith_records(parsed, locked)
+
+
+# --- fix round 3: editorial pointers are kept, displayed, never scored -----
+
+# The audited list, restated here independently of the parser's copy. If the
+# two ever disagree, one of them was edited without the audit being redone.
+_UNSCORABLE_IDS = frozenset(f"hadith:bukhari:{n}" for n in (
+    "127", "237", "335", "394", "549", "557", "1379", "1915", "2483", "3457",
+    "3750", "3777", "3801", "3957", "4540", "5454", "5837",
+))
+# Famous short matns, read in the source and ruled genuine: "war is deceit",
+# "the moon split", "a rich man's delay is oppression", "every kindness is
+# charity". They are the guard against a length heuristic creeping back in.
+_GENUINE_SHORT_IDS = tuple(f"hadith:bukhari:{n}" for n in
+                           ("2866", "3658", "2270", "5675"))
+
+
+def test_editorial_pointers_are_kept_but_never_scored(real_corpus):
+    out, _, _ = real_corpus
+    conn = db.connect(out)
+    flagged = {r[0] for r in conn.execute(
+        "SELECT id FROM records WHERE unscorable_reason IS NOT NULL").fetchall()}
+    assert flagged == set(_UNSCORABLE_IDS)
+    for record_id in sorted(_UNSCORABLE_IDS):
+        rec = db.get_record(conn, record_id)
+        # Nothing is deleted: the record stays, keeps its citation, and keeps
+        # the edition's words. Only its scorability changes.
+        assert rec is not None, record_id
+        assert rec.text_ar.strip(), record_id
+        assert rec.reference_display.startswith("Sahih al-Bukhari "), record_id
+        assert rec.unscorable_reason, record_id
+
+
+def test_no_unscorable_record_is_in_the_search_index(real_corpus):
+    out, _, _ = real_corpus
+    n = db.connect(out).execute(
+        "SELECT count(*) FROM records_fts f JOIN records r ON r.id = f.record_id"
+        " WHERE r.unscorable_reason IS NOT NULL").fetchone()[0]
+    assert n == 0
+
+
+def test_a_famous_short_matn_is_still_indexed_and_scorable(real_corpus):
+    """The guard against over-reach, at the corpus level.
+
+    Length is not the rule: these are 10 to 13 characters, shorter than three
+    of the excluded records, and they are in the index.
+    """
+    out, _, _ = real_corpus
+    conn = db.connect(out)
+    for record_id in _GENUINE_SHORT_IDS:
+        assert db.get_record(conn, record_id).unscorable_reason is None, record_id
+        assert conn.execute(
+            "SELECT count(*) FROM records_fts WHERE record_id = ?",
+            (record_id,)).fetchone()[0] == 1, record_id
+
+
+def test_nothing_outside_the_audited_hadith_is_unscorable(real_corpus):
+    """Surah Ta-Ha's first ayah is two characters. The Qur'an side is untouched.
+
+    The kind literal is checked against a count, not assumed: Qur'anic records
+    are stored with kind 'ayah', and the first version of this test asked for
+    kind='quran' -- a query that returns zero rows whatever the flag does, and
+    would have passed while proving nothing.
+    """
+    out, _, _ = real_corpus
+    conn = db.connect(out)
+    assert conn.execute(
+        "SELECT count(*) FROM records WHERE kind='ayah'").fetchone()[0] == 6236
+    kinds = {r[0] for r in conn.execute(
+        "SELECT DISTINCT kind FROM records"
+        " WHERE unscorable_reason IS NOT NULL").fetchall()}
+    assert kinds == {"hadith"}
+    assert db.get_record(conn, "quran:20:1").unscorable_reason is None

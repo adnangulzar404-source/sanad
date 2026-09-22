@@ -241,6 +241,107 @@ def _split_secondary(matn: str) -> tuple[str, str | None]:
     return matn, None
 
 
+# --- matns that are editorial apparatus, not quotable text -----------------
+#
+# Where a narration repeats one already given in full, this edition prints a
+# pointer instead of the text: "bi-hadha" ("with this"), "mithlahu" ("the like
+# of it"), "nahwahu" ("something like it"). The source marks the isnad/matn
+# boundary exactly as it does everywhere else, so the pointer lands in the
+# scored text and Sanad answered the everyday Arabic phrase "bi-hadha" with
+# EXACT 1.0, Sahih al-Bukhari 1379 -- inventing a hadith citation out of a
+# commonplace, which is the precise failure this product exists to prevent.
+#
+# The list below is an AUDIT, not a heuristic. Length is emphatically not the
+# rule: "al-harb khud'a" (war is deceit, 2866) is 10 characters and genuine,
+# and Qur'anic records go down to 2. Three scans over all 7,129 units produced
+# the candidates -- every matn of 9 characters or less (14 records, all
+# apparatus); every matn whose every token is pointer or deferral vocabulary
+# at any length (13 records, 11 of them already in the first set); and every
+# matn holding a standalone "ha" chain-transfer mark (1 record, 237). Every
+# matn up to 24 characters (92 records) and every matn containing a deferral
+# phrase at any length (32 records) was then read in the source and
+# classified. 17 are listed here; everything else was ruled genuine, record by
+# record, in .superpowers/sdd/2026-09-22-hadith-corpus/task-4-fix-3-report.md.
+#
+# The value is a (sha256-of-matn, reason) pair. Pinning the text is what makes
+# the entry an audit rather than a standing verdict on a number: the
+# classification was made by reading one specific string, and if a future
+# edition prints something else under that number the build stops and the
+# record gets read again.
+
+_POINTER = ("editorial back-reference: the matn is a pointer to a narration "
+            "printed in full elsewhere, not a text")
+_DEFERRAL = ("editorial abridgement: the matn breaks off and defers to the "
+             "full narration printed elsewhere")
+_INCIPIT = ("editorial abridgement: the edition prints the opening word in "
+            "place of the narration")
+_TAHWIL = ("chain-transfer fragment: the matn is a subordinate clause ending "
+           "at the tahwil mark, the narration itself following in the addendum")
+
+_UNSCORABLE: dict[str, tuple[str, str]] = {
+    # Pointer only -- "bi-dhalika", "bi-hadha", "mithlahu", "nahwahu",
+    # "bi-nahwihi". Nothing of the narration is present.
+    "hadith:bukhari:127":
+        ("3811c0b1eb530bdb1a7c08825f4b9c06c44f77f6d879aa7d7b2a6a6e0e73de6d", _POINTER),
+    "hadith:bukhari:394":
+        ("f37eece410fe51d360c813f1409b278f7563cb4aebf08205852977fbdef0267b", _POINTER),
+    "hadith:bukhari:549":
+        ("314cca838007660a1698a16457b10ca72a652448eb8fbf995ad46bf924011bcd", _POINTER),
+    "hadith:bukhari:557":
+        ("f37eece410fe51d360c813f1409b278f7563cb4aebf08205852977fbdef0267b", _POINTER),
+    "hadith:bukhari:1379":
+        ("f37eece410fe51d360c813f1409b278f7563cb4aebf08205852977fbdef0267b", _POINTER),
+    "hadith:bukhari:2483":
+        ("da5b06f32a8be960e4896498557c3a5abf0318f6aa354cf9a2f1cdff8bc7dcbe", _POINTER),
+    "hadith:bukhari:3457":
+        ("314cca838007660a1698a16457b10ca72a652448eb8fbf995ad46bf924011bcd", _POINTER),
+    "hadith:bukhari:3750":
+        ("da5b06f32a8be960e4896498557c3a5abf0318f6aa354cf9a2f1cdff8bc7dcbe", _POINTER),
+    "hadith:bukhari:4540":
+        ("836f144960a6a13399d667fd9bbbc4f02fcf5f21465d6261bcf0ee4ef02eb8ff", _POINTER),
+    "hadith:bukhari:5454":
+        ("da5b06f32a8be960e4896498557c3a5abf0318f6aa354cf9a2f1cdff8bc7dcbe", _POINTER),
+    "hadith:bukhari:5837":
+        ("f37eece410fe51d360c813f1409b278f7563cb4aebf08205852977fbdef0267b", _POINTER),
+    # Breaks off mid-sentence into a deferral. 335 is "I witnessed Umar, and
+    # Ammar said to him --" with no reported speech at all; 3801 and 3957 are
+    # deferral phrases end to end ("and he mentioned the hadith of the ifk",
+    # "the story was mentioned").
+    "hadith:bukhari:335":
+        ("6ee90378f5b44749f8eceb8ab8df58e6d111a3aff1b347170e2618cc6688002b", _DEFERRAL),
+    "hadith:bukhari:3801":
+        ("4b9d1fad31b2db451efc1b8da5126228579e4b4c502d598146df5dd664d6a616", _DEFERRAL),
+    "hadith:bukhari:3957":
+        ("ce978d7770d5c1c95852945608a5bfe28bfa168ad4fd374541dba93f42cfc4cf", _DEFERRAL),
+    # One word standing for the whole narration, the part marker "\ 1 \"
+    # following it immediately in the source.
+    "hadith:bukhari:1915":
+        ("eef9aff2b8eb9c9b7bf8b1dad3573aafc7ebd62765e1eaa436d27b43d5ec3020", _INCIPIT),
+    "hadith:bukhari:3777":
+        ("e8f7569bb6d6c846a67e3d7a7d8235e04ae9b9340ffd4694f0de8028de0c1295", _INCIPIT),
+    # "while the Messenger of God was prostrating -- ha" : a "bayna" clause
+    # with no main clause, ending on the chain-transfer mark. The narration it
+    # introduces is the second chain, which is in this record's addendum.
+    "hadith:bukhari:237":
+        ("990234ea283424988b4c8932d69ec68bd0d99f4d0d635dab14cb919338bce0f3", _TAHWIL),
+}
+
+
+def _unscorable_reason(record_id: str, matn: str) -> str | None:
+    audited = _UNSCORABLE.get(record_id)
+    if audited is None:
+        return None
+    digest, reason = audited
+    if hashlib.sha256(matn.encode("utf-8")).hexdigest() != digest:
+        raise ValueError(
+            f"{record_id} is on the unscorable audit list, but its matn is no "
+            "longer the text that was audited. The list records a judgement "
+            "about one specific string; it must not be carried over to a new "
+            "one. Read the record in the source, classify it again, and "
+            "update or remove the entry.")
+    return reason
+
+
 @dataclass(frozen=True)
 class HadithUnit:
     hadith_no: str
@@ -254,6 +355,10 @@ class HadithUnit:
     # Further narrations the edition appends after the primary matn. Stored
     # and displayed, never scored and never indexed -- exactly like isnad_ar.
     addenda_ar: str | None
+    # Why this unit's matn is not an independently quotable text, or None for
+    # the 7,112 that are. Set only from the audited list above. A reason here
+    # keeps the record in the corpus and out of the index.
+    unscorable_reason: str | None = None
 
 
 @dataclass(frozen=True)
@@ -392,10 +497,11 @@ def parse_openiti(raw: str) -> ParsedOpeniti:
 
         seen[number] = seen.get(number, 0) + 1
         suffix = "" if seen[number] == 1 else f"-{seen[number]}"
+        record_id = f"hadith:bukhari:{number}{suffix}"
         units.append(
             HadithUnit(
                 hadith_no=number,
-                record_id=f"hadith:bukhari:{number}{suffix}",
+                record_id=record_id,
                 is_repeat=repeat,
                 kitab_no=kitab_no,
                 kitab_ar=kitab_ar,
@@ -403,6 +509,7 @@ def parse_openiti(raw: str) -> ParsedOpeniti:
                 isnad_ar=isnad,
                 matn_ar=matn,
                 addenda_ar=addenda,
+                unscorable_reason=_unscorable_reason(record_id, matn),
             )
         )
 

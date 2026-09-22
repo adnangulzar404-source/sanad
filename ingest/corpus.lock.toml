@@ -18,7 +18,7 @@
 # format also has its own required count field: "xml" and "txt-2" require
 # expected_lines; "openiti-markdown" requires expected_records (see the
 # Bukhari entry below and the comment on lockfile.py's
-# _COUNT_FIELD_BY_FORMAT).
+# COUNT_FIELD_BY_FORMAT).
 
 lockfile_version = 1
 

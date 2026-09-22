@@ -192,3 +192,8 @@ def test_parser_for_txt2_returns_the_pipe_parser():
 def test_parser_for_rejects_unknown_format():
     with pytest.raises(ValueError, match="xlm"):
         parser_for("xlm")
+
+
+def test_parser_for_openiti_returns_the_openiti_parser():
+    from sanad_ingest.openiti import parse_openiti
+    assert parser_for("openiti-markdown") is parse_openiti

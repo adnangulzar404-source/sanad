@@ -6,7 +6,7 @@ import logging
 import sys
 from pathlib import Path
 
-from .build import build_corpus
+from .build import BuildError, build_corpus
 from .fetch import HashMismatch
 from .lockfile import LockfileError
 from .tanzil import TanzilParseError
@@ -20,6 +20,12 @@ def main(argv: list[str] | None = None) -> int:
     b.add_argument("--lockfile", type=Path, default=Path("ingest/corpus.lock.toml"))
     b.add_argument("--out", type=Path, default=Path("data/sanad.db"))
     b.add_argument("--cache", type=Path, default=Path(".corpus-cache"))
+    # Regenerated on every build so it cannot go stale against the corpus it
+    # describes. It is a review artifact, not an input: nothing reads it back,
+    # and no record is filtered on it. Deterministic, so a rebuild that leaves
+    # it unchanged leaves the working tree clean.
+    b.add_argument("--noise-report", type=Path,
+                   default=Path("docs/hadith-noise-report.md"))
     b.add_argument("-v", "--verbose", action="store_true")
 
     args = parser.parse_args(argv)
@@ -28,8 +34,9 @@ def main(argv: list[str] | None = None) -> int:
         format="%(levelname)s %(message)s")
 
     try:
-        stats = build_corpus(args.lockfile, args.out, args.cache)
-    except (LockfileError, HashMismatch, TanzilParseError) as exc:
+        stats = build_corpus(args.lockfile, args.out, args.cache,
+                             noise_report=args.noise_report)
+    except (LockfileError, HashMismatch, TanzilParseError, BuildError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
 

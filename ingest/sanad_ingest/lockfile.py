@@ -32,7 +32,7 @@ _VALID_FORMATS = frozenset({"xml", "txt-2", "openiti-markdown"})
 # (xml, txt-2) count in `expected_lines`; OpenITI's hadith-per-record
 # markdown counts in `expected_records`, since "line" has no meaning there
 # (a single hadith spans multiple raw lines via `~~` continuations).
-_COUNT_FIELD_BY_FORMAT = {
+COUNT_FIELD_BY_FORMAT = {
     "xml": "expected_lines",
     "txt-2": "expected_lines",
     "openiti-markdown": "expected_records",
@@ -83,7 +83,7 @@ def load_lockfile(path: str | Path) -> list[LockedSource]:
             raise LockfileError(
                 f"source {entry['id']!r} has an unsupported format "
                 f"{entry['format']!r}; expected one of {sorted(_VALID_FORMATS)}")
-        count_field = _COUNT_FIELD_BY_FORMAT[entry["format"]]
+        count_field = COUNT_FIELD_BY_FORMAT[entry["format"]]
         if count_field not in entry:
             raise LockfileError(
                 f"source {entry['id']!r} has format {entry['format']!r}, "

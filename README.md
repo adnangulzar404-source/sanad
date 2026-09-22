@@ -18,7 +18,7 @@ sanad-ingest build --out data/sanad-quran.db     # verifies against the lockfile
 uvicorn sanad.api.app:create_app --factory --port 8000
 ```
 
-`sanad-ingest build` re-downloads Tanzil's source files and refuses to write a database unless every source's content matches the SHA-256 pinned in `ingest/corpus.lock.toml` — a corpus that cannot be reproduced from the lockfile is not shipped. The database already committed at `data/sanad-quran.db` is the output of exactly this command; running it again is a reproducibility check, not a requirement to get started.
+`sanad-ingest build` re-downloads the pinned source files (Tanzil's Qur'an exports and OpenITI's Sahih al-Bukhari) and refuses to write a database unless every source's content matches the SHA-256 pinned in `ingest/corpus.lock.toml` — a corpus that cannot be reproduced from the lockfile is not shipped. The database already committed at `data/sanad-quran.db` is the output of exactly this command; running it again is a reproducibility check, not a requirement to get started.
 
 Or with Docker, which copies the already-built corpus into the image (no network access needed at build time or at run time):
 
@@ -158,7 +158,8 @@ api/sanad/                 FastAPI service: corpus, Arabic normalization, verifi
 ingest/sanad_ingest/       Corpus builder: fetch, verify, and load from ingest/corpus.lock.toml
 ingest/corpus.lock.toml    Pinned sources and content hashes -- the reproducibility contract
 eval/                      Adversarial evaluation harness and cases (CI gate)
-data/sanad-quran.db        The committed, hash-verified corpus (Qur'an + Pickthall translation)
+data/sanad-quran.db        The committed, hash-verified corpus (Qur'an + Pickthall translation + Bukhari)
+docs/hadith-noise-report.md  OCR damage found in the Bukhari source -- review artifact, never a filter
 tests/                     Unit tests for every module above
 docs/superpowers/specs/    Design spec, including the open items in §14
 .github/workflows/         CI and GitHub Pages deployment

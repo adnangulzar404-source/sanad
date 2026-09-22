@@ -58,10 +58,15 @@ def client(tmp_path_factory):
             os.environ["SANAD_AUDIT_DB"] = previous
 
 
+# 6,236 ayat + 7,129 Bukhari narrations. Written as the sum so that a change
+# to either half has to be stated, not absorbed into one opaque total.
+CORPUS_RECORDS = 6236 + 7129
+
+
 def test_health_reports_corpus_loaded(client):
     body = client.get("/api/health").json()
     assert body["status"] == "ok"
-    assert body["records"] == 6236
+    assert body["records"] == CORPUS_RECORDS
 
 
 def test_corpus_manifest_exposes_license_and_attribution(client):
@@ -82,8 +87,10 @@ def test_corpus_endpoint_matches_its_response_model(client):
     # (via FastAPI's `response_model`) and checked against real values, not
     # just shape.
     body = client.get("/api/corpus").json()
-    assert body["stats"]["records"] == 6236
-    assert len(body["sources"]) == 2
+    assert body["stats"]["records"] == CORPUS_RECORDS
+    assert len(body["sources"]) == 3  # Tanzil Arabic, Pickthall, OpenITI Bukhari
+    assert {s["kind"] for s in body["sources"]} == {
+        "quran-arabic", "quran-translation", "hadith-arabic"}
     tanzil = next(s for s in body["sources"] if s["kind"] == "quran-arabic")
     assert tanzil["license_id"] == "CC-BY-3.0"
     assert "PLEASE DO NOT REMOVE" in tanzil["attribution"]

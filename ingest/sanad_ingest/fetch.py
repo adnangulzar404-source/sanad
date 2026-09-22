@@ -6,7 +6,7 @@ from pathlib import Path
 
 import httpx
 
-from .lockfile import LockedSource
+from .lockfile import COUNT_FIELD_BY_FORMAT, LockedSource
 from .tanzil import parser_for
 
 log = logging.getLogger(__name__)
@@ -39,11 +39,40 @@ def _cache_filename(src: LockedSource) -> str:
     return f"{src.id}-{src.format}-{url_hash}.txt"
 
 
-def _verse_count_and_hash(src: LockedSource, raw: str) -> tuple[int, str]:
+def _count_and_hash(src: LockedSource, raw: str) -> tuple[int, str]:
     """Dispatch on the lockfile's declared format (via parser_for) so each
-    export is hash-verified with the parser that matches its actual shape."""
+    export is hash-verified with the parser that matches its actual shape.
+
+    The count is "records the parser found", whatever a record is for that
+    format: a verse line for Tanzil, a numbered narration for OpenITI. Every
+    parsed result defines __len__ so this function does not have to know.
+    """
     parsed = parser_for(src.format)(raw)
     return len(parsed), parsed.content_sha256
+
+
+def _expected_count(src: LockedSource) -> tuple[str, int]:
+    """The count field this source's own format declares, and its value.
+
+    Each format counts a different thing -- Tanzil's exports are one verse
+    per line (`expected_lines`), OpenITI's markdown is one narration across
+    many lines (`expected_records`) -- so there is no single field to read.
+    fetch_source used to compare against `expected_lines` unconditionally,
+    which for an OpenITI source (where it is None) mismatched every integer
+    count and made the build impossible to run.
+
+    A missing value raises rather than skipping the check. load_lockfile
+    already requires the field, but "no count declared, so do not verify"
+    is precisely how a truncated download would pass silently -- the one
+    failure this whole function exists to catch.
+    """
+    field = COUNT_FIELD_BY_FORMAT[src.format]
+    value = getattr(src, field)
+    if value is None:
+        raise HashMismatch(
+            f"{src.id}: format {src.format!r} requires {field}, but it is unset; "
+            "refusing to skip the count check")
+    return field, value
 
 
 def fetch_source(src: LockedSource, cache_dir: Path) -> str:
@@ -53,11 +82,11 @@ def fetch_source(src: LockedSource, cache_dir: Path) -> str:
 
     raw = cached.read_text(encoding="utf-8") if cached.is_file() else _download(src.url)
 
-    verse_count, content_sha256 = _verse_count_and_hash(src, raw)
-    if verse_count != src.expected_lines:
+    count, content_sha256 = _count_and_hash(src, raw)
+    count_field, expected = _expected_count(src)
+    if count != expected:
         raise HashMismatch(
-            f"{src.id}: expected {src.expected_lines} verse lines, "
-            f"got {verse_count}")
+            f"{src.id}: expected {expected} ({count_field}), got {count}")
     if content_sha256 != src.content_sha256:
         raise HashMismatch(
             f"{src.id}: content sha256 mismatch\n"
@@ -68,5 +97,5 @@ def fetch_source(src: LockedSource, cache_dir: Path) -> str:
 
     if not cached.is_file():
         cached.write_text(raw, encoding="utf-8")
-    log.info("verified %s (%d verses)", src.id, verse_count)
+    log.info("verified %s (%d records)", src.id, count)
     return raw

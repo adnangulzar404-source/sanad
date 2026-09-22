@@ -3,6 +3,7 @@ import re
 from pathlib import Path
 
 import pytest
+from sanad.arabic.normalize import normalize
 from sanad.corpus import db
 from sanad_ingest.build import build_corpus
 
@@ -326,3 +327,207 @@ def test_translation_pass_dispatches_on_xml_format(built_with_xml_translation):
         "SELECT text FROM translations WHERE record_id='quran:112:1' "
         "AND source_id='some-xml-translation'").fetchone()
     assert row["text"] == "Say: He is Allah, the One!"
+
+
+# --- Bukhari: the matn is the scored text, the isnad is not ----------------
+#
+# These build the REAL corpus from the real lockfile, not a fixture lockfile.
+# The brief sketched `build_corpus(db, only_sources=[...])`; no such parameter
+# exists, and adding one would be production code shaped by test convenience
+# (ruling R4). The build is done once per module instead, and every assertion
+# below runs against the whole corpus -- which is also the only way the
+# reference_display uniqueness check means anything, since a collision is by
+# definition a property of the full set.
+
+REAL_LOCKFILE = Path("ingest/corpus.lock.toml")
+REAL_CACHE = Path(".corpus-cache")
+
+# A narrator in hadith 1's chain ("al-Humaydi") and nowhere in any matn. Built
+# from codepoints, not typed: an Arabic literal that renders identically can
+# carry a different normalization and would make this test pass for the wrong
+# reason -- or fail for one. See MEMORY: the character-in-transit defect.
+_AL_HUMAYDI = "".join(chr(c) for c in (
+    0x0627, 0x0644, 0x062D, 0x0645, 0x064A, 0x062F, 0x064A))       # الحميدي
+# "haddathana" -- the narration verb that opens an isnad, never a matn.
+_HADDATHANA = "".join(chr(c) for c in (
+    0x062D, 0x062F, 0x062B, 0x0646, 0x0627))                        # حدثنا
+# The mukarrar marker: a bare miim, as the edition prints it.
+_MIIM = chr(0x0645)
+
+
+@pytest.fixture(scope="module")
+def real_corpus(tmp_path_factory):
+    out = tmp_path_factory.mktemp("real-corpus") / "corpus.db"
+    report = out.parent / "hadith-noise-report.md"
+    stats = build_corpus(REAL_LOCKFILE, out, REAL_CACHE, noise_report=report)
+    return out, stats, report
+
+
+def test_builds_hadith_records_with_matn_as_the_scored_text(real_corpus):
+    out, _, _ = real_corpus
+    conn = db.connect(out)
+    n = conn.execute("SELECT count(*) FROM records WHERE kind='hadith'").fetchone()[0]
+    assert n == 7129
+    row = conn.execute(
+        "SELECT text_ar, isnad_ar, norm_light, norm_standard, norm_aggressive "
+        "FROM records WHERE id='hadith:bukhari:1'").fetchone()
+    matn, isnad = row["text_ar"], row["isnad_ar"]
+    assert isnad and len(isnad) > 100, "the chain must be stored"
+    assert len(matn) < len(isnad), "hadith 1's matn is shorter than its chain"
+    assert _HADDATHANA not in matn, "narration verbs belong to the isnad, not the matn"
+    for col in ("norm_light", "norm_standard", "norm_aggressive"):
+        assert row[col], f"{col} must be populated"
+        assert _HADDATHANA not in row[col], f"{col} must derive from the matn alone"
+
+
+def test_fts_does_not_index_the_isnad(real_corpus):
+    """Searching a narrator from hadith 1's chain must not retrieve hadith 1.
+
+    MEASURED, and not what was expected: al-Humaydi is NOT unique to hadith
+    1's chain. He appears inside 11 other records' *matns*, because this
+    edition appends supplementary chains after a narration ("زاد الحميدي
+    حدثنا سفيان..." -- "al-Humaydi added: Sufyan narrated to us"), and the
+    source marks only the FIRST isnad/matn boundary with "*". So "zero hits
+    corpus-wide" is not a true property of this corpus and a test asserting
+    it would be asserting a falsehood.
+
+    The property that IS true, and is the one that matters, is that the term
+    does not reach hadith 1 -- whose chain is the only place it occurs in
+    that record. Paired with the exhaustive check below, this pins the
+    isnad out of the index without overclaiming.
+    """
+    out, _, _ = real_corpus
+    hits = {r[0] for r in db.connect(out).execute(
+        "SELECT record_id FROM records_fts WHERE records_fts MATCH ?",
+        (_AL_HUMAYDI,)).fetchall()}
+    assert "hadith:bukhari:1" not in hits, "the isnad must not be searchable text"
+
+
+def test_the_narrator_name_really_is_in_the_stored_chain(real_corpus):
+    # Guards the test above from passing vacuously: if al-Humaydi were not in
+    # hadith 1's chain at all, "hadith 1 not retrieved" would prove nothing.
+    out, _, _ = real_corpus
+    rec = db.get_record(db.connect(out), "hadith:bukhari:1")
+    assert _AL_HUMAYDI in rec.isnad_ar
+    assert _AL_HUMAYDI not in rec.text_ar
+
+
+def test_fts_indexes_the_record_norms_and_nothing_else(real_corpus):
+    # The exhaustive form of the test above, over all 13,365 records: the
+    # indexed text must be byte-identical to the columns it claims to index.
+    # Concatenating anything extra -- an isnad, say -- shows up here even if
+    # no single narrator term happens to prove it.
+    out, _, _ = real_corpus
+    differing = db.connect(out).execute(
+        "SELECT count(*) FROM records_fts f JOIN records r ON r.id = f.record_id"
+        " WHERE f.norm_standard IS NOT r.norm_standard"
+        "    OR f.norm_aggressive IS NOT r.norm_aggressive").fetchone()[0]
+    assert differing == 0
+
+
+def test_every_hadith_norm_derives_from_its_matn_alone(real_corpus):
+    out, _, _ = real_corpus
+    rows = db.connect(out).execute(
+        "SELECT id, text_ar, norm_light, norm_standard, norm_aggressive"
+        " FROM records WHERE kind='hadith'").fetchall()
+    assert len(rows) == 7129
+    for row in rows:
+        for form in ("light", "standard", "aggressive"):
+            assert row[f"norm_{form}"] == normalize(row["text_ar"], form), row["id"]
+
+
+def test_corpus_holds_both_the_quran_and_the_hadith(real_corpus):
+    out, _, _ = real_corpus
+    counts = dict(db.connect(out).execute(
+        "SELECT kind, count(*) FROM records GROUP BY kind").fetchall())
+    assert counts == {"ayah": 6236, "hadith": 7129}
+
+
+def test_hadith_records_carry_their_collection_metadata(real_corpus):
+    out, _, _ = real_corpus
+    rec = db.get_record(db.connect(out), "hadith:bukhari:1")
+    assert rec.collection == "bukhari"
+    assert rec.numbering_scheme == "bugha-1987"
+    assert rec.hadith_no == "1"
+    assert rec.book_no == 1
+    assert rec.chapter_ar
+    assert rec.surah is None and rec.ayah is None and rec.bismillah is None
+
+
+def test_every_hadith_reference_display_is_unique(real_corpus):
+    # Two records rendering the same citation while carrying different text is
+    # the duplicate-verse problem Stage A solved once with `also_at`, back
+    # again. Five printed numbers appear twice in this edition.
+    out, _, _ = real_corpus
+    rows = db.connect(out).execute(
+        "SELECT reference_display FROM records WHERE kind='hadith'").fetchall()
+    refs = [r[0] for r in rows]
+    assert len(refs) == 7129
+    assert len(set(refs)) == 7129
+
+
+def test_mukarrar_variant_is_marked_in_the_citation(real_corpus):
+    # 619 and "619 م" are different narrations: 27 degrees vs 25.
+    out, _, _ = real_corpus
+    conn = db.connect(out)
+    assert db.get_record(conn, "hadith:bukhari:619").reference_display == \
+        "Sahih al-Bukhari 619"
+    assert db.get_record(conn, "hadith:bukhari:619-2").reference_display == \
+        f"Sahih al-Bukhari 619 {_MIIM}"
+    a = db.get_record(conn, "hadith:bukhari:619").text_ar
+    b = db.get_record(conn, "hadith:bukhari:619-2").text_ar
+    assert a != b, "the two 619s are different narrations, not a duplicate row"
+
+
+def test_bare_collision_is_disambiguated_by_ordinal(real_corpus):
+    # 3905 is printed twice with no marker at all.
+    out, _, _ = real_corpus
+    conn = db.connect(out)
+    assert db.get_record(conn, "hadith:bukhari:3905").reference_display == \
+        "Sahih al-Bukhari 3905"
+    assert db.get_record(conn, "hadith:bukhari:3905-2").reference_display == \
+        "Sahih al-Bukhari 3905 (2)"
+
+
+def test_noise_report_lists_every_flagged_record(real_corpus):
+    _, _, report = real_corpus
+    text = report.read_text(encoding="utf-8")
+    assert "no text was altered" in text.lower()
+    assert "eval" in text.lower(), "the report must say why it exists"
+    for record_id in ("hadith:bukhari:58", "hadith:bukhari:3291",
+                      "hadith:bukhari:4236", "hadith:bukhari:4449",
+                      "hadith:bukhari:5953", "hadith:bukhari:6102",
+                      "hadith:bukhari:6212", "hadith:bukhari:6965",
+                      "hadith:bukhari:6966"):
+        assert f"`{record_id}`" in text, f"{record_id} missing from the report"
+
+
+def test_noise_report_is_a_review_artifact_not_a_filter(real_corpus):
+    # Every flagged record is still in the corpus, unaltered.
+    out, _, _ = real_corpus
+    conn = db.connect(out)
+    for record_id in ("hadith:bukhari:58", "hadith:bukhari:6966"):
+        assert db.get_record(conn, record_id) is not None
+
+
+def test_duplicate_reference_display_aborts_the_build():
+    # The uniqueness rule is enforced in code, not only asserted about today's
+    # edition. A future source (or a re-OCR) that produced two records behind
+    # one citation must stop the build rather than ship an ambiguous corpus.
+    from sanad_ingest.build import BuildError, _hadith_records
+    from sanad_ingest.lockfile import LockedSource
+    from sanad_ingest.openiti import HadithUnit, ParsedOpeniti
+
+    def unit(record_id):
+        return HadithUnit(hadith_no="7", record_id=record_id, is_repeat=True,
+                          kitab_no=1, kitab_ar="k", bab_ar="b",
+                          isnad_ar="i", matn_ar="m")
+
+    parsed = ParsedOpeniti(units=[unit("hadith:bukhari:7"), unit("hadith:bukhari:7-2")],
+                           attribution="", content_sha256="0" * 64, noisy=[])
+    locked = LockedSource(
+        id="x", kind="hadith-arabic", format="openiti-markdown", title="X",
+        url="https://example.invalid/x", license_id="public-domain",
+        content_sha256="0" * 64, modifications="none", expected_records=2)
+    with pytest.raises(BuildError, match="Sahih al-Bukhari 7"):
+        _hadith_records(parsed, locked)

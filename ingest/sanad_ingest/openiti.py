@@ -55,6 +55,15 @@ class ParsedOpeniti:
     content_sha256: str
     noisy: list[tuple[str, str]]
 
+    def __len__(self) -> int:
+        """The record count fetch_source checks against `expected_records`.
+
+        ParsedTanzil/ParsedTanzilXml define the same thing, so fetch_source
+        can count any parsed source the same way instead of branching on
+        which parser produced it.
+        """
+        return len(self.units)
+
 
 def _clean(s: str) -> str:
     """Strip every structural marker; never touch letters.

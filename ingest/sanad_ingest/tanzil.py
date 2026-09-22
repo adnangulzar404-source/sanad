@@ -25,6 +25,8 @@ import re
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 
+from .openiti import parse_openiti
+
 _VERSE = re.compile(r"^(\d{1,3})\|(\d{1,3})\|(.*)$")
 _XML_COMMENT = re.compile(r"<!--(.*?)-->", re.DOTALL)
 
@@ -118,18 +120,27 @@ def parse_tanzil_xml(raw: str) -> ParsedTanzilXml:
 def parser_for(fmt: str):
     """Single source of truth mapping a lockfile format to its parser.
 
-    fetch.fetch_source and both passes of build.build_corpus all call this
-    instead of choosing a parser themselves, so the format-to-parser mapping
-    lives in exactly one place and cannot drift between call sites the way
-    it did when build_corpus's translation pass called parse_tanzil
-    unconditionally instead of dispatching on the source's declared format.
+    fetch.fetch_source and every pass of build.build_corpus call this instead
+    of choosing a parser themselves, so the format-to-parser mapping lives in
+    exactly one place and cannot drift between call sites the way it did when
+    build_corpus's translation pass called parse_tanzil unconditionally
+    instead of dispatching on the source's declared format.
 
-    load_lockfile validates format against the same two values at load
-    time, so a bad value should never reach this function in practice; the
-    ValueError here is a belt-and-braces backstop, not the primary guard.
+    It lives in this module (rather than one named for no single source)
+    because lockfile.py's _VALID_FORMATS comment points here by name as the
+    registry to keep in sync. The OpenITI parser is imported rather than
+    defined here; `openiti-markdown` is not a Tanzil export.
+
+    load_lockfile validates format against the same values at load time, so
+    a bad value should never reach this function in practice; the ValueError
+    here is a belt-and-braces backstop, not the primary guard.
     """
     if fmt == "xml":
         return parse_tanzil_xml
     if fmt == "txt-2":
         return parse_tanzil
-    raise ValueError(f"unsupported source format {fmt!r}; expected 'xml' or 'txt-2'")
+    if fmt == "openiti-markdown":
+        return parse_openiti
+    raise ValueError(
+        f"unsupported source format {fmt!r}; "
+        "expected 'xml', 'txt-2' or 'openiti-markdown'")

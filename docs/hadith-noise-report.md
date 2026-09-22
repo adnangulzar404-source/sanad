@@ -19,12 +19,13 @@ which is honest: the engine is reporting that the stored text does not match
 the quotation, and it does not.
 
 Flagged: every character in a record's **matn** outside the Arabic block
-(U+0600-U+06FF) and whitespace. The isnad is not scanned -- it is never scored
-or searched, so damage there cannot mislead an eval case.
+(U+0600-U+06FF) and whitespace. Neither the isnad nor the appended addenda are
+scanned -- neither is ever scored or searched, so damage there cannot mislead
+an eval case.
 
 Source: `openiti-bukhari-jk000110` (al-Bugha, 3rd ed., 1407/1987; OpenITI JK000110, ara1.completed)
 
-Records ingested: 7129 &nbsp;&nbsp; Records flagged: 74
+Records ingested: 7129 &nbsp;&nbsp; Records flagged: 72
 
 | Record | Citation | Characters | Codepoints |
 | --- | --- | --- | --- |
@@ -51,7 +52,6 @@ Records ingested: 7129 &nbsp;&nbsp; Records flagged: 74
 | `hadith:bukhari:2876` | Sahih al-Bukhari 2876 | `%()` | U+0025 U+0028 U+0029 |
 | `hadith:bukhari:2877` | Sahih al-Bukhari 2877 | `%()` | U+0025 U+0028 U+0029 |
 | `hadith:bukhari:2880` | Sahih al-Bukhari 2880 | `%()` | U+0025 U+0028 U+0029 |
-| `hadith:bukhari:3291` | Sahih al-Bukhari 3291 | `5` | U+0035 |
 | `hadith:bukhari:3584` | Sahih al-Bukhari 3584 | `%()` | U+0025 U+0028 U+0029 |
 | `hadith:bukhari:3585` | Sahih al-Bukhari 3585 | `%()` | U+0025 U+0028 U+0029 |
 | `hadith:bukhari:3623` | Sahih al-Bukhari 3623 | `%()` | U+0025 U+0028 U+0029 |
@@ -93,7 +93,6 @@ Records ingested: 7129 &nbsp;&nbsp; Records flagged: 74
 | `hadith:bukhari:5972` | Sahih al-Bukhari 5972 | `%()` | U+0025 U+0028 U+0029 |
 | `hadith:bukhari:6050` | Sahih al-Bukhari 6050 | `%()` | U+0025 U+0028 U+0029 |
 | `hadith:bukhari:6051` | Sahih al-Bukhari 6051 | `%()` | U+0025 U+0028 U+0029 |
-| `hadith:bukhari:6102` | Sahih al-Bukhari 6102 | `<>?` | U+003C U+003E U+003F |
 | `hadith:bukhari:6124` | Sahih al-Bukhari 6124 | `%()` | U+0025 U+0028 U+0029 |
 | `hadith:bukhari:6212` | Sahih al-Bukhari 6212 | `<>?` | U+003C U+003E U+003F |
 | `hadith:bukhari:6246` | Sahih al-Bukhari 6246 | `%()` | U+0025 U+0028 U+0029 |

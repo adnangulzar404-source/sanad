@@ -4,6 +4,7 @@
 # /tmp/bukhari.txt) via the exact script in Task 2 Step 1 -- no Arabic was
 # typed by hand. Fixture's own sha256 as generated on 2026-09-22:
 # d1338229de2aace5432f3ddb384e99a3d367ca21e0c7f7be10567c8183cecffd
+import hashlib
 import re
 from pathlib import Path
 
@@ -12,6 +13,10 @@ from sanad_ingest.openiti import parse_openiti
 
 FIXTURE = Path(__file__).parent.parent / "fixtures" / "bukhari_sample.txt"
 FULL = Path("/tmp/bukhari.txt")   # the real download; see Task 2 Step 1
+
+# sha256 of the sorted, comma-joined ids of every record the secondary-narration
+# rule cuts. Measured, not chosen; see test_exactly_the_measured_records_are_cut.
+_CUT_ID_DIGEST = "f73746506440e262432f92e9413f3b52016f86b90b1b4f66ff82003438ae1ebf"
 
 
 @pytest.fixture(scope="module")
@@ -273,7 +278,15 @@ def test_bab_ar_paren_imbalance_is_a_bounded_known_source_defect():
     assert "1000" in hadith_nos_affected
 
 
-# --- fix round 1: the edition's continuation lines and its end-of-unit mark ---
+# --- fix round 1: secondary narrations and empty matns ---------------------
+#
+# Arabic anchors are built from codepoints, never typed. See MEMORY: eleven
+# bugs in this project came from Arabic silently altered in transit, one of
+# them inside the test written to catch them.
+_QAL = "".join(chr(c) for c in (0x0642, 0x0627, 0x0644))            # قال
+_WA_QAL = chr(0x0648) + _QAL                                        # وقال
+_HADDATHANA = "".join(chr(c) for c in (0x062D, 0x062F, 0x062B, 0x0646, 0x0627))
+
 
 def _raw_unit_text(raw: str, hadith_no: str) -> str:
     """The unit's full printed text, reassembled from the raw file.
@@ -315,6 +328,85 @@ def full():
 
 
 @pytest.mark.skipif(not FULL.exists(), reason="full download not present")
+def test_secondary_narration_is_cut_out_of_the_scored_matn(full):
+    """The three boundaries named in the fix brief, by record.
+
+    Each is an "attribution + narration verb" the edition uses to append a
+    further chain after the primary matn. The cut lands immediately before
+    the attribution, so `addenda_ar` opens with it.
+    """
+    by_id = {u.record_id: u for u in full.units}
+    for record_id, opener in (("hadith:bukhari:10", _WA_QAL),
+                              ("hadith:bukhari:22", _QAL),
+                              ("hadith:bukhari:40", _QAL)):
+        u = by_id[record_id]
+        assert u.addenda_ar, f"{record_id} must carry an addendum"
+        assert u.addenda_ar.startswith(opener + " "), record_id
+        assert _HADDATHANA in u.addenda_ar or record_id == "hadith:bukhari:10"
+        assert _HADDATHANA not in u.matn_ar, f"{record_id} matn still holds a chain"
+
+
+@pytest.mark.skipif(not FULL.exists(), reason="full download not present")
+def test_nothing_is_lost_when_an_addendum_is_cut_away(full):
+    """matn + addenda reassembles the edition's text, byte for byte.
+
+    Recomputed from the raw file, not from the parser's own output: a cut
+    that dropped or re-spaced a character would pass a self-comparison.
+    """
+    raw = FULL.read_text(encoding="utf-8")
+    checked = 0
+    for u in full.units:
+        if u.addenda_ar is None or u.record_id != f"hadith:bukhari:{u.hadith_no}":
+            continue  # skip the ordinal-suffixed repeats: _raw_matn finds the first
+        assert u.matn_ar + " " + u.addenda_ar == _raw_matn(raw, u.hadith_no), u.record_id
+        checked += 1
+    assert checked > 100, "the reassembly check must actually run on the cut records"
+
+
+@pytest.mark.skipif(not FULL.exists(), reason="full download not present")
+def test_exactly_the_measured_records_are_cut(full):
+    """155 cuts, pinned by count and by the exact set of record ids.
+
+    The detection rule leans on a closed list of Arabic tokens that cannot be
+    a narrator's name. A single mistyped codepoint in that list would silently
+    stop rejecting a false boundary and start truncating real matn; that shows
+    up here as a changed digest, which is the only cheap way to notice it.
+    Regenerate after a deliberate rule change with:
+      python -c "import hashlib; from sanad_ingest.openiti import parse_openiti; \
+        u=parse_openiti(open('/tmp/bukhari.txt',encoding='utf-8').read()).units; \
+        print(hashlib.sha256(','.join(sorted(x.record_id for x in u \
+        if x.addenda_ar is not None)).encode()).hexdigest())"
+    """
+    cut = sorted(u.record_id for u in full.units if u.addenda_ar is not None)
+    assert len(cut) == 155
+    digest = hashlib.sha256(",".join(cut).encode("utf-8")).hexdigest()
+    assert digest == _CUT_ID_DIGEST
+
+
+@pytest.mark.skipif(not FULL.exists(), reason="full download not present")
+def test_a_bare_narration_verb_with_no_attribution_is_never_cut(full):
+    """Where the source marks nothing, nothing is cut.
+
+    These records contain a narration verb inside genuine matn -- "he told
+    me and was truthful with me", "Gabriel informed me of it just now",
+    "he said to Anas: tell me the harshest punishment". Cutting at the verb,
+    or at the `qala` in front of it, would truncate the Prophet's words.
+    Every one of them was reached by the rule and rejected by its guard.
+    """
+    by_id = {u.record_id: u for u in full.units}
+    for record_id in ("hadith:bukhari:2943", "hadith:bukhari:504",
+                      "hadith:bukhari:3723", "hadith:bukhari:4200",
+                      "hadith:bukhari:5361", "hadith:bukhari:957",
+                      "hadith:bukhari:5637", "hadith:bukhari:5813",
+                      "hadith:bukhari:3546", "hadith:bukhari:6171",
+                      "hadith:bukhari:4676", "hadith:bukhari:4155",
+                      "hadith:bukhari:4449", "hadith:bukhari:2976",
+                      "hadith:bukhari:5381"):
+        u = by_id[record_id]
+        assert u.addenda_ar is None, f"{record_id} must not be cut"
+
+
+@pytest.mark.skipif(not FULL.exists(), reason="full download not present")
 def test_no_unit_has_an_empty_scored_matn(full):
     """Zero empty matns. An empty text_ar is a live verification hazard."""
     empty = [u.record_id for u in full.units if not u.matn_ar.strip()]
@@ -334,8 +426,9 @@ def test_poetry_printed_on_its_own_line_stays_in_the_matn(full):
     by_id = {u.record_id: u for u in full.units}
     for hadith_no in ("3584", "4063", "6050", "3585", "2681"):
         u = by_id[f"hadith:bukhari:{hadith_no}"]
-        assert u.matn_ar == _raw_matn(raw, hadith_no), hadith_no
-        assert u.matn_ar.strip()
+        whole = u.matn_ar if u.addenda_ar is None else u.matn_ar + " " + u.addenda_ar
+        assert whole == _raw_matn(raw, hadith_no), hadith_no
+        assert whole.strip()
 
 
 @pytest.mark.skipif(not FULL.exists(), reason="full download not present")
@@ -357,3 +450,62 @@ def test_units_whose_boundary_mark_separates_nothing_keep_all_text_as_matn(full)
         "1620", "218", "2795", "5833", "6964", "6965", "6966"]
     for u in unmarked:
         assert u.matn_ar.strip()
+
+
+@pytest.mark.skipif(not FULL.exists(), reason="full download not present")
+def test_addenda_carry_no_structural_markers(full):
+    for u in full.units:
+        if u.addenda_ar is None:
+            continue
+        assert u.addenda_ar == u.addenda_ar.strip()
+        assert "  " not in u.addenda_ar
+        for marker in ("~~", "@QB@", "@QE@", "*", "PageV"):
+            assert marker not in u.addenda_ar, f"{marker} leaked into {u.record_id}"
+
+
+@pytest.mark.skipif(not FULL.exists(), reason="full download not present")
+def test_an_attribution_inside_reported_speech_is_not_a_boundary(full):
+    """"fa-qala li: qala Ibn Abbas ..." -- "he said to me: Ibn Abbas said".
+
+    The attribution is the CONTENT of the speech verb in front of it, so it
+    is inside the narration, not a seam after it. 4449 is why this guard
+    exists: cutting there moved 2,677 characters of the Musa and al-Khidr
+    story out of the scored text and left a primary that stops mid-clause.
+
+    3371 and 4070 are the measured cost of the guard, recorded here rather
+    than hidden: both DO carry a real appended narration, and both are left
+    uncut because a bare trailing "qala" sits in front of it. Two addenda
+    not cut is the price of one matn not truncated.
+    """
+    by_id = {u.record_id: u for u in full.units}
+    for record_id in ("hadith:bukhari:4449", "hadith:bukhari:3371",
+                      "hadith:bukhari:4070"):
+        assert by_id[record_id].addenda_ar is None, record_id
+
+
+def test_the_attribution_window_bounds_the_distance_in_characters():
+    """The token cap and the character window are separate limits.
+
+    On the pinned file the token cap always binds first -- the widest real
+    attribution spans 24 characters against a window of 25 -- so this pins
+    the window on a synthetic input rather than leaving the constant
+    untested. An untested constant is one a later edit widens quietly.
+    """
+    from sanad_ingest.openiti import (
+        _ATTRIBUTION_WINDOW,
+        _NARRATION_VERBS,
+        _split_secondary,
+    )
+    verb = _NARRATION_VERBS[0]
+    baa = chr(0x0628)                       # a bare Arabic letter, no meaning
+    primary = baa * 20
+    for name_len, expect_cut in ((6, True), (40, False)):
+        name = baa * name_len
+        matn = f"{primary} {_QAL} {name} {verb} {primary}"
+        assert (len(_QAL) + 1 + name_len + 1 > _ATTRIBUTION_WINDOW) is not expect_cut
+        got_primary, addenda = _split_secondary(matn)
+        if expect_cut:
+            assert addenda == f"{_QAL} {name} {verb} {primary}"
+            assert got_primary == primary
+        else:
+            assert addenda is None and got_primary == matn

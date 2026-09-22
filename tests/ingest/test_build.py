@@ -494,12 +494,31 @@ def test_noise_report_lists_every_flagged_record(real_corpus):
     text = report.read_text(encoding="utf-8")
     assert "no text was altered" in text.lower()
     assert "eval" in text.lower(), "the report must say why it exists"
-    for record_id in ("hadith:bukhari:58", "hadith:bukhari:3291",
-                      "hadith:bukhari:4236", "hadith:bukhari:4449",
-                      "hadith:bukhari:5953", "hadith:bukhari:6102",
+    for record_id in ("hadith:bukhari:58", "hadith:bukhari:4236",
+                      "hadith:bukhari:4449", "hadith:bukhari:5953",
                       "hadith:bukhari:6212", "hadith:bukhari:6965",
                       "hadith:bukhari:6966"):
         assert f"`{record_id}`" in text, f"{record_id} missing from the report"
+
+
+def test_damage_that_moved_into_an_addendum_is_still_in_the_corpus(real_corpus):
+    """3291 and 6102 were flagged before the secondary-narration fix and are
+    not flagged now. That is correct and it is not a silent loss: their
+    damaged characters were in the appended narration, which is no longer
+    part of the scored, searched text the report exists to protect -- the
+    same reason the isnad has never been scanned. The characters themselves
+    are still there, unaltered, which is what this asserts. Nothing was
+    cleaned up; the boundary moved.
+    """
+    out, _, report = real_corpus
+    text = report.read_text(encoding="utf-8")
+    conn = db.connect(out)
+    for record_id, damaged in (("hadith:bukhari:3291", "5"),
+                               ("hadith:bukhari:6102", "?")):
+        assert f"`{record_id}`" not in text
+        rec = db.get_record(conn, record_id)
+        assert damaged not in rec.text_ar
+        assert damaged in rec.addenda_ar, record_id
 
 
 def test_noise_report_is_a_review_artifact_not_a_filter(real_corpus):
@@ -521,7 +540,7 @@ def test_duplicate_reference_display_aborts_the_build():
     def unit(record_id):
         return HadithUnit(hadith_no="7", record_id=record_id, is_repeat=True,
                           kitab_no=1, kitab_ar="k", bab_ar="b",
-                          isnad_ar="i", matn_ar="m")
+                          isnad_ar="i", matn_ar="m", addenda_ar=None)
 
     parsed = ParsedOpeniti(units=[unit("hadith:bukhari:7"), unit("hadith:bukhari:7-2")],
                            attribution="", content_sha256="0" * 64, noisy=[])
@@ -531,6 +550,63 @@ def test_duplicate_reference_display_aborts_the_build():
         content_sha256="0" * 64, modifications="none", expected_records=2)
     with pytest.raises(BuildError, match="Sahih al-Bukhari 7"):
         _hadith_records(parsed, locked)
+
+
+# --- fix round 1: secondary narrations are stored, not scored --------------
+
+def test_the_appended_narrations_are_stored_but_never_scored(real_corpus):
+    """155 records carry an addendum. It is in the row and out of the score.
+
+    hadith 22 is one of the three boundaries named in the fix brief: the
+    primary matn ends at "...as the seed grows beside a stream", and a second
+    chain ("Wuhayb said: Amr narrated to us...") follows it with a variant
+    wording. Before this fix the chain and the variant were both inside
+    text_ar and both scored.
+    """
+    out, _, _ = real_corpus
+    conn = db.connect(out)
+    n = conn.execute(
+        "SELECT count(*) FROM records WHERE addenda_ar IS NOT NULL").fetchone()[0]
+    assert n == 155
+    rec = db.get_record(conn, "hadith:bukhari:22")
+    assert rec.addenda_ar and _HADDATHANA in rec.addenda_ar
+    assert _HADDATHANA not in rec.text_ar
+    assert rec.text_ar_sha256 == hashlib.sha256(
+        rec.text_ar.encode("utf-8")).hexdigest()
+    for form in ("light", "standard", "aggressive"):
+        assert getattr(rec, f"norm_{form}") == normalize(rec.text_ar, form)
+        assert _HADDATHANA not in getattr(rec, f"norm_{form}")
+
+
+def test_no_addendum_is_reachable_through_the_search_index(real_corpus):
+    """Exhaustive over all 155, in both the stored and the indexed text.
+
+    The other half of the guarantee is
+    test_fts_indexes_the_record_norms_and_nothing_else, which pins the index
+    to the record's own norms. Together: the addendum is not in the norms,
+    and the index is nothing but the norms.
+    """
+    out, _, _ = real_corpus
+    rows = db.connect(out).execute(
+        "SELECT r.id, r.text_ar, r.addenda_ar, f.norm_standard,"
+        "       f.norm_aggressive FROM records r"
+        " JOIN records_fts f ON f.record_id = r.id"
+        " WHERE r.addenda_ar IS NOT NULL").fetchall()
+    assert len(rows) == 155
+    for row in rows:
+        assert row["addenda_ar"] not in row["text_ar"], row["id"]
+        for form in ("standard", "aggressive"):
+            assert normalize(row["addenda_ar"], form) not in row[f"norm_{form}"], \
+                row["id"]
+
+
+def test_no_hadith_record_ships_an_empty_scored_text(real_corpus):
+    """The bar is zero. Six records had one before this fix."""
+    out, _, _ = real_corpus
+    empty = [r[0] for r in db.connect(out).execute(
+        "SELECT id FROM records WHERE kind='hadith'"
+        " AND trim(text_ar) = ''").fetchall()]
+    assert empty == []
 
 
 def test_an_empty_scored_text_aborts_the_build():
@@ -546,7 +622,7 @@ def test_an_empty_scored_text_aborts_the_build():
 
     unit = HadithUnit(hadith_no="7", record_id="hadith:bukhari:7", is_repeat=False,
                       kitab_no=1, kitab_ar="k", bab_ar="b",
-                      isnad_ar="i", matn_ar="   ")
+                      isnad_ar="i", matn_ar="   ", addenda_ar=None)
     parsed = ParsedOpeniti(units=[unit], attribution="", content_sha256="0" * 64,
                            noisy=[])
     locked = LockedSource(

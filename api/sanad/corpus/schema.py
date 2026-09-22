@@ -43,6 +43,7 @@ CREATE TABLE IF NOT EXISTS records (
   text_ar_sha256    TEXT NOT NULL,
   bismillah         TEXT,
   isnad_ar          TEXT,
+  addenda_ar        TEXT,
   norm_light        TEXT NOT NULL,
   norm_standard     TEXT NOT NULL,
   norm_aggressive   TEXT NOT NULL,

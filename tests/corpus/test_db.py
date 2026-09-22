@@ -121,3 +121,87 @@ def test_quran_records_have_no_isnad(tmp_path):
     db.insert_source(conn, _a_source())
     db.insert_records(conn, [_an_ayah(id="quran:112:1")])
     assert db.get_record(conn, "quran:112:1").isnad_ar is None
+
+
+def test_round_trips_a_hadith_record_with_its_addenda(tmp_path):
+    conn = db.connect(tmp_path / "c.db", read_only=False)
+    db.insert_source(conn, _a_source(id="openiti-bukhari-jk000110", kind="hadith-arabic"))
+    rec = Record(
+        id="hadith:bukhari:1",
+        source_id="openiti-bukhari-jk000110",
+        kind="hadith",
+        collection="bukhari",
+        hadith_no="1",
+        numbering_scheme="bugha-1987",
+        text_ar="MATN",
+        isnad_ar="ISNAD",
+        addenda_ar="ADDENDA",
+        text_ar_sha256="x" * 64,
+        norm_light="MATN", norm_standard="MATN", norm_aggressive="MATN",
+        reference_display="Sahih al-Bukhari 1",
+    )
+    db.insert_records(conn, [rec])
+    got = db.get_record(conn, "hadith:bukhari:1")
+    assert got.addenda_ar == "ADDENDA"
+    assert got.text_ar == "MATN"
+    assert got.isnad_ar == "ISNAD"
+
+
+def test_quran_records_have_no_addenda(tmp_path):
+    conn = db.connect(tmp_path / "c.db", read_only=False)
+    db.insert_source(conn, _a_source())
+    db.insert_records(conn, [_an_ayah(id="quran:112:1")])
+    assert db.get_record(conn, "quran:112:1").addenda_ar is None
+
+
+def test_the_fts_index_never_sees_the_addenda_or_the_isnad(tmp_path):
+    """The display-only columns are absent from the index by construction.
+
+    Exhaustive on content, not on one probe term: the index is rebuilt from
+    a record whose addenda and isnad are strings that appear nowhere else,
+    and the whole index is then searched for them.
+    """
+    conn = db.connect(tmp_path / "c.db", read_only=False)
+    db.insert_source(conn, _a_source(id="openiti-bukhari-jk000110", kind="hadith-arabic"))
+    db.insert_records(conn, [Record(
+        id="hadith:bukhari:1", source_id="openiti-bukhari-jk000110", kind="hadith",
+        collection="bukhari", hadith_no="1", numbering_scheme="bugha-1987",
+        text_ar="matnword", isnad_ar="isnadword", addenda_ar="addendaword",
+        text_ar_sha256="x" * 64, norm_light="matnword",
+        norm_standard="matnword", norm_aggressive="matnword",
+        reference_display="Sahih al-Bukhari 1")])
+    db.rebuild_fts(conn)
+    indexed = " ".join(
+        f"{r['norm_standard']} {r['norm_aggressive']} {r['translation']}"
+        for r in conn.execute(
+            "SELECT norm_standard, norm_aggressive, translation FROM records_fts"))
+    assert "matnword" in indexed, "the matn must be searchable"
+    assert "isnadword" not in indexed
+    assert "addendaword" not in indexed
+
+
+def test_no_scoring_or_serving_code_reads_the_display_only_columns():
+    """Structural guard, in the spirit of the isnad_ar rule Task 3 set.
+
+    A data test can only show that today's corpus happens not to leak; this
+    shows that no code path in the verify engine or the HTTP routes can
+    reach these columns at all. If a later change wants to display the
+    addenda, it goes through a field the API declares on purpose, and this
+    test is the place that conversation starts.
+    """
+    from pathlib import Path
+    for module in ("api/sanad/verify/engine.py", "api/sanad/api/routes.py",
+                   "api/sanad/api/schemas.py"):
+        source = Path(module).read_text(encoding="utf-8")
+        assert "addenda_ar" not in source, f"{module} must not read addenda_ar"
+        assert "isnad_ar" not in source, f"{module} must not read isnad_ar"
+
+
+def test_rebuild_fts_selects_only_the_norm_columns():
+    """The FTS insert is the one place a display-only column could leak into
+    the index. Pin its SELECT list rather than trusting a probe string."""
+    import inspect
+    source = inspect.getsource(db.rebuild_fts)
+    assert "addenda_ar" not in source
+    assert "isnad_ar" not in source
+    assert "text_ar" not in source

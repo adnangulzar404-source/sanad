@@ -47,3 +47,10 @@ class Record:
     # Stage A2 spec §7. Scoring across isnad + matn puts a short, famous matn
     # near 0.13 against a 0.86 threshold.
     isnad_ar: str | None = None
+    # Further narrations the edition appends after the primary matn, each with
+    # its own chain and often its own variant wording. Stored and displayed,
+    # never scored and never indexed -- for the same reason as isnad_ar, and
+    # measured: leaving them in text_ar was a median 40% of the stored string
+    # on the 155 records that carry one, and dropped them out of reach of the
+    # 0.86 threshold.
+    addenda_ar: str | None = None

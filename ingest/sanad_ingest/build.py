@@ -90,11 +90,13 @@ def _hadith_records(parsed: ParsedOpeniti, locked: LockedSource) -> list[Record]
     out: list[Record] = []
     seen: dict[str, int] = {}
     for u in parsed.units:
-        # text_ar is the MATN, never the isnad. This is the whole of spec §7:
-        # similarity.ratio scores the entire stored string, so a 40-character
-        # quotation weighed against a 300-character narrator chain lands near
-        # 0.13 against a 0.86 threshold. The chain is stored (and displayed),
-        # just not scored -- and not indexed; see rebuild_fts.
+        # text_ar is the PRIMARY MATN: never the isnad in front of it, never
+        # the further narrations the edition appends behind it. This is the
+        # whole of spec §7: similarity.ratio scores the entire stored string,
+        # so a 40-character quotation weighed against a 300-character narrator
+        # chain lands near 0.13 against a 0.86 threshold. Both the chain and
+        # the addenda are stored (and displayed), just not scored -- and not
+        # indexed; see rebuild_fts.
         text = u.matn_ar
         if not text.strip():
             raise BuildError(
@@ -116,6 +118,7 @@ def _hadith_records(parsed: ParsedOpeniti, locked: LockedSource) -> list[Record]
             numbering_scheme="bugha-1987",
             text_ar=text,
             isnad_ar=u.isnad_ar,
+            addenda_ar=u.addenda_ar,
             text_ar_sha256=hashlib.sha256(text.encode("utf-8")).hexdigest(),
             norm_light=normalize(text, "light"),
             norm_standard=normalize(text, "standard"),
@@ -155,8 +158,9 @@ which is honest: the engine is reporting that the stored text does not match
 the quotation, and it does not.
 
 Flagged: every character in a record's **matn** outside the Arabic block
-(U+0600-U+06FF) and whitespace. The isnad is not scanned -- it is never scored
-or searched, so damage there cannot mislead an eval case.
+(U+0600-U+06FF) and whitespace. Neither the isnad nor the appended addenda are
+scanned -- neither is ever scored or searched, so damage there cannot mislead
+an eval case.
 """
 
 

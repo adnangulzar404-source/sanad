@@ -81,7 +81,7 @@ def test_rejects_a_lockfile_with_no_sources(tmp_path):
         load_lockfile(p)
 
 
-def test_accepts_openiti_markdown_format_with_commit_pin():
+def test_accepts_the_openiti_markdown_bukhari_entry():
     srcs = load_lockfile(REAL)
     bukhari = [s for s in srcs if s.id == "openiti-bukhari-jk000110"]
     assert len(bukhari) == 1, "the Bukhari source must be pinned in the lockfile"
@@ -93,6 +93,38 @@ def test_accepts_openiti_markdown_format_with_commit_pin():
     assert b.content_sha256 == (
         "69e95684acfde24171d29dd7ba43ff2c8f9b54ade5e3ab0a73899c06671082b7"
     )
+
+
+def test_rejects_openiti_markdown_entry_missing_expected_records(tmp_path):
+    # An openiti-markdown entry that supplies the WRONG count field
+    # (expected_lines, the Tanzil one) instead of its own (expected_records)
+    # must be rejected, not silently accepted with an unchecked count --
+    # that is precisely the gap R2 exists to close.
+    p = tmp_path / "bad.toml"
+    p.write_text(
+        'lockfile_version = 1\n[[source]]\n'
+        'id="openiti-x"\nkind="hadith-arabic"\nformat="openiti-markdown"\n'
+        'title="t"\nurl="u"\nlicense_id="public-domain"\n'
+        'content_sha256="' + "0" * 64 + '"\n'
+        'expected_lines=1\nmodifications="none"\n', encoding="utf-8")
+    with pytest.raises(LockfileError, match="expected_records") as exc:
+        load_lockfile(p)
+    assert "openiti-x" in str(exc.value)
+
+
+def test_rejects_tanzil_entry_missing_expected_lines(tmp_path):
+    # The mirror image: an xml/txt-2 entry that supplies expected_records
+    # (the hadith one) instead of expected_lines must also be rejected.
+    p = tmp_path / "bad.toml"
+    p.write_text(
+        'lockfile_version = 1\n[[source]]\n'
+        'id="tanzil-x"\nkind="quran-arabic"\nformat="txt-2"\n'
+        'title="t"\nurl="u"\nlicense_id="CC-BY-3.0"\n'
+        'content_sha256="' + "0" * 64 + '"\n'
+        'expected_records=1\nmodifications="none"\n', encoding="utf-8")
+    with pytest.raises(LockfileError, match="expected_lines") as exc:
+        load_lockfile(p)
+    assert "tanzil-x" in str(exc.value)
 
 
 def test_openiti_bukhari_url_and_hash_are_pinned():

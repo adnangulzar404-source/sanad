@@ -13,7 +13,7 @@ from sanad.corpus.surahs import surah_name
 
 from .fetch import fetch_source
 from .lockfile import LockedSource, load_lockfile
-from .openiti import ParsedOpeniti
+from .openiti import _UNSCORABLE, ParsedOpeniti
 from .tanzil import ParsedTanzil, ParsedTanzilXml, parser_for
 
 log = logging.getLogger(__name__)
@@ -137,6 +137,24 @@ def _hadith_records(parsed: ParsedOpeniti, locked: LockedSource) -> list[Record]
                 f"as {r.reference_display!r}. Two records behind one citation is "
                 "the duplicate-reference defect; the build stops rather than ship it.")
         refs[r.reference_display] = r.id
+
+    # Every record the unscorable audit names must still be in the corpus.
+    # The list is a judgement about specific records; an entry whose record
+    # has gone is an audit that silently covers less than it claims, and the
+    # digest check in openiti._unscorable_reason cannot see it because it only
+    # fires on records that ARE present. `parse_openiti` emits nothing but
+    # "hadith:bukhari:" ids, so this is the one ingest path the list belongs
+    # to and the check needs no source-specific guard.
+    missing = sorted(set(_UNSCORABLE) - {r.id for r in out})
+    if missing:
+        raise BuildError(
+            f"{locked.id}: {', '.join(missing)} are on the unscorable audit "
+            "list but are not in the parsed corpus. Either the source no "
+            "longer carries these records -- in which case the entries must "
+            "go, and the surrounding records be read again -- or the parser "
+            "stopped producing them, which is a much worse bug. Either way "
+            "the build stops rather than ship an audit that covers less than "
+            "it says it does.")
     return out
 
 

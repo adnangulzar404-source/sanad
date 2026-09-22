@@ -715,3 +715,28 @@ def test_nothing_outside_the_audited_hadith_is_unscorable(real_corpus):
         " WHERE unscorable_reason IS NOT NULL").fetchall()}
     assert kinds == {"hadith"}
     assert db.get_record(conn, "quran:20:1").unscorable_reason is None
+
+
+def test_a_missing_audited_record_aborts_the_build():
+    """An entry on the unscorable list must still name a record that exists.
+
+    Without this, a future edition that dropped hadith 1379 would leave a
+    silently unused entry behind -- the list would still look like it covered
+    the corpus while covering one record less, and nothing would say so. The
+    same failure direction as every other check here: stop, do not ship.
+    """
+    from sanad_ingest.build import BuildError, _hadith_records
+    from sanad_ingest.lockfile import LockedSource
+    from sanad_ingest.openiti import HadithUnit, ParsedOpeniti
+
+    unit = HadithUnit(hadith_no="7", record_id="hadith:bukhari:7", is_repeat=False,
+                      kitab_no=1, kitab_ar="k", bab_ar="b",
+                      isnad_ar="i", matn_ar="m", addenda_ar=None)
+    parsed = ParsedOpeniti(units=[unit], attribution="", content_sha256="0" * 64,
+                           noisy=[])
+    locked = LockedSource(
+        id="x", kind="hadith-arabic", format="openiti-markdown", title="X",
+        url="https://example.invalid/x", license_id="public-domain",
+        content_sha256="0" * 64, modifications="none", expected_records=1)
+    with pytest.raises(BuildError, match="hadith:bukhari:1379"):
+        _hadith_records(parsed, locked)

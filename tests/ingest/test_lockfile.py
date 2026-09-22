@@ -8,7 +8,7 @@ REAL = "ingest/corpus.lock.toml"
 
 def test_loads_the_real_lockfile():
     sources = load_lockfile(REAL)
-    assert len(sources) == 2
+    assert len(sources) == 3
     by_id = {s.id: s for s in sources}
 
     arabic = by_id["tanzil-uthmani-1.1"]
@@ -79,3 +79,54 @@ def test_rejects_a_lockfile_with_no_sources(tmp_path):
     p.write_text("lockfile_version = 1\n", encoding="utf-8")
     with pytest.raises(LockfileError, match=re.escape(str(p))):
         load_lockfile(p)
+
+
+def test_accepts_openiti_markdown_format_with_commit_pin():
+    srcs = load_lockfile(REAL)
+    bukhari = [s for s in srcs if s.id == "openiti-bukhari-jk000110"]
+    assert len(bukhari) == 1, "the Bukhari source must be pinned in the lockfile"
+    b = bukhari[0]
+    assert b.format == "openiti-markdown"
+    assert b.kind == "hadith-arabic"
+    assert b.license_id == "public-domain"
+    assert b.expected_records == 7129
+    assert b.content_sha256 == (
+        "69e95684acfde24171d29dd7ba43ff2c8f9b54ade5e3ab0a73899c06671082b7"
+    )
+
+
+def test_openiti_bukhari_url_and_hash_are_pinned():
+    """The commit SHA pin is outstanding (see the xfail'd test below); until
+    it lands, verify what we *can* verify: the URL names the right OpenITI
+    path and the content hash is the one measured from the real download."""
+    srcs = load_lockfile(REAL)
+    b = next(s for s in srcs if s.id == "openiti-bukhari-jk000110")
+    assert b.url.startswith("https://raw.githubusercontent.com/OpenITI/0275AH/")
+    assert (
+        "data/0256Bukhari/0256Bukhari.Sahih/"
+        "0256Bukhari.Sahih.JK000110-ara1.completed" in b.url
+    )
+    assert b.content_sha256 == (
+        "69e95684acfde24171d29dd7ba43ff2c8f9b54ade5e3ab0a73899c06671082b7"
+    )
+
+
+@pytest.mark.xfail(
+    reason=(
+        "Commit pin outstanding: anonymous GitHub API calls are rate-limited "
+        "from this network and `gh` has no valid credentials here (401 Bad "
+        "credentials), so the commit SHA for OpenITI/0275AH's Bukhari file "
+        "could not be obtained. The lockfile currently points at the "
+        "`master` branch instead, which is NOT a real pin -- OpenITI "
+        "re-OCRs files in place. TODO: fetch the commit SHA (e.g. via an "
+        "authenticated `gh api` call or the file's GitHub History page) and "
+        "set `commit`/`url` in ingest/corpus.lock.toml accordingly."
+    ),
+    strict=True,
+)
+def test_commit_is_required_for_git_hosted_sources():
+    """A branch URL is not a pin: OpenITI re-OCRs files in place."""
+    srcs = load_lockfile(REAL)
+    b = next(s for s in srcs if s.id == "openiti-bukhari-jk000110")
+    assert b.commit and len(b.commit) == 40, "expected a full 40-char commit SHA"
+    assert b.commit in b.url, "the fetched URL must embed the pinned commit"

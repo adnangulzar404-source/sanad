@@ -11,10 +11,14 @@
 # change the hash annually. The copyright block is still captured verbatim
 # into sources.attribution.
 #
-# format is REQUIRED, not defaulted, and must be one of "xml" or "txt-2".
-# This is the provenance contract: an implicit default is exactly how the
-# wrong Tanzil export got chosen for the Arabic text below without anyone
-# noticing (see the comment on that entry).
+# format is REQUIRED, not defaulted, and must be one of "xml", "txt-2", or
+# "openiti-markdown". This is the provenance contract: an implicit default
+# is exactly how the wrong Tanzil export got chosen for the Arabic text
+# below without anyone noticing (see the comment on that entry). Each
+# format also has its own required count field: "xml" and "txt-2" require
+# expected_lines; "openiti-markdown" requires expected_records (see the
+# Bukhari entry below and the comment on lockfile.py's
+# _COUNT_FIELD_BY_FORMAT).
 
 lockfile_version = 1
 
@@ -74,5 +78,48 @@ content_sha256 = "c46125d8abd4d4fad41b2009a1a93dfc43b8a10e59354a4047617a0f8c30ba
 expected_lines = 6236
 modifications  = "none"
 
-# -- NOT YET RESOLVED ---------------------------------------------------------
-# Hadith Arabic matn: source not chosen. See the spec, section 14.1.
+# Hadith Arabic text: Sahih al-Bukhari, OpenITI's JK000110 transcription.
+#
+# LEGAL BASIS: the work's own public-domain status. al-Bukhari died in 870 CE.
+# NOT an OpenITI licence grant -- their website states CC BY-SA, but the data
+# repository OpenITI/0275AH carries no LICENSE file and the OpenITI/OpenITI
+# repo's MIT licence covers their Python tooling, not corpus text (verified
+# 2026-09-22). Since Sanad is MIT, relying on a grant we cannot point to would
+# hand a downstream commercial user the same problem the Pickthall entry above
+# avoids. OpenITI's structural markup is parsed and discarded, so what we store
+# is the public-domain text and nothing else. Attribution to them is credit,
+# not licence compliance.
+#
+# `commit` SHOULD be set for this source -- absent for the Tanzil ones because
+# Tanzil publishes stable versioned exports, while OpenITI is a live git repo
+# whose files are re-OCRed in place, so a branch URL is not a real pin. It is
+# NOT set below: anonymous GitHub API calls are rate-limited from this
+# network and no authenticated `gh` session was available when this entry was
+# written (2026-09-22), so the commit SHA for this file could not be
+# obtained. `url` therefore points at the `master` branch as an interim
+# measure. TODO: fetch the commit SHA for
+# data/0256Bukhari/0256Bukhari.Sahih/0256Bukhari.Sahih.JK000110-ara1.completed
+# (e.g. via an authenticated `gh api repos/OpenITI/0275AH/commits?path=...`
+# call, or the file's History page on github.com) and set `commit` plus a
+# commit-scoped `url` here. Until then this pin is soft: a future re-OCR of
+# this file upstream would only be caught by the content_sha256 check below,
+# not prevented by the URL itself.
+#
+# content_sha256 covers the COMPLETE RAW FILE, unlike the Tanzil entries where
+# it covers the verse payload only. That exclusion exists solely because
+# Tanzil's copyright block embeds the current year. This file has no volatile
+# block, so hashing everything is simpler and stronger -- the #META# header is
+# itself provenance worth pinning. Do not "harmonise" the two conventions.
+[[source]]
+id               = "openiti-bukhari-jk000110"
+kind             = "hadith-arabic"
+format           = "openiti-markdown"
+title            = "الجامع الصحيح المختصر (Sahih al-Bukhari)"
+publisher        = "OpenITI (transcription); Dar Ibn Kathir / al-Yamama, Beirut (edition)"
+edition          = "al-Bugha, 3rd ed., 1407/1987; OpenITI JK000110, ara1.completed"
+url              = "https://raw.githubusercontent.com/OpenITI/0275AH/master/data/0256Bukhari/0256Bukhari.Sahih/0256Bukhari.Sahih.JK000110-ara1.completed"
+license_id       = "public-domain"
+license_url      = "https://github.com/OpenITI/0275AH"
+content_sha256   = "69e95684acfde24171d29dd7ba43ff2c8f9b54ade5e3ab0a73899c06671082b7"
+expected_records = 7129
+modifications    = "mARkdown structural markers parsed and discarded; no text altered"

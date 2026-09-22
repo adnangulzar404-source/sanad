@@ -43,3 +43,7 @@ class Record:
     # rather than text prepended to the following ayah. A record must be
     # self-describing: the UI must not hardcode which surahs open with it.
     bismillah: str | None = None
+    # The narrator chain, for hadith records. Stored but never scored: see the
+    # Stage A2 spec §7. Scoring across isnad + matn puts a short, famous matn
+    # near 0.13 against a 0.86 threshold.
+    isnad_ar: str | None = None

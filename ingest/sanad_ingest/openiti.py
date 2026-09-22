@@ -24,8 +24,9 @@ _QURAN_MARK = re.compile(r"@QB@|@QE@")        # markers go, quoted words stay
 _SECTION = re.compile(r"^###")                # ### | , ### || , ### |||
 _KITAB = re.compile(r"^###\s*\|(?!\|)\s*(.*)$")
 _BAB = re.compile(r"^###\s*\|\|+\s*(.*)$")
-_UNIT_START = re.compile(r"^#\s(?!##)")
+_UNIT_START = re.compile(r"^#\s")              # "^#\s" already can't match "###"
 _NUMBERED = re.compile(r"^(\d+)\s+(م\s+)?(.*)$", re.DOTALL)
+_LEADING_NUMBER = re.compile(r"^\d+\s+")
 
 # A numbered unit whose text begins with "باب" is a chapter heading that the
 # edition happens to number, not a narration. Six of them exist in the file.
@@ -56,12 +57,32 @@ class ParsedOpeniti:
 
 
 def _clean(s: str) -> str:
-    """Strip every structural marker; never touch letters."""
+    """Strip every structural marker; never touch letters.
+
+    Order matters here: _MILESTONE must run before _PART. 15 occurrences in
+    the pinned file look like "\\ 1 ms0007 \\" -- a milestone sitting inside
+    a part marker's digits. If _PART ran first, its regex would not match
+    across the embedded "ms0007" text, leaving the backslash-digit-backslash
+    part marker unstripped once the milestone was removed afterward. A
+    reviewer swapped the two lines during a check and the test suite caught
+    the leak, so this ordering is load-bearing, not incidental.
+    """
     s = _PAGE.sub(" ", s)
     s = _MILESTONE.sub(" ", s)
     s = _PART.sub(" ", s)
     s = _QURAN_MARK.sub(" ", s)
     return " ".join(s.split())
+
+
+def _strip_heading_markup(s: str) -> str:
+    """Drop the wrapping parens and leading printed number from a display
+    heading -- "( 2 كتاب الإيمان )" -> "كتاب الإيمان". Cosmetic only: this
+    never runs on isnad_ar/matn_ar, which carry the edition's words as-is.
+    """
+    s = s.strip()
+    if s.startswith("(") and s.endswith(")"):
+        s = s[1:-1].strip()
+    return _LEADING_NUMBER.sub("", s)
 
 
 def parse_openiti(raw: str) -> ParsedOpeniti:
@@ -76,12 +97,50 @@ def parse_openiti(raw: str) -> ParsedOpeniti:
     kitab_no, kitab_ar, bab_ar = 0, "", None
     buf: list[str] | None = None
 
+    # A "### ||" bab heading whose wrapping "(" isn't closed on its own line
+    # spills the rest of its text onto following "#"-prefixed lines that look
+    # exactly like anonymous narration fragments (774 of the file's 3,959 bab
+    # headings do this). bab_parts/bab_balance track an in-progress heading
+    # until its parens balance, a real numbered hadith starts, or a new
+    # "###" section begins -- whichever comes first. The lookahead never
+    # crosses into a real hadith: each candidate continuation chunk is
+    # tested against _NUMBERED before being absorbed, so an actual narration
+    # is never swallowed into a heading no matter how long the heading's
+    # unresolved parenthesis run is.
+    bab_parts: list[str] | None = None
+    bab_balance = 0
+
+    def start_bab(text: str) -> None:
+        nonlocal bab_ar, bab_parts, bab_balance
+        balance = text.count("(") - text.count(")")
+        bab_ar = _strip_heading_markup(_clean(text)) or None
+        if balance <= 0:
+            bab_parts, bab_balance = None, 0
+        else:
+            bab_parts, bab_balance = [text], balance
+
     def flush() -> None:
-        nonlocal buf
+        nonlocal buf, bab_ar, bab_parts, bab_balance
         if buf is None:
             return
         text, buf = " ".join(buf), None
         m = _NUMBERED.match(text)
+
+        if bab_parts is not None:
+            if m is None:
+                # Heading continuation, not a narration -- absorb it.
+                bab_parts.append(text)
+                bab_balance += text.count("(") - text.count(")")
+                bab_ar = _strip_heading_markup(_clean(" ".join(bab_parts))) or None
+                if bab_balance <= 0:
+                    bab_parts, bab_balance = None, 0
+                return
+            # A real numbered hadith starts here: the heading is done,
+            # resolved or not (an unresolved case is a genuine missing
+            # paren in the source -- roughly 25 of the 774 -- which no
+            # amount of continuation-reading can close).
+            bab_parts, bab_balance = None, 0
+
         if not m:
             return
         number, repeat, rest = m.group(1), bool(m.group(2)), m.group(3)
@@ -115,16 +174,32 @@ def parse_openiti(raw: str) -> ParsedOpeniti:
 
     for line in body.splitlines():
         if line.startswith(_CONTINUATION):
+            frag = line[len(_CONTINUATION) :]
             if buf is not None:
-                buf.append(line[len(_CONTINUATION) :])
+                buf.append(frag)
+            elif bab_parts is not None:
+                # A "~~" line can follow the "### ||" line directly, before
+                # any "#"-prefixed chunk -- e.g. "( 1 باب ... صدقة الفطر" /
+                # "~~فريضة )" is one heading, "فريضة" ("obligatory") being
+                # the word that closes it. Dropping this line would lose
+                # real words, not just markup.
+                bab_parts.append(frag)
+                bab_balance += frag.count("(") - frag.count(")")
+                bab_ar = _strip_heading_markup(_clean(" ".join(bab_parts))) or None
+                if bab_balance <= 0:
+                    bab_parts, bab_balance = None, 0
             continue
         if _SECTION.match(line):
             flush()
+            if bab_parts is not None:
+                # A new section starts before the heading's paren closed --
+                # no more continuation text is coming; keep what we have.
+                bab_parts, bab_balance = None, 0
             if (k := _KITAB.match(line)) is not None:
                 kitab_no += 1
-                kitab_ar, bab_ar = _clean(k.group(1)), None
+                kitab_ar, bab_ar = _strip_heading_markup(_clean(k.group(1))), None
             elif (b := _BAB.match(line)) is not None:
-                bab_ar = _clean(b.group(1)) or None
+                start_bab(b.group(1))
             continue
         if _UNIT_START.match(line):
             flush()

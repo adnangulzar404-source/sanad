@@ -126,3 +126,158 @@ def test_content_hash_matches_the_pinned_value():
     assert parsed.content_sha256 == (
         "69e95684acfde24171d29dd7ba43ff2c8f9b54ade5e3ab0a73899c06671082b7"
     )
+
+
+# --- round 1 review fixes ---
+
+
+@pytest.mark.skipif(not FULL.exists(), reason="full download not present")
+def test_noisy_flags_without_filtering():
+    """Sec 10: noise is flagged, never corrected. The real file has 9 such
+    records (a stray digit, variant-reading brackets, a bare '?'). This
+    pins that (a) the scan actually finds them -- an earlier report
+    wrongly claimed zero, which meant this requirement had no coverage at
+    all -- and (b) the flagged text is still present, unmodified, in the
+    unit it was flagged from. Filtering it out would defeat the point."""
+    parsed = parse_openiti(FULL.read_text(encoding="utf-8"))
+    assert parsed.noisy, "the pinned file is known to contain noise characters"
+    by_id = {u.record_id: u for u in parsed.units}
+    for record_id, offending in parsed.noisy:
+        assert isinstance(record_id, str)
+        assert isinstance(offending, str) and offending
+        assert record_id in by_id, f"{record_id} was flagged but is not a unit"
+        for ch in offending:
+            assert ch in by_id[record_id].matn_ar, (
+                f"noisy() reported {ch!r} for {record_id} but it isn't in "
+                "the stored matn -- noise must be reported, not filtered"
+            )
+
+
+def _strip_heading_markers(s: str) -> str:
+    """Independent (re-implemented, not imported) mirror of the module's
+    marker stripping, used only to compute an expected value from the raw
+    file for the tests below."""
+    s = s.replace("~~", " ")
+    s = re.sub(r"PageV\d+P\d+", " ", s)
+    s = re.sub(r"ms\d{4}", " ", s)
+    s = re.sub(r"\\\s*\d+\s*\\", " ", s)
+    s = s.replace("@QB@", " ").replace("@QE@", " ")
+    return " ".join(s.split())
+
+
+def _expected_bab_ar(raw: str, hadith_no: str) -> str:
+    """Reconstruct the expected bab_ar for a given hadith number straight
+    from the raw file: locate the nearest preceding '### ||' heading line,
+    take every line between it and the hadith line, strip each line's own
+    leading marker ('~~', '### ||...', or '# '), join with spaces, then
+    apply marker stripping and the same cosmetic paren/number trim the
+    parser applies. All anchors here are ASCII digits/markers, never typed
+    Arabic."""
+    hi = raw.index(f"\n# {hadith_no} ")
+    heading_start = raw.rindex("### ||", 0, hi)
+    frags = []
+    for line in raw[heading_start:hi].splitlines():
+        if line.startswith("~~"):
+            frags.append(line[2:])
+        elif re.match(r"^###\s*\|\|+\s*", line):
+            frags.append(re.sub(r"^###\s*\|\|+\s*", "", line))
+        elif line.startswith("# "):
+            frags.append(line[2:])
+        elif line.strip():
+            frags.append(line)
+    cleaned = _strip_heading_markers(" ".join(frags))
+    if cleaned.startswith("(") and cleaned.endswith(")"):
+        cleaned = cleaned[1:-1].strip()
+    return re.sub(r"^\d+\s+", "", cleaned)
+
+
+@pytest.mark.skipif(not FULL.exists(), reason="full download not present")
+def test_multiline_bab_heading_is_assembled_whole():
+    """Hadith 9's bab heading spans the '### ||' line plus five more
+    '#'/'~~' lines quoting an ayah before its wrapping '(' closes. A parser
+    that reads only the '### ||' line's own text truncates the heading
+    mid-quotation."""
+    raw = FULL.read_text(encoding="utf-8")
+    parsed = parse_openiti(raw)
+    nine = next(u for u in parsed.units if u.hadith_no == "9")
+    assert nine.bab_ar == _expected_bab_ar(raw, "9")
+
+
+@pytest.mark.skipif(not FULL.exists(), reason="full download not present")
+def test_bab_heading_closed_on_the_immediate_next_line_keeps_its_word():
+    """Hadith 1432's heading closes on the very next '~~' line, with no
+    intervening numbered '#' chunk at all. The word that closes it is real
+    content (not markup) and must survive."""
+    raw = FULL.read_text(encoding="utf-8")
+    parsed = parse_openiti(raw)
+    unit = next(u for u in parsed.units if u.hadith_no == "1432")
+    assert unit.bab_ar == _expected_bab_ar(raw, "1432")
+
+
+@pytest.mark.skipif(not FULL.exists(), reason="full download not present")
+def test_bab_ar_and_kitab_ar_carry_no_leading_number():
+    """Display headings drop their leading printed number:
+    '2 كتاب الإيمان' -> 'كتاب الإيمان'. Universal, regardless of whether
+    the field's wrapping parens could also be stripped (that depends on
+    the raw text actually starting with '(' and ending with ')'; see
+    test_bab_ar_and_kitab_ar_strip_matched_wrapping_parens below).
+    matn_ar/isnad_ar are unaffected -- this is cosmetic, for chapter_ar
+    display only."""
+    parsed = parse_openiti(FULL.read_text(encoding="utf-8"))
+    for u in parsed.units:
+        assert not re.match(r"^\d", u.kitab_ar), u.kitab_ar
+        if u.bab_ar:
+            assert not re.match(r"^\d", u.bab_ar), u.bab_ar
+
+
+@pytest.mark.skipif(not FULL.exists(), reason="full download not present")
+def test_bab_ar_and_kitab_ar_strip_matched_wrapping_parens():
+    """When the captured heading text is wholly wrapped -- starts with '('
+    and ends with ')' -- both are dropped, not just the leading number:
+    kitab 2 -> 'كتاب الإيمان', not '( 2 كتاب الإيمان )' or '2 كتاب الإيمان'.
+
+    This is *not* universal: some headings carry commentary after their
+    own closing paren (e.g. hadith 274's bab_ar is
+    "( 20 باب ... ) وقال بهز ..." -- the title itself is balanced, but the
+    field's full text is not wholly wrapped, so nothing is stripped rather
+    than mangling the trailing commentary). And bab_ar's parens are only
+    ever fully assembled and resolvable when the source itself provides a
+    closing paren somewhere reachable -- 12 headings never do (see
+    test_bab_ar_paren_imbalance_is_a_bounded_known_source_defect) and
+    kitab_ar has the same, not-yet-fixed, single-line-only limitation for
+    17 of its 100 headings. This test only asserts the positive case: a
+    resolvable heading with nothing trailing its own closing paren comes
+    out markup-free."""
+    raw = FULL.read_text(encoding="utf-8")
+    # "### | ( 2 <name> )" -> strip parens and the leading number by hand,
+    # from the raw line itself, never typed.
+    kitab2_line = next(
+        line for line in raw.splitlines() if re.match(r"^###\s*\|(?!\|)\s*\(\s*2\s", line)
+    )
+    expected_kitab2 = re.sub(r"^###\s*\|(?!\|)\s*\(\s*2\s+", "", kitab2_line).rstrip(") ").strip()
+
+    parsed = parse_openiti(raw)
+    two = next(u for u in parsed.units if u.kitab_no == 2)
+    assert two.kitab_ar == expected_kitab2
+    nine = next(u for u in parsed.units if u.hadith_no == "9")
+    assert not nine.bab_ar.startswith("(")
+    assert not nine.bab_ar.endswith(")")
+
+
+@pytest.mark.skipif(not FULL.exists(), reason="full download not present")
+def test_bab_ar_paren_imbalance_is_a_bounded_known_source_defect():
+    """A strict "no bab_ar is ever unbalanced" invariant does not hold: 12
+    headings in the pinned edition never close their own '(' anywhere
+    before the next hadith or section begins -- verified by hand against
+    the raw file (e.g. hadith 1000's heading reads "... وخسف القمر" with
+    no closing paren anywhere before hadith 1000 itself starts). No amount
+    of continuation-reading can supply a character the source never wrote.
+    This test pins that the defect is exactly this bounded, known set, so
+    a real regression (more truncation) is caught, while an unfixable
+    source typo is not mistaken for one."""
+    parsed = parse_openiti(FULL.read_text(encoding="utf-8"))
+    unbalanced = {u.bab_ar for u in parsed.units
+                  if u.bab_ar and u.bab_ar.count("(") != u.bab_ar.count(")")}
+    assert len(unbalanced) == 12
+    hadith_nos_affected = {u.hadith_no for u in parsed.units if u.bab_ar in unbalanced}
+    assert "1000" in hadith_nos_affected

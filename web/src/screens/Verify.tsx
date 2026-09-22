@@ -80,6 +80,11 @@ export function Verify() {
               {result.quotations.map((q, i) => (
                 <EvidenceCard key={i} quotation={q} corpusScope={result.corpus_scope} />
               ))}
+              {result.quotations.some((q) => q.record?.translation_en) && (
+                <p data-testid="translation-disclaimer" className="data" style={{ marginBlockStart: "1rem" }}>
+                  {result.quotations.find((q) => q.record?.translation_en)?.record?.translation_disclaimer}
+                </p>
+              )}
             </section>
           )}
 

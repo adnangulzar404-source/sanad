@@ -100,6 +100,45 @@ describe("Verify screen", () => {
     expect(screen.getByRole("button", { name: /verify/i })).toBeDisabled();
   });
 
+  it("shows the translation-accuracy disclaimer exactly once, even with several translated citations", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(reply({
+      ...verified,
+      quotations: [
+        ...verified.quotations,
+        { quoted_text: "قُلْ أَعُوذُ بِرَبِّ ٱلْفَلَقِ", start: 22, end: 45, verdict: "EXACT",
+          tier: "light", score: 1,
+          record: { id: "quran:113:1", reference_display: "Al-Falaq 113:1",
+                    text_ar: "قُلْ أَعُوذُ بِرَبِّ ٱلْفَلَقِ", text_ar_sha256: "def67890", surah: 113, ayah: 1,
+                    translation_en: "Say: I seek refuge in the Lord of the Daybreak.",
+                    translation_disclaimer: "Not a replacement." },
+          given_reference: null, diff: null, also_at: [] },
+      ],
+    })));
+    const user = userEvent.setup();
+    render(<Verify />);
+    await user.type(screen.getByRole("textbox"), "two verses");
+    await user.click(screen.getByRole("button", { name: /verify/i }));
+    await waitFor(() => expect(screen.getAllByText(/^Verified$/).length).toBeGreaterThan(0));
+    expect(screen.getAllByTestId("translation-disclaimer")).toHaveLength(1);
+    expect(screen.getByTestId("translation-disclaimer")).toHaveTextContent(/not a replacement/i);
+  });
+
+  it("shows no translation disclaimer when nothing on screen carries a translation", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(reply({
+      ...verified,
+      quotations: [{
+        ...verified.quotations[0],
+        record: { ...verified.quotations[0].record, translation_en: null, translation_disclaimer: null },
+      }],
+    })));
+    const user = userEvent.setup();
+    render(<Verify />);
+    await user.type(screen.getByRole("textbox"), "one verse");
+    await user.click(screen.getByRole("button", { name: /verify/i }));
+    await waitFor(() => expect(screen.getByText(/^Verified$/)).toBeInTheDocument());
+    expect(screen.queryByTestId("translation-disclaimer")).toBeNull();
+  });
+
   it("loads an example that exercises several verdicts", async () => {
     const user = userEvent.setup();
     render(<Verify />);

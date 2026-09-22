@@ -33,17 +33,14 @@ describe("EvidenceCard", () => {
     expect(screen.getByTestId("diff")).toBeInTheDocument();
   });
 
-  it("shows the English translation with its accuracy disclaimer", () => {
+  it("shows the English translation", () => {
     render(<EvidenceCard quotation={base} corpusScope={SCOPE} />);
     expect(screen.getByText(/Say: He is Allah, the One!/)).toBeInTheDocument();
-    expect(screen.getByText(/hundred percent accurate/i)).toBeInTheDocument();
   });
 
-  it("never shows a translation without its disclaimer", () => {
+  it("does not repeat the translation-accuracy disclaimer per card", () => {
     render(<EvidenceCard quotation={base} corpusScope={SCOPE} />);
-    const translation = screen.queryByTestId("translation");
-    const disclaimer = screen.queryByTestId("translation-disclaimer");
-    expect(Boolean(translation)).toBe(Boolean(disclaimer));
+    expect(screen.queryByTestId("translation-disclaimer")).toBeNull();
   });
 
   it("renders the verdict label", () => {

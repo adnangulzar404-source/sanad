@@ -33,9 +33,6 @@ export function EvidenceCard({
       {rec?.translation_en && (
         <div style={{ marginBlockStart: "0.9rem", paddingBlockStart: "0.6rem", borderBlockStart: "var(--rule)" }}>
           <p data-testid="translation" style={{ margin: 0 }}>{rec.translation_en}</p>
-          <p data-testid="translation-disclaimer" className="data" style={{ margin: "0.3rem 0 0" }}>
-            {rec.translation_disclaimer}
-          </p>
         </div>
       )}
 

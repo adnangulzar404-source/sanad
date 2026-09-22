@@ -128,9 +128,9 @@ def test_rejects_tanzil_entry_missing_expected_lines(tmp_path):
 
 
 def test_openiti_bukhari_url_and_hash_are_pinned():
-    """The commit SHA pin is outstanding (see the xfail'd test below); until
-    it lands, verify what we *can* verify: the URL names the right OpenITI
-    path and the content hash is the one measured from the real download."""
+    """Verify what does not depend on the commit pin: the URL names the
+    right OpenITI path and the content hash is the one measured from the
+    real download. The commit pin itself is covered separately below."""
     srcs = load_lockfile(REAL)
     b = next(s for s in srcs if s.id == "openiti-bukhari-jk000110")
     assert b.url.startswith("https://raw.githubusercontent.com/OpenITI/0275AH/")
@@ -143,21 +143,14 @@ def test_openiti_bukhari_url_and_hash_are_pinned():
     )
 
 
-@pytest.mark.xfail(
-    reason=(
-        "Commit pin outstanding: anonymous GitHub API calls are rate-limited "
-        "from this network and `gh` has no valid credentials here (401 Bad "
-        "credentials), so the commit SHA for OpenITI/0275AH's Bukhari file "
-        "could not be obtained. The lockfile currently points at the "
-        "`master` branch instead, which is NOT a real pin -- OpenITI "
-        "re-OCRs files in place. TODO: fetch the commit SHA (e.g. via an "
-        "authenticated `gh api` call or the file's GitHub History page) and "
-        "set `commit`/`url` in ingest/corpus.lock.toml accordingly."
-    ),
-    strict=True,
-)
 def test_commit_is_required_for_git_hosted_sources():
-    """A branch URL is not a pin: OpenITI re-OCRs files in place."""
+    """A branch URL is not a pin: OpenITI re-OCRs files in place.
+
+    The commit pin was verified by fetching the file at this exact commit
+    and hashing it: byte-identical to the measured download (both
+    69e95684acfde24171d29dd7ba43ff2c8f9b54ade5e3ab0a73899c06671082b7 at
+    5,524,762 bytes).
+    """
     srcs = load_lockfile(REAL)
     b = next(s for s in srcs if s.id == "openiti-bukhari-jk000110")
     assert b.commit and len(b.commit) == 40, "expected a full 40-char commit SHA"

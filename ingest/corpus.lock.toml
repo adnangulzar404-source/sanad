@@ -92,18 +92,12 @@ modifications  = "none"
 #
 # `commit` SHOULD be set for this source -- absent for the Tanzil ones because
 # Tanzil publishes stable versioned exports, while OpenITI is a live git repo
-# whose files are re-OCRed in place, so a branch URL is not a real pin. It is
-# NOT set below: anonymous GitHub API calls are rate-limited from this
-# network and no authenticated `gh` session was available when this entry was
-# written (2026-09-22), so the commit SHA for this file could not be
-# obtained. `url` therefore points at the `master` branch as an interim
-# measure. TODO: fetch the commit SHA for
-# data/0256Bukhari/0256Bukhari.Sahih/0256Bukhari.Sahih.JK000110-ara1.completed
-# (e.g. via an authenticated `gh api repos/OpenITI/0275AH/commits?path=...`
-# call, or the file's History page on github.com) and set `commit` plus a
-# commit-scoped `url` here. Until then this pin is soft: a future re-OCR of
-# this file upstream would only be caught by the content_sha256 check below,
-# not prevented by the URL itself.
+# whose files are re-OCRed in place, so a branch URL is not a real pin. It IS
+# set below: commit 47dfd28db9e158c7101c7df1162d4dc99bb70303 (2025-11-27, "ns
+# update") was fetched via an authenticated `gh` session and verified to be
+# byte-identical to the measured download -- both hash to
+# 69e95684acfde24171d29dd7ba43ff2c8f9b54ade5e3ab0a73899c06671082b7 at
+# 5,524,762 bytes. `url` is pinned to that exact commit rather than `master`.
 #
 # content_sha256 covers the COMPLETE RAW FILE, unlike the Tanzil entries where
 # it covers the verse payload only. That exclusion exists solely because
@@ -117,7 +111,8 @@ format           = "openiti-markdown"
 title            = "الجامع الصحيح المختصر (Sahih al-Bukhari)"
 publisher        = "OpenITI (transcription); Dar Ibn Kathir / al-Yamama, Beirut (edition)"
 edition          = "al-Bugha, 3rd ed., 1407/1987; OpenITI JK000110, ara1.completed"
-url              = "https://raw.githubusercontent.com/OpenITI/0275AH/master/data/0256Bukhari/0256Bukhari.Sahih/0256Bukhari.Sahih.JK000110-ara1.completed"
+url              = "https://raw.githubusercontent.com/OpenITI/0275AH/47dfd28db9e158c7101c7df1162d4dc99bb70303/data/0256Bukhari/0256Bukhari.Sahih/0256Bukhari.Sahih.JK000110-ara1.completed"
+commit           = "47dfd28db9e158c7101c7df1162d4dc99bb70303"
 license_id       = "public-domain"
 license_url      = "https://github.com/OpenITI/0275AH"
 content_sha256   = "69e95684acfde24171d29dd7ba43ff2c8f9b54ade5e3ab0a73899c06671082b7"

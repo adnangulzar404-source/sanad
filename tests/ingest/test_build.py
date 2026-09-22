@@ -502,8 +502,8 @@ def test_noise_report_lists_every_flagged_record(real_corpus):
 
 
 def test_damage_that_moved_into_an_addendum_is_still_in_the_corpus(real_corpus):
-    """3291 and 6102 were flagged before the secondary-narration fix and are
-    not flagged now. That is correct and it is not a silent loss: their
+    """3291, 6102 and 6967 were flagged before the secondary-narration fix
+    and are not flagged now. That is correct and it is not a silent loss: their
     damaged characters were in the appended narration, which is no longer
     part of the scored, searched text the report exists to protect -- the
     same reason the isnad has never been scanned. The characters themselves
@@ -514,7 +514,8 @@ def test_damage_that_moved_into_an_addendum_is_still_in_the_corpus(real_corpus):
     text = report.read_text(encoding="utf-8")
     conn = db.connect(out)
     for record_id, damaged in (("hadith:bukhari:3291", "5"),
-                               ("hadith:bukhari:6102", "?")):
+                               ("hadith:bukhari:6102", "?"),
+                               ("hadith:bukhari:6967", "%")):
         assert f"`{record_id}`" not in text
         rec = db.get_record(conn, record_id)
         assert damaged not in rec.text_ar
@@ -555,7 +556,7 @@ def test_duplicate_reference_display_aborts_the_build():
 # --- fix round 1: secondary narrations are stored, not scored --------------
 
 def test_the_appended_narrations_are_stored_but_never_scored(real_corpus):
-    """155 records carry an addendum. It is in the row and out of the score.
+    """395 records carry an addendum. It is in the row and out of the score.
 
     hadith 22 is one of the three boundaries named in the fix brief: the
     primary matn ends at "...as the seed grows beside a stream", and a second
@@ -567,7 +568,7 @@ def test_the_appended_narrations_are_stored_but_never_scored(real_corpus):
     conn = db.connect(out)
     n = conn.execute(
         "SELECT count(*) FROM records WHERE addenda_ar IS NOT NULL").fetchone()[0]
-    assert n == 155
+    assert n == 395
     rec = db.get_record(conn, "hadith:bukhari:22")
     assert rec.addenda_ar and _HADDATHANA in rec.addenda_ar
     assert _HADDATHANA not in rec.text_ar
@@ -579,7 +580,7 @@ def test_the_appended_narrations_are_stored_but_never_scored(real_corpus):
 
 
 def test_no_addendum_is_reachable_through_the_search_index(real_corpus):
-    """Exhaustive over all 155, in both the stored and the indexed text.
+    """Exhaustive over all 395, in both the stored and the indexed text.
 
     The other half of the guarantee is
     test_fts_indexes_the_record_norms_and_nothing_else, which pins the index
@@ -592,7 +593,7 @@ def test_no_addendum_is_reachable_through_the_search_index(real_corpus):
         "       f.norm_aggressive FROM records r"
         " JOIN records_fts f ON f.record_id = r.id"
         " WHERE r.addenda_ar IS NOT NULL").fetchall()
-    assert len(rows) == 155
+    assert len(rows) == 395
     for row in rows:
         assert row["addenda_ar"] not in row["text_ar"], row["id"]
         for form in ("standard", "aggressive"):

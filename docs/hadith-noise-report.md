@@ -25,7 +25,7 @@ an eval case.
 
 Source: `openiti-bukhari-jk000110` (al-Bugha, 3rd ed., 1407/1987; OpenITI JK000110, ara1.completed)
 
-Records ingested: 7129 &nbsp;&nbsp; Records flagged: 72
+Records ingested: 7129 &nbsp;&nbsp; Records flagged: 71
 
 | Record | Citation | Characters | Codepoints |
 | --- | --- | --- | --- |
@@ -100,4 +100,3 @@ Records ingested: 7129 &nbsp;&nbsp; Records flagged: 72
 | `hadith:bukhari:6804` | Sahih al-Bukhari 6804 | `%()` | U+0025 U+0028 U+0029 |
 | `hadith:bukhari:6965` | Sahih al-Bukhari 6965 | `()` | U+0028 U+0029 |
 | `hadith:bukhari:6966` | Sahih al-Bukhari 6966 | `()` | U+0028 U+0029 |
-| `hadith:bukhari:6967` | Sahih al-Bukhari 6967 | `#%()` | U+0023 U+0025 U+0028 U+0029 |

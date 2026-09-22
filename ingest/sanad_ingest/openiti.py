@@ -40,45 +40,80 @@ _ALLOWED = re.compile(r"[؀-ۿ\s]")
 # The al-Bugha edition appends FURTHER narrations after the primary matn --
 # each with its own chain and often its own variant wording -- and marks only
 # the first isnad/matn boundary with "*". Everything after that boundary was
-# therefore landing in the scored text: 155 records, with the trailing
-# material a median 40% of the stored string. A user quoting only the primary
-# matn scored >=0.86 against 9 of those 155.
+# therefore landing in the scored text, with the trailing material a median
+# 40% of the stored string.
 #
-# The source does mark these boundaries, just not with "*": an attribution
-# ("qala <name>" / "wa-qala <name>") immediately in front of a narration verb.
-# The rule below is the measured, conservative subset of that pattern. Every
-# number in the comments is from the pinned file, not an estimate; the full
-# measurement is in .superpowers/sdd/2026-09-22-hadith-corpus/
-# task-4-fix-1-report.md.
+# The source does mark these boundaries, just not with "*": a narration verb
+# followed by CHAIN MATERIAL -- a narrator's name and then another link ("an",
+# "ibn", another narration verb). What follows the verb is the signal. Round 1
+# anchored on what precedes it instead (an attribution, "qala <name>"), which
+# is real but rare: it found 155 boundaries and missed ~240 the edition marks
+# just as plainly. The forward test also makes the counterexamples fall out
+# for free rather than needing a guard each -- "he said to Bilal: TELL ME the
+# deed you most hope for" (1098) and "TELL ME about faith" (50) are narration
+# verbs with a preposition behind them, not a chain.
+#
+# Every number in the comments is from the pinned file, not an estimate; the
+# full measurement is in .superpowers/sdd/2026-09-22-hadith-corpus/
+# task-4-fix-2-report.md.
 
 _NARRATION_VERBS = ("حدثنا", "حدّثنا", "حدثني", "أخبرنا", "أخبرني")
 _ARABIC = "؀-ۿ"
-# Word-boundary forms: "hadathana" must not match inside "wa-hadathana", which
-# is a different token the edition uses for a chain the reader is still inside.
+# The wa- and fa- proclitics are part of the verb, not a reason to ignore it:
+# the edition writes "...qala Shu'ayb WA-haddathani Nafi' 'an Ibn Umar..."
+# (621) and "...qala Hisham FA-akhbarani abi 'an A'isha..." (3896) as single
+# tokens, and round 1's lookbehind stepped straight over both.
 _VERB = re.compile(
-    rf"(?<![{_ARABIC}])(?:{'|'.join(_NARRATION_VERBS)})(?![{_ARABIC}])")
-_ATTRIBUTION = re.compile(rf"(?<![{_ARABIC}])و?قال(?![{_ARABIC}])")
+    rf"(?<![{_ARABIC}])[وف]?(?:{'|'.join(_NARRATION_VERBS)})(?![{_ARABIC}])")
+_VERB_TOKEN = re.compile(rf"^[وف]?(?:{'|'.join(_NARRATION_VERBS)})$")
+# The attribution that introduces an addendum. "fa-qala" counts only on the
+# forward path: on its own it is far more often plain narration ("he said to
+# him: tell us how the Prophet prayed", 574) than a chain marker.
+_ATTRIBUTION = re.compile(rf"(?<![{_ARABIC}])[وف]?قال(?![{_ARABIC}])")
+_PLAIN_ATTRIBUTION = re.compile(rf"(?<![{_ARABIC}])و?قال(?![{_ARABIC}])")
 # "he said" / "she said" / "they said" / "says", with the wa- and fa- proclitics.
 _SPEECH_VERB = re.compile(r"[وف]?(?:قال|قالت|قالوا|يقول|تقول)")
 # "to me" / "to us" / "to him" ... -- the addressee of a speech verb.
 _ADDRESSEE = re.compile(r"ل(?:ي|نا|ه|ها|هم|هن|كم|كن)")
 
+# What a chain says after it names a narrator: "from", "son of". A narration
+# verb is another link and is checked separately.
+_CHAIN_LINKS = frozenset({"عن", "بن", "ابن"})
+
+# Words that GOVERN the verb behind them, so the verb opens a clause rather
+# than a chain: "I said: TELL ME something you remember" (1570), "we told him
+# WHAT Anas told us" (7072), "the people did the like of THAT WHICH Salim
+# reported to me" (1606). Each of the three forms rejects exactly one
+# candidate on this file, and all three were found by reading every candidate
+# the rule produced -- not by pattern-hunting. A relative or interrogative in
+# front of the verb makes the chain behind it a complement, and cutting there
+# leaves the primary ending on a dangling "the one which".
+_GOVERNS_THE_VERB = frozenset({
+    "قلت", "فقلت", "قلنا", "فقلنا", "سألت", "فسألت",   # "I said / I asked"
+    "ما", "بما", "مما",                                  # "what / with what"
+    "الذي", "التي", "الذين",                             # "that which / who"
+})
+
 # Attribution must sit within this many characters of the verb. MEASURED, not
 # chosen by taste: 25 is the largest distance a one-to-three-token attribution
-# ever spans in this file (the observed range is 8..24). Candidates outside it
-# are 39% wrong by hand count; inside it, and with the guards below, 0 of 155.
+# ever spans in this file (the observed range is 8..24).
 _ATTRIBUTION_WINDOW = 25
 # A narrator's name here is one to three tokens -- "Wuhayb", "Abu Mu'awiya",
 # "Sa'id ibn Zayd", "Abu Abdullah". Four or more is not a name, it is speech
 # that happens to contain "qala".
 _MAX_NAME_TOKENS = 3
+# No single cut may move more than this much text. The edition sometimes
+# breaks off mid-narration for a sub-narrator's aside and then RESUMES the
+# same story -- 2581 (Hudaybiyya), 2782 (Heraclius), 2880 (Khubayb) -- so the
+# text behind the marker is matn, not an addendum. Those three are the only
+# cuts on this file that would exceed 1,000 characters, and all three were
+# read by hand. This is a cap on blast radius, not a claim about Arabic: a
+# rule this simple does not get to move a kilobyte on its own say-so.
+_MAX_ADDENDUM = 1000
 
 # Tokens that cannot be part of a narrator's name. Closed word classes --
 # vocatives, particles, pronouns, demonstratives, prepositions, speech verbs --
-# not a list fitted to the eleven candidates it happens to reject. Without it
-# the rule cuts "qala na'am, akhbarani Bilal" ("he said yes: Bilal told me")
-# and "qala ya rasul Allah, akhbirni" ("he said: O Messenger of God, tell me"),
-# truncating the Prophet's own words, which is worse than the bug being fixed.
+# not a list fitted to the candidates it happens to reject.
 _NOT_A_NAME = frozenset({
     # vocative / interjection
     "يا", "اللهم", "ألا",
@@ -103,6 +138,57 @@ _NOT_A_NAME = frozenset({
 })
 
 
+def _opens_a_chain(after: list[str]) -> bool:
+    """Do the tokens after a narration verb read as the start of a chain?
+
+    A chain names its narrator and then links onward: "haddathani Nafi' 'AN
+    Abdullah", "haddathana Muhammad IBN al-Muthanna", "haddathana Amr
+    HADDATHANA Shu'ba". Genuine speech does not: "akhbirni bi-arja 'amal"
+    ("tell me the deed you most hope for") runs straight into a
+    prepositional phrase, and "akhbirni 'AN al-islam" is "tell me ABOUT
+    islam" -- which is why "'an" flush against the verb, with no narrator
+    named in between, is the one position where it cannot be a link.
+    """
+    for i, token in enumerate(after[:_MAX_NAME_TOKENS + 1]):
+        if _VERB_TOKEN.match(token):
+            return True
+        if token in _CHAIN_LINKS:
+            return not (token == "عن" and i == 0)
+        if token in _NOT_A_NAME:
+            return False
+    return False
+
+
+def _attribution_start(matn: str, verb_start: int, pattern: re.Pattern[str],
+                       allow_particle: bool, min_name: int = 1) -> int | None:
+    """Index of an attribution "qala <name>" introducing the verb, if any.
+
+    Walks back over at most _MAX_NAME_TOKENS name tokens, so that the cut
+    takes the attribution with the addendum it introduces rather than
+    stranding it at the end of the primary.
+    """
+    tokens = matn[:verb_start].split()
+    k = len(tokens)
+    if allow_particle and k and tokens[-1] in ("و", "ف"):
+        k -= 1          # "...qala Shu'ayb wa | haddathani..." -- 621, 3896
+    named = 0
+    while k >= 1 and named < _MAX_NAME_TOKENS and not pattern.fullmatch(tokens[k - 1]):
+        if tokens[k - 1] in _NOT_A_NAME or len(tokens[k - 1]) == 1:
+            return None
+        k -= 1
+        named += 1
+    if k < 1 or named < min_name or not pattern.fullmatch(tokens[k - 1]):
+        return None
+    if named == 1 and tokens[k].startswith("ل"):
+        # "qala li-Anas haddithni" is "he said TO Anas: tell me", not
+        # "Anas said". The lam- proclitic marks an addressee.
+        return None
+    start = len(" ".join(tokens[:k - 1])) + (1 if k - 1 > 0 else 0)
+    if verb_start - start > _ATTRIBUTION_WINDOW:
+        return None
+    return start
+
+
 def _split_secondary(matn: str) -> tuple[str, str | None]:
     """Split a matn into (primary, addenda) at the first secondary narration.
 
@@ -111,56 +197,39 @@ def _split_secondary(matn: str) -> tuple[str, str | None]:
     an addendum in the scored text is merely the bug we already had, while
     cutting one word too early destroys scripture.
     """
-    verb = _VERB.search(matn)
-    if verb is None:
-        return matn, None
+    for verb in _VERB.finditer(matn):
+        forward = _opens_a_chain(matn[verb.end():].split())
+        # The backward signal on its own still counts: "wa-qala Sa'id ibn
+        # Zayd haddathana Abd al-Aziz idha arada an yadkhula" (142) is a
+        # one-link chain, so nothing follows the verb to recognise.
+        start = _attribution_start(matn, verb.start(), _PLAIN_ATTRIBUTION, False)
+        if forward:
+            # A bare "qala" with no name is an attribution here too, because
+            # the chain behind the verb already settled the question.
+            start = _attribution_start(matn, verb.start(), _ATTRIBUTION,
+                                       True, min_name=0) or start
+        elif start is None:
+            continue
 
-    attribution = None
-    for candidate in _ATTRIBUTION.finditer(matn):
-        if candidate.start() >= verb.start():
-            break
-        attribution = candidate
-    if attribution is None:
-        # A narration verb with no attribution in front of it. The brief's
-        # fallback was to cut at the verb itself; measurement says no. Of the
-        # 38 records where the attribution sits flush against the verb, ~10
-        # have the verb inside genuine matn ("he told me and was truthful
-        # with me", "Gabriel informed me of it just now"), and another 117
-        # have no attribution at all. Both are left whole.
-        return matn, None
-
-    cut = attribution.start()
-    if cut == 0:
-        return matn, None          # nothing would be left to score
-    if verb.start() - cut > _ATTRIBUTION_WINDOW:
-        return matn, None
-
-    name = matn[attribution.end():verb.start()].split()
-    if not 1 <= len(name) <= _MAX_NAME_TOKENS:
-        # Zero tokens is "qala hadathani ..." -- an attribution to nobody,
-        # which in this edition is as often reported speech as a boundary.
-        return matn, None
-    if any(token in _NOT_A_NAME for token in name):
-        return matn, None
-    if len(name) == 1 and name[0].startswith("ل"):
-        # "qala li-Anas hadithni" is "he said TO Anas: tell me", not
-        # "Anas said". The lam- proclitic marks an addressee, so a lone
-        # lam-token cannot be the name the attribution names. Two or more
-        # tokens is the edition's real "wa-qala lana <name>" form, kept.
-        return matn, None
-
-    before = matn[:cut].split()
-    if before and _SPEECH_VERB.fullmatch(before[-1]):
-        return matn, None
-    if (len(before) >= 2 and _ADDRESSEE.fullmatch(before[-1])
-            and _SPEECH_VERB.fullmatch(before[-2])):
-        # "fa-qala li: qala Ibn Abbas ..." -- the attribution is the CONTENT
-        # of the preceding speech verb, so it is inside the narration, not a
-        # boundary after it. Cutting here moved 2,677 characters of hadith
-        # 4449 (the Musa and al-Khidr story) into the addendum.
-        return matn, None
-
-    return matn[:cut].rstrip(), matn[cut:]
+        cut = start if start is not None else verb.start()
+        before = matn[:cut].split()
+        if len(before) < 2:
+            # 6477's matn is the single word "al-kaba'ir" in front of a second
+            # chain that carries the actual hadith. A one-word scored text is
+            # the empty-matn hazard wearing a hat.
+            return matn, None
+        if _ADDRESSEE.fullmatch(before[-1]) and _SPEECH_VERB.fullmatch(before[-2]):
+            # "fa-qala li: qala Ibn Abbas ..." -- the attribution is the
+            # CONTENT of the preceding speech verb, so it is inside the
+            # narration. Cutting here moved 2,677 characters of hadith 4449
+            # (the Musa and al-Khidr story) out of the scored text.
+            return matn, None
+        if before[-1] in _GOVERNS_THE_VERB:
+            return matn, None
+        if len(matn) - cut > _MAX_ADDENDUM:
+            return matn, None
+        return matn[:cut].rstrip(), matn[cut:]
+    return matn, None
 
 
 @dataclass(frozen=True)
@@ -302,7 +371,15 @@ def parse_openiti(raw: str) -> ParsedOpeniti:
             # 5833's matn is right there in the file, in front of the
             # misplaced mark.
             isnad, matn = None, _clean(rest.replace("*", " "))
-        matn, addenda = _split_secondary(matn)
+        if isnad is None:
+            # No source-marked boundary anywhere in this unit, so its leading
+            # chain is part of the stored matn. Every narration verb in that
+            # chain opens a chain -- that is what a chain is -- and splitting
+            # on the first one leaves "haddathana Musaddad" as the scored
+            # text. Where the source marks nothing, nothing is cut.
+            addenda = None
+        else:
+            matn, addenda = _split_secondary(matn)
 
         seen[number] = seen.get(number, 0) + 1
         suffix = "" if seen[number] == 1 else f"-{seen[number]}"
@@ -370,6 +447,12 @@ def parse_openiti(raw: str) -> ParsedOpeniti:
                 continue
             flush()
             buf = [frag]
+            continue
+        if line.strip() == "#":
+            # A bare "#" closes a run of verse lines. "^#\\s" does not match it,
+            # so it fell through to the plain-text branch below and left a
+            # literal "#" in 6967's scored text -- flagged by the noise report
+            # since the first build, and markup rather than damage.
             continue
         if buf is not None:
             buf.append(line)

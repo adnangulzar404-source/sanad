@@ -16,7 +16,7 @@ FULL = Path("/tmp/bukhari.txt")   # the real download; see Task 2 Step 1
 
 # sha256 of the sorted, comma-joined ids of every record the secondary-narration
 # rule cuts. Measured, not chosen; see test_exactly_the_measured_records_are_cut.
-_CUT_ID_DIGEST = "f73746506440e262432f92e9413f3b52016f86b90b1b4f66ff82003438ae1ebf"
+_CUT_ID_DIGEST = "af95d97ed63225bce8648651a51bfb1f34c8f67bfacd131ed1fc28da436c1ed9"
 
 
 @pytest.fixture(scope="module")
@@ -286,6 +286,7 @@ def test_bab_ar_paren_imbalance_is_a_bounded_known_source_defect():
 _QAL = "".join(chr(c) for c in (0x0642, 0x0627, 0x0644))            # قال
 _WA_QAL = chr(0x0648) + _QAL                                        # وقال
 _HADDATHANA = "".join(chr(c) for c in (0x062D, 0x062F, 0x062B, 0x0646, 0x0627))
+_HADDATHANI = "".join(chr(c) for c in (0x062D, 0x062F, 0x062B, 0x0646, 0x064A))
 
 
 def _raw_unit_text(raw: str, hadith_no: str) -> str:
@@ -378,7 +379,7 @@ def test_exactly_the_measured_records_are_cut(full):
         if x.addenda_ar is not None)).encode()).hexdigest())"
     """
     cut = sorted(u.record_id for u in full.units if u.addenda_ar is not None)
-    assert len(cut) == 155
+    assert len(cut) == 395
     digest = hashlib.sha256(",".join(cut).encode("utf-8")).hexdigest()
     assert digest == _CUT_ID_DIGEST
 
@@ -398,10 +399,7 @@ def test_a_bare_narration_verb_with_no_attribution_is_never_cut(full):
                       "hadith:bukhari:3723", "hadith:bukhari:4200",
                       "hadith:bukhari:5361", "hadith:bukhari:957",
                       "hadith:bukhari:5637", "hadith:bukhari:5813",
-                      "hadith:bukhari:3546", "hadith:bukhari:6171",
-                      "hadith:bukhari:4676", "hadith:bukhari:4155",
-                      "hadith:bukhari:4449", "hadith:bukhari:2976",
-                      "hadith:bukhari:5381"):
+                      "hadith:bukhari:4155", "hadith:bukhari:4449"):
         u = by_id[record_id]
         assert u.addenda_ar is None, f"{record_id} must not be cut"
 
@@ -459,7 +457,7 @@ def test_addenda_carry_no_structural_markers(full):
             continue
         assert u.addenda_ar == u.addenda_ar.strip()
         assert "  " not in u.addenda_ar
-        for marker in ("~~", "@QB@", "@QE@", "*", "PageV"):
+        for marker in ("~~", "@QB@", "@QE@", "*", "PageV", "#"):
             assert marker not in u.addenda_ar, f"{marker} leaked into {u.record_id}"
 
 
@@ -472,15 +470,15 @@ def test_an_attribution_inside_reported_speech_is_not_a_boundary(full):
     exists: cutting there moved 2,677 characters of the Musa and al-Khidr
     story out of the scored text and left a primary that stops mid-clause.
 
-    3371 and 4070 are the measured cost of the guard, recorded here rather
-    than hidden: both DO carry a real appended narration, and both are left
-    uncut because a bare trailing "qala" sits in front of it. Two addenda
-    not cut is the price of one matn not truncated.
+    Round 1 paid for this guard with a second one -- any bare trailing
+    "qala" blocked a cut -- which cost two real addenda (3371, 4070). The
+    forward signal replaced that blanket guard: both are now cut, and the
+    narrow "speech verb + addressee" form below still holds 4449.
     """
     by_id = {u.record_id: u for u in full.units}
-    for record_id in ("hadith:bukhari:4449", "hadith:bukhari:3371",
-                      "hadith:bukhari:4070"):
-        assert by_id[record_id].addenda_ar is None, record_id
+    assert by_id["hadith:bukhari:4449"].addenda_ar is None
+    for record_id in ("hadith:bukhari:3371", "hadith:bukhari:4070"):
+        assert by_id[record_id].addenda_ar is not None, record_id
 
 
 def test_the_attribution_window_bounds_the_distance_in_characters():
@@ -498,14 +496,199 @@ def test_the_attribution_window_bounds_the_distance_in_characters():
     )
     verb = _NARRATION_VERBS[0]
     baa = chr(0x0628)                       # a bare Arabic letter, no meaning
-    primary = baa * 20
+    primary = f"{baa * 20} {baa * 20}"
     for name_len, expect_cut in ((6, True), (40, False)):
         name = baa * name_len
-        matn = f"{primary} {_QAL} {name} {verb} {primary}"
+        matn = f"{primary} {_QAL} {name} {verb} {baa * 20}"
         assert (len(_QAL) + 1 + name_len + 1 > _ATTRIBUTION_WINDOW) is not expect_cut
         got_primary, addenda = _split_secondary(matn)
         if expect_cut:
-            assert addenda == f"{_QAL} {name} {verb} {primary}"
+            assert addenda == f"{_QAL} {name} {verb} {baa * 20}"
             assert got_primary == primary
         else:
             assert addenda is None and got_primary == matn
+
+
+_AN = "".join(chr(c) for c in (0x0639, 0x0646))                     # عن
+_AKHBARANI = "".join(chr(c) for c in (0x0623, 0x062E, 0x0628, 0x0631, 0x0646, 0x064A))
+_WAW = chr(0x0648)
+_HEADER = "#META#Header#End#"
+_FAA = chr(0x0641)
+
+
+@pytest.mark.skipif(not FULL.exists(), reason="full download not present")
+def test_a_chain_behind_the_verb_is_a_boundary_with_no_attribution_at_all(full):
+    """What follows the verb is the signal, not what precedes it.
+
+    Round 1 required a "qala <name>" in front of the narration verb and so
+    saw only 155 of the boundaries this edition marks. These five carry a
+    plainly marked second chain and no attribution the round-1 pattern could
+    match: 3400 and 5989 open a fresh full chain with nothing in front of
+    them at all, 1663 is introduced by "fa-qala", and 621 and 3896 hide the
+    verb behind a wa-/fa- proclitic.
+    """
+    by_id = {u.record_id: u for u in full.units}
+    for hadith_no in ("621", "3896", "1663", "3400", "5989"):
+        u = by_id[f"hadith:bukhari:{hadith_no}"]
+        assert u.addenda_ar, f"{hadith_no} carries a marked secondary chain"
+        assert (_HADDATHANA in u.addenda_ar or _HADDATHANI in u.addenda_ar
+                or _AKHBARANI in u.addenda_ar)
+
+
+@pytest.mark.skipif(not FULL.exists(), reason="full download not present")
+def test_the_wa_and_fa_proclitics_do_not_hide_a_narration_verb(full):
+    """"wa-haddathani" and "fa-akhbarani" open a chain as surely as the bare
+    verb does. Round 1 excluded them by lookbehind, which is what kept 621
+    and 3896 whole."""
+    by_id = {u.record_id: u for u in full.units}
+    assert _WAW + _HADDATHANI in by_id["hadith:bukhari:621"].addenda_ar
+    assert _FAA + _AKHBARANI in by_id["hadith:bukhari:3896"].addenda_ar
+
+
+@pytest.mark.skipif(not FULL.exists(), reason="full download not present")
+def test_a_narration_verb_with_no_chain_behind_it_is_never_a_boundary(full):
+    """The forward test's whole job: reject the verb inside genuine speech.
+
+    1098 is the Prophet to Bilal -- "tell me the deed you most hope for",
+    the verb followed by a prepositional phrase. 50 is Gabriel's "tell me
+    about faith". 2943 and 3723 are the two counterexamples round 1 used to
+    reject the brief's bare-verb fallback; the forward test excludes both
+    without needing a special case.
+    """
+    by_id = {u.record_id: u for u in full.units}
+    for hadith_no in ("1098", "50", "2943", "3723"):
+        assert by_id[f"hadith:bukhari:{hadith_no}"].addenda_ar is None, hadith_no
+
+
+def test_an_object_pronoun_directly_after_the_verb_is_not_a_chain():
+    """"akhbirni 'an al-islam" is "tell me ABOUT islam", not "X told me from
+    Y". A chain always names its narrator first, so "'an" flush against the
+    verb is the one position where it cannot be a chain link."""
+    from sanad_ingest.openiti import _split_secondary
+    baa = chr(0x0628)
+    body = f"{baa * 12} {baa * 12}"
+    said = f"{body} {_AKHBARANI} {_AN} {body}"
+    assert _split_secondary(said) == (said, None)
+    chain = f"{body} {_AKHBARANI} {baa * 6} {_AN} {baa * 6}"
+    primary, addenda = _split_secondary(chain)
+    assert addenda == f"{_AKHBARANI} {baa * 6} {_AN} {baa * 6}"
+    assert primary == body
+
+
+@pytest.mark.skipif(not FULL.exists(), reason="full download not present")
+def test_a_request_to_narrate_is_not_a_boundary(full):
+    """"qultu: akhbirni bi-shay'" -- "I said: tell me something you remember"
+    (1570); "fa-haddathnahu bi-ma haddathana Anas" -- "we told him what Anas
+    told us" (7072); "bi-mithl alladhi akhbarani Salim" -- "the like of that
+    which Salim reported to me" (1606). In each the verb is governed by the
+    word in front of it, so it opens a complement clause, not a chain, and
+    cutting leaves the primary ending on "what" or "that which". Each form
+    rejects exactly one record on this file; all three were found by reading
+    every candidate the rule produced.
+    """
+    by_id = {u.record_id: u for u in full.units}
+    for hadith_no in ("1570", "7072", "1606"):
+        assert by_id[f"hadith:bukhari:{hadith_no}"].addenda_ar is None, hadith_no
+
+
+def test_a_unit_with_no_boundary_mark_is_never_split():
+    """Synthetic, because the seven real ones are also caught by the
+    short-primary guard and so could not tell the two rules apart.
+
+    Here the leading chain is long enough to clear that guard: without the
+    "the source marked nothing" branch the parser would cut at the second
+    narration verb and store "qala Muhammad" as the scored text.
+    """
+    baa = chr(0x0628)
+    chain = (f"{baa * 9} {baa * 9} {_QAL} {baa * 6} "
+             f"{_HADDATHANA} {baa * 6} {_AN} {baa * 6}")
+    unit = f"{_HEADER}\n### | {baa * 5}\n# 1 {chain} {baa * 9} {baa * 9}\n"
+    (one,) = parse_openiti(unit).units
+    assert one.isnad_ar is None
+    assert one.addenda_ar is None
+    assert one.matn_ar == f"{chain} {baa * 9} {baa * 9}"
+
+
+@pytest.mark.skipif(not FULL.exists(), reason="full download not present")
+def test_units_the_source_never_split_are_never_split_here(full):
+    """The seven units with no usable '*' carry isnad and matn as one string.
+    Every narration verb in that string belongs to the leading chain, so a
+    forward test cuts at the first narrator and leaves "haddathana Musaddad"
+    as the scored text. The source marked no boundary, so none is invented.
+    """
+    for u in full.units:
+        if u.isnad_ar is None:
+            assert u.addenda_ar is None, u.record_id
+
+
+@pytest.mark.skipif(not FULL.exists(), reason="full download not present")
+def test_an_interleaved_continuation_is_left_whole(full):
+    """The edition sometimes breaks off mid-narration for a sub-narrator's
+    aside and then resumes the same story. 2581 (Hudaybiyya), 2782
+    (Heraclius) and 2880 (Khubayb) all do this, and in all three the rest of
+    the narration sits behind the aside. Cutting there would move 4,279,
+    3,406 and 1,001 characters of matn out of the scored text.
+
+    They are the only three cuts on this file whose addendum would exceed
+    _MAX_ADDENDUM, and all three were read by hand. The bound is a cap on
+    blast radius, not a claim about Arabic: it means a rule this simple is
+    not allowed to move a kilobyte of text on its own say-so.
+    """
+    by_id = {u.record_id: u for u in full.units}
+    for hadith_no in ("2581", "2782", "2880"):
+        assert by_id[f"hadith:bukhari:{hadith_no}"].addenda_ar is None, hadith_no
+    for u in full.units:
+        if u.addenda_ar is not None:
+            assert len(u.addenda_ar) <= 1000, u.record_id
+
+
+def test_an_attribution_reported_by_a_speech_verb_is_not_a_boundary():
+    """"fa-qala li: qala X, haddathani Y 'an Z" -- "he said TO ME: X said, Y
+    narrated to me from Z". The attribution is the CONTENT of the speech verb
+    in front of it, so the chain behind it is inside the narration.
+
+    Synthetic, because the record this guard was written for (4449, 2,677
+    characters of the Musa and al-Khidr story) is now also over _MAX_ADDENDUM
+    and so would be held back by the size cap alone. A guard whose only real
+    example is covered twice is a guard no test can see fail.
+    """
+    from sanad_ingest.openiti import _split_secondary
+    baa = chr(0x0628)
+    lii = "".join(chr(c) for c in (0x0644, 0x064A))           # "li" -- to me
+    fa_qal = chr(0x0641) + _QAL                               # "fa-qala"
+    said = (f"{baa * 9} {baa * 9} {fa_qal} {lii} {_QAL} {baa * 6} "
+            f"{_HADDATHANA} {baa * 6} {_AN} {baa * 6}")
+    assert _split_secondary(said) == (said, None)
+    # the same string without the addressee IS a boundary
+    told = said.replace(f"{fa_qal} {lii} ", "")
+    primary, addenda = _split_secondary(told)
+    assert addenda == f"{_QAL} {baa * 6} {_HADDATHANA} {baa * 6} {_AN} {baa * 6}"
+    assert primary == f"{baa * 9} {baa * 9}"
+
+
+@pytest.mark.skipif(not FULL.exists(), reason="full download not present")
+def test_a_nameless_qala_travels_with_the_addendum_it_introduces(full):
+    """"... bay'ihima | qala wa-haddathana Hammam ..." (2008, 6136).
+
+    A bare "qala" with no name in front of the verb is not enough on its own
+    to call a boundary -- round 1 measured that and rejected it -- but once
+    the chain behind the verb has settled the question, the "qala" belongs to
+    the addendum. Leaving it behind ends the scored text on "he said".
+    """
+    by_id = {u.record_id: u for u in full.units}
+    for hadith_no in ("2008", "6136"):
+        u = by_id[f"hadith:bukhari:{hadith_no}"]
+        assert u.addenda_ar.startswith(_QAL + " "), hadith_no
+        assert not u.matn_ar.endswith(" " + _QAL), hadith_no
+
+
+def test_a_one_token_primary_is_not_a_boundary():
+    """6477's matn is the single word "al-kaba'ir" followed by a second
+    chain that carries the actual hadith. Cutting leaves a one-word scored
+    text and moves the narration out of reach; leaving it whole keeps the
+    narration searchable. Same reasoning as the empty-matn guard.
+    """
+    from sanad_ingest.openiti import _split_secondary
+    baa = chr(0x0628)
+    stub = f"{baa * 8} {_HADDATHANA} {baa * 6} {_AN} {baa * 6}"
+    assert _split_secondary(stub) == (stub, None)

@@ -531,3 +531,27 @@ def test_duplicate_reference_display_aborts_the_build():
         content_sha256="0" * 64, modifications="none", expected_records=2)
     with pytest.raises(BuildError, match="Sahih al-Bukhari 7"):
         _hadith_records(parsed, locked)
+
+
+def test_an_empty_scored_text_aborts_the_build():
+    """Enforced in code, not only asserted about today's edition.
+
+    A re-OCR that dropped a matn must stop the build. Silently excluding the
+    record instead would lose a citable hadith with nobody noticing, which is
+    this repo's most expensive recurring failure.
+    """
+    from sanad_ingest.build import BuildError, _hadith_records
+    from sanad_ingest.lockfile import LockedSource
+    from sanad_ingest.openiti import HadithUnit, ParsedOpeniti
+
+    unit = HadithUnit(hadith_no="7", record_id="hadith:bukhari:7", is_repeat=False,
+                      kitab_no=1, kitab_ar="k", bab_ar="b",
+                      isnad_ar="i", matn_ar="   ")
+    parsed = ParsedOpeniti(units=[unit], attribution="", content_sha256="0" * 64,
+                           noisy=[])
+    locked = LockedSource(
+        id="x", kind="hadith-arabic", format="openiti-markdown", title="X",
+        url="https://example.invalid/x", license_id="public-domain",
+        content_sha256="0" * 64, modifications="none", expected_records=1)
+    with pytest.raises(BuildError, match="empty scored text"):
+        _hadith_records(parsed, locked)

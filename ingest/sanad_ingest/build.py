@@ -96,6 +96,14 @@ def _hadith_records(parsed: ParsedOpeniti, locked: LockedSource) -> list[Record]
         # 0.13 against a 0.86 threshold. The chain is stored (and displayed),
         # just not scored -- and not indexed; see rebuild_fts.
         text = u.matn_ar
+        if not text.strip():
+            raise BuildError(
+                f"{locked.id}: {u.record_id} has an empty scored text. An empty "
+                "text_ar is a live verification hazard, so the build stops "
+                "rather than ship one. Six of these existed before the parser "
+                "learned to read the edition's continuation lines and its "
+                "end-of-unit boundary marks; a new one means the source "
+                "changed shape again, not that this record should be dropped.")
         seen[u.hadith_no] = seen.get(u.hadith_no, 0) + 1
         out.append(Record(
             id=u.record_id,

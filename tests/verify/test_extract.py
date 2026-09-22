@@ -79,28 +79,31 @@ def test_wrapped_pattern_contains_every_delimiter(ch):
     assert ch in _WRAPPED.pattern
 
 
-# Six Bukhari records carry an EMPTY matn, so quoting them produces no span.
-# This is not a corpus defect introduced by ingest -- it is what the source
-# says -- but it splits into two causes, and both are pinned by id so that
-# neither can grow silently:
+# No record carries an empty matn. Six did, and both causes are now fixed in
+# the parser rather than tolerated here:
 #
-#   218, 1620, 5833  -- the OCR'd edition puts its "*" isnad/matn separator at
-#                       the very end of the entry, with no narration text after
-#                       it. There is nothing to store.
-#   3584, 4063, 6050 -- the narration IS in the file, but as a "# ( ... )"
-#                       verse/poetry line AFTER the numbered entry. The parser
-#                       drops non-numbered "#" chunks (744 of them are chapter
-#                       commentary that is deliberately not a hadith), so these
-#                       three lose their matn with it. That is a parser defect,
-#                       recorded here rather than papered over.
+#   3584, 4063, 6050 -- the narration IS in the file, but on a "# ( ... )"
+#                       verse line AFTER the numbered entry. The parser used
+#                       to flush and then discard every non-numbered "#"
+#                       chunk, taking these three matns (and the closing
+#                       verse of 62 other records) with them. Such a line is
+#                       now read as a continuation of the unit already open.
+#   218, 1620, 5833  -- the edition puts its "*" isnad/matn separator at the
+#                       very end of the entry, where it separates nothing.
+#                       That is not a matn-less hadith, it is an unusable
+#                       mark: 5833's matn is right there in front of it. All
+#                       three now keep their whole text as matn, the same
+#                       answer the four entries with no "*" at all already
+#                       got. 218 and 1620 are bare supporting chains in the
+#                       printed edition, so their whole text is a chain;
+#                       they are kept because a citable record silently
+#                       vanishing from the corpus is worse than one that
+#                       nobody would ever quote.
 #
-# Neither kind can produce a false verification: `_exact_at_tier` and
-# `_best_fuzzy` both return early on an empty needle, and `extract_spans`
-# never yields an empty span, so an empty record is unreachable from a query.
-_EMPTY_MATN = {
-    "hadith:bukhari:218", "hadith:bukhari:1620", "hadith:bukhari:3584",
-    "hadith:bukhari:4063", "hadith:bukhari:5833", "hadith:bukhari:6050",
-}
+# An empty record could not produce a false verification either -- both
+# `_exact_at_tier` and `_best_fuzzy` return early on an empty needle, and
+# `extract_spans` never yields an empty span -- but it is a hazard the build
+# now refuses to ship at all; see `_hadith_records`.
 
 
 def test_every_real_record_is_extractable_when_quoted():
@@ -111,11 +114,11 @@ def test_every_real_record_is_extractable_when_quoted():
     assert missed == [], f"{len(missed)} records produce no span: {missed[:10]}"
 
 
-def test_exactly_the_known_records_have_no_text():
+def test_no_record_has_an_empty_scored_text():
     from sanad.corpus import db
     conn = db.connect("data/sanad-quran.db")
-    empty = {r.id for r in db.iter_records(conn) if not r.text_ar}
-    assert empty == _EMPTY_MATN
+    empty = {r.id for r in db.iter_records(conn) if not r.text_ar.strip()}
+    assert empty == set()
 
 
 def test_an_empty_record_cannot_be_matched():

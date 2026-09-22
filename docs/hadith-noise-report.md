@@ -24,16 +24,81 @@ or searched, so damage there cannot mislead an eval case.
 
 Source: `openiti-bukhari-jk000110` (al-Bugha, 3rd ed., 1407/1987; OpenITI JK000110, ara1.completed)
 
-Records ingested: 7129 &nbsp;&nbsp; Records flagged: 9
+Records ingested: 7129 &nbsp;&nbsp; Records flagged: 74
 
 | Record | Citation | Characters | Codepoints |
 | --- | --- | --- | --- |
 | `hadith:bukhari:58` | Sahih al-Bukhari 58 | `5` | U+0035 |
+| `hadith:bukhari:418` | Sahih al-Bukhari 418 | `%(` | U+0025 U+0028 |
+| `hadith:bukhari:428` | Sahih al-Bukhari 428 | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:bukhari:963` | Sahih al-Bukhari 963 | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:bukhari:1104` | Sahih al-Bukhari 1104 | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:bukhari:1790` | Sahih al-Bukhari 1790 | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:bukhari:2201` | Sahih al-Bukhari 2201 | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:bukhari:2246` | Sahih al-Bukhari 2246 | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:bukhari:2393` | Sahih al-Bukhari 2393 | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:bukhari:2394` | Sahih al-Bukhari 2394 | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:bukhari:2648` | Sahih al-Bukhari 2648 | `%(` | U+0025 U+0028 |
+| `hadith:bukhari:2679` | Sahih al-Bukhari 2679 | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:bukhari:2680` | Sahih al-Bukhari 2680 | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:bukhari:2681` | Sahih al-Bukhari 2681 | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:bukhari:2682` | Sahih al-Bukhari 2682 | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:bukhari:2709` | Sahih al-Bukhari 2709 | `%(` | U+0025 U+0028 |
+| `hadith:bukhari:2719` | Sahih al-Bukhari 2719 | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:bukhari:2772` | Sahih al-Bukhari 2772 | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:bukhari:2801` | Sahih al-Bukhari 2801 | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:bukhari:2870` | Sahih al-Bukhari 2870 | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:bukhari:2876` | Sahih al-Bukhari 2876 | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:bukhari:2877` | Sahih al-Bukhari 2877 | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:bukhari:2880` | Sahih al-Bukhari 2880 | `%()` | U+0025 U+0028 U+0029 |
 | `hadith:bukhari:3291` | Sahih al-Bukhari 3291 | `5` | U+0035 |
+| `hadith:bukhari:3584` | Sahih al-Bukhari 3584 | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:bukhari:3585` | Sahih al-Bukhari 3585 | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:bukhari:3623` | Sahih al-Bukhari 3623 | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:bukhari:3628` | Sahih al-Bukhari 3628 | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:bukhari:3694` | Sahih al-Bukhari 3694 | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:bukhari:3706` | Sahih al-Bukhari 3706 | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:bukhari:3711` | Sahih al-Bukhari 3711 | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:bukhari:3717` | Sahih al-Bukhari 3717 | `%(` | U+0025 U+0028 |
+| `hadith:bukhari:3755` | Sahih al-Bukhari 3755 | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:bukhari:3767` | Sahih al-Bukhari 3767 | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:bukhari:3781` | Sahih al-Bukhari 3781 | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:bukhari:3808` | Sahih al-Bukhari 3808 | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:bukhari:3858` | Sahih al-Bukhari 3858 | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:bukhari:3873` | Sahih al-Bukhari 3873 | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:bukhari:3874` | Sahih al-Bukhari 3874 | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:bukhari:3878` | Sahih al-Bukhari 3878 | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:bukhari:3880` | Sahih al-Bukhari 3880 | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:bukhari:3910` | Sahih al-Bukhari 3910 | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:bukhari:3915` | Sahih al-Bukhari 3915 | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:bukhari:3958` | Sahih al-Bukhari 3958 | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:bukhari:3960` | Sahih al-Bukhari 3960 | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:bukhari:4061` | Sahih al-Bukhari 4061 | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:bukhari:4062` | Sahih al-Bukhari 4062 | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:bukhari:4063` | Sahih al-Bukhari 4063 | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:bukhari:4132` | Sahih al-Bukhari 4132 | `%()` | U+0025 U+0028 U+0029 |
 | `hadith:bukhari:4236` | Sahih al-Bukhari 4236 | `<>` | U+003C U+003E |
+| `hadith:bukhari:4407` | Sahih al-Bukhari 4407 | `%()` | U+0025 U+0028 U+0029 |
 | `hadith:bukhari:4449` | Sahih al-Bukhari 4449 | `<>` | U+003C U+003E |
+| `hadith:bukhari:4477` | Sahih al-Bukhari 4477 | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:bukhari:4478` | Sahih al-Bukhari 4478 | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:bukhari:5073` | Sahih al-Bukhari 5073 | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:bukhari:5330` | Sahih al-Bukhari 5330 | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:bukhari:5353` | Sahih al-Bukhari 5353 | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:bukhari:5794` | Sahih al-Bukhari 5794 | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:bukhari:5795` | Sahih al-Bukhari 5795 | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:bukhari:5796` | Sahih al-Bukhari 5796 | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:bukhari:5799` | Sahih al-Bukhari 5799 | `%()` | U+0025 U+0028 U+0029 |
 | `hadith:bukhari:5953` | Sahih al-Bukhari 5953 | `<>?` | U+003C U+003E U+003F |
+| `hadith:bukhari:5972` | Sahih al-Bukhari 5972 | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:bukhari:6050` | Sahih al-Bukhari 6050 | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:bukhari:6051` | Sahih al-Bukhari 6051 | `%()` | U+0025 U+0028 U+0029 |
 | `hadith:bukhari:6102` | Sahih al-Bukhari 6102 | `<>?` | U+003C U+003E U+003F |
+| `hadith:bukhari:6124` | Sahih al-Bukhari 6124 | `%()` | U+0025 U+0028 U+0029 |
 | `hadith:bukhari:6212` | Sahih al-Bukhari 6212 | `<>?` | U+003C U+003E U+003F |
+| `hadith:bukhari:6246` | Sahih al-Bukhari 6246 | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:bukhari:6775` | Sahih al-Bukhari 6775 | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:bukhari:6804` | Sahih al-Bukhari 6804 | `%()` | U+0025 U+0028 U+0029 |
 | `hadith:bukhari:6965` | Sahih al-Bukhari 6965 | `()` | U+0028 U+0029 |
 | `hadith:bukhari:6966` | Sahih al-Bukhari 6966 | `()` | U+0028 U+0029 |
+| `hadith:bukhari:6967` | Sahih al-Bukhari 6967 | `#%()` | U+0023 U+0025 U+0028 U+0029 |

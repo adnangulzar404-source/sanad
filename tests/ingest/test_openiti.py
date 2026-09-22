@@ -91,16 +91,6 @@ def test_every_record_id_is_unique():
 
 
 @pytest.mark.skipif(not FULL.exists(), reason="full download not present")
-def test_the_four_unmarked_hadith_keep_all_text_as_matn():
-    """2795, 6964-6966 carry no '*'. Guessing a boundary would invent a chain."""
-    parsed = parse_openiti(FULL.read_text(encoding="utf-8"))
-    unmarked = [u for u in parsed.units if u.isnad_ar is None]
-    assert sorted(u.hadith_no for u in unmarked) == ["2795", "6964", "6965", "6966"]
-    for u in unmarked:
-        assert u.matn_ar.strip()
-
-
-@pytest.mark.skipif(not FULL.exists(), reason="full download not present")
 def test_repeat_marked_units_are_distinct_records():
     """619 م is a different narration from 619 -- 25 degrees vs 27."""
     parsed = parse_openiti(FULL.read_text(encoding="utf-8"))
@@ -281,3 +271,89 @@ def test_bab_ar_paren_imbalance_is_a_bounded_known_source_defect():
     assert len(unbalanced) == 12
     hadith_nos_affected = {u.hadith_no for u in parsed.units if u.bab_ar in unbalanced}
     assert "1000" in hadith_nos_affected
+
+
+# --- fix round 1: the edition's continuation lines and its end-of-unit mark ---
+
+def _raw_unit_text(raw: str, hadith_no: str) -> str:
+    """The unit's full printed text, reassembled from the raw file.
+
+    Independent (re-implemented, not imported) mirror of the parser's line
+    handling: a numbered "# N ..." line, then every "~~" continuation and
+    every *non-numbered* "# " line that follows, up to the next numbered
+    unit or "###" section. The non-numbered "# " lines are the ones the
+    round-1 parser dropped on the floor (the edition prints poetry on its
+    own "#" line), so a test that ignored them could not see the defect.
+    """
+    hi = raw.index(f"\n# {hadith_no} ")
+    lines = raw[hi + 1:].splitlines()
+    frags = [lines[0][2:]]
+    for line in lines[1:]:
+        if line.startswith("~~"):
+            frags.append(line[2:])
+        elif line.startswith("###"):
+            break
+        elif line.startswith("# "):
+            rest = line[2:]
+            if re.match(r"^\d+\s", rest):
+                break
+            frags.append(rest)
+        else:
+            break
+    return _strip_heading_markers(" ".join(frags))
+
+
+def _raw_matn(raw: str, hadith_no: str) -> str:
+    """The unit's matn: everything after the edition's '*' boundary."""
+    text = _raw_unit_text(raw, hadith_no)
+    return " ".join(text.split("*", 1)[1].split()) if "*" in text else text
+
+
+@pytest.fixture(scope="module")
+def full():
+    return parse_openiti(FULL.read_text(encoding="utf-8"))
+
+
+@pytest.mark.skipif(not FULL.exists(), reason="full download not present")
+def test_no_unit_has_an_empty_scored_matn(full):
+    """Zero empty matns. An empty text_ar is a live verification hazard."""
+    empty = [u.record_id for u in full.units if not u.matn_ar.strip()]
+    assert empty == []
+
+
+@pytest.mark.skipif(not FULL.exists(), reason="full download not present")
+def test_poetry_printed_on_its_own_line_stays_in_the_matn(full):
+    """Root cause of three of the six empty matns.
+
+    The edition prints verse on a "#"-prefixed line of its own. Those lines
+    look exactly like the start of a new unit, and the round-1 parser flushed
+    and then discarded them -- taking the whole matn of 3584, 4063 and 6050
+    with them, and the closing verse of 62 other records.
+    """
+    raw = FULL.read_text(encoding="utf-8")
+    by_id = {u.record_id: u for u in full.units}
+    for hadith_no in ("3584", "4063", "6050", "3585", "2681"):
+        u = by_id[f"hadith:bukhari:{hadith_no}"]
+        assert u.matn_ar == _raw_matn(raw, hadith_no), hadith_no
+        assert u.matn_ar.strip()
+
+
+@pytest.mark.skipif(not FULL.exists(), reason="full download not present")
+def test_units_whose_boundary_mark_separates_nothing_keep_all_text_as_matn(full):
+    """2795 and 6964-6966 carry no '*' at all; 218, 1620 and 5833 put it at
+    the very end, so the mark separates nothing. Both cases are the same
+    fact -- the source gives no usable boundary -- and get the same, already
+    established answer: keep everything as matn rather than invent a chain,
+    and never store an empty scored text.
+
+    218 and 1620 are bare chains in the printed edition (they support the
+    narration before them and have no matn of their own), so their whole
+    text is a chain. 5833's matn is right there in the file, before the
+    misplaced mark; excluding it on the "empty matn" signal would delete a
+    real hadith. See the report for why neither is dropped.
+    """
+    unmarked = [u for u in full.units if u.isnad_ar is None]
+    assert sorted(u.hadith_no for u in unmarked) == [
+        "1620", "218", "2795", "5833", "6964", "6965", "6966"]
+    for u in unmarked:
+        assert u.matn_ar.strip()

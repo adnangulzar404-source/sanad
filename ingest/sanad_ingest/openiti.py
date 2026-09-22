@@ -161,10 +161,17 @@ def parse_openiti(raw: str) -> ParsedOpeniti:
             isnad_raw, matn_raw = rest.split("*", 1)
             isnad, matn = _clean(isnad_raw), _clean(matn_raw)
         else:
-            # The file marks no boundary. Keep everything as matn rather than
-            # guessing where a chain ends -- inventing an isnad is worse than
-            # admitting the source does not mark one.
             isnad, matn = None, rest_clean
+        if not matn:
+            # Either the file marks no boundary at all (2795, 6964-6966) or it
+            # puts the mark at the very end of the unit, where it separates
+            # nothing (218, 1620, 5833). Same fact, same answer: keep
+            # everything as matn rather than guessing where a chain ends.
+            # Inventing an isnad is worse than admitting the source does not
+            # mark one, and storing an empty scored text is worse than both --
+            # 5833's matn is right there in the file, in front of the
+            # misplaced mark.
+            isnad, matn = None, _clean(rest.replace("*", " "))
 
         seen[number] = seen.get(number, 0) + 1
         suffix = "" if seen[number] == 1 else f"-{seen[number]}"
@@ -211,8 +218,26 @@ def parse_openiti(raw: str) -> ParsedOpeniti:
                 start_bab(b.group(1))
             continue
         if _UNIT_START.match(line):
+            frag = line[2:]
+            if (buf is not None and bab_parts is None
+                    and _NUMBERED.match(" ".join(buf))
+                    and not _NUMBERED.match(frag)):
+                # A "#" line that carries no printed number is a CONTINUATION
+                # of the numbered unit already open, not a new one. The
+                # edition prints verse on its own "#" line -- "( la 'aysha
+                # illa 'aysha l-akhira % ... )" -- and flushing here dropped
+                # it on the floor, because the flushed chunk then failed
+                # _NUMBERED and was discarded. That silently deleted the
+                # entire matn of 3584, 4063 and 6050 and the closing verse of
+                # 62 other records. Guarded three ways so no existing
+                # behaviour moves: only when a numbered unit is open, only
+                # when no bab heading is mid-assembly (that machinery reads
+                # its own continuations through flush), and only when the
+                # line is not itself a numbered unit.
+                buf.append(frag)
+                continue
             flush()
-            buf = [line[2:]]
+            buf = [frag]
             continue
         if buf is not None:
             buf.append(line)

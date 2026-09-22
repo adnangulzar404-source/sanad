@@ -109,6 +109,15 @@ _MAX_NAME_TOKENS = 3
 # cuts on this file that would exceed 1,000 characters, and all three were
 # read by hand. This is a cap on blast radius, not a claim about Arabic: a
 # rule this simple does not get to move a kilobyte on its own say-so.
+#
+# THE NUMBER IS EDITION-SPECIFIC AND MUST BE RE-MEASURED PER EDITION. On this
+# file the distribution has a clean gap: the largest genuine addendum the rule
+# cuts is 869 characters, the next three candidates are 1,001 / 3,406 / 4,279
+# and all three are interrupted narrations rather than addenda. 1,000 sits in
+# that gap. Nothing guarantees Muslim or the Sunan have a gap in the same
+# place -- or a gap at all -- so porting this parser means re-running that
+# measurement and reading the candidates above the cap by hand, not reusing
+# this constant.
 _MAX_ADDENDUM = 1000
 
 # Tokens that cannot be part of a narrator's name. Closed word classes --

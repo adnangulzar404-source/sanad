@@ -11,6 +11,7 @@ from fastapi import APIRouter, HTTPException, Request
 from ..arabic.normalize import normalize
 from ..corpus import db
 from ..corpus.models import Record
+from ..corpus.scope import CORPUS_SCOPE
 from ..verify.claims import detect_claims, requires_handoff, route_risk
 from ..verify.engine import Verdict, verify_spans
 from .schemas import (
@@ -27,12 +28,11 @@ from .schemas import (
 
 router = APIRouter(prefix="/api")
 
-CORPUS_SCOPE = (
-    "This corpus contains the Qur'an and Sahih al-Bukhari. It does not "
-    "contain Sahih Muslim, the four Sunan, or any other collection, so "
-    "absence from this corpus does not establish that a quotation is "
-    "fabricated."
-)
+# `CORPUS_SCOPE` is imported from `corpus.scope` and re-exported here under its
+# original name: it is a fact about the corpus, not about the HTTP layer, and
+# the evaluation harness asserts it without importing FastAPI. Named in
+# `__all__` so the re-export is deliberate rather than an unused import.
+__all__ = ["CORPUS_SCOPE", "router"]
 
 # Tanzil's own accuracy disclaimer for en.pickthall, per the spec sec 5.2 item 4:
 # it must accompany every rendered translation, not live only in a licence file.

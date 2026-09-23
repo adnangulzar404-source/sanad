@@ -213,3 +213,48 @@ def test_a_kind_with_no_judgement_behind_it_is_refused():
     from sanad.verify.extract import minimum_chars
     with pytest.raises(ValueError, match="no minimum is defined"):
         minimum_chars("footnote")
+
+
+# The agreement test above is genuine and it is not enough: it compares three
+# measurements of the same constant, so lowering `MIN_RUN_CHARS` from 6 to 5
+# moves all three together and the whole 545-test suite still passes. The
+# first fix round's report claimed otherwise and cited a test by name that is
+# not in this repository. These two pin the VALUES, in the product's own
+# terms -- what counts as a quotation -- so the numbers cannot be changed in
+# silence. Keep both: the agreement test says the two modules use one floor,
+# and these say which floor it is.
+
+
+def test_a_bare_run_becomes_a_quotation_at_six_letters_and_not_five():
+    """A bare run of Arabic has said nothing about itself. Five letters --
+    two short words -- is ordinary prose; the floor is where a run stops
+    being likely to be anything but a quotation. Both directions, because a
+    test of one is satisfied by a floor of zero or of infinity."""
+    assert [s for s in extract_spans(_letters(5)) if s.kind == "arabic-run"] == []
+    assert [s for s in extract_spans(_letters(6)) if s.kind == "arabic-run"] != []
+
+
+def test_a_wrapped_quote_becomes_a_quotation_at_two_letters_and_not_one():
+    """Someone who typed quotation marks has told you they are quoting, so
+    the floor is low -- but not absent: a single letter inside guillemets is
+    not a quotation of anything this corpus can answer."""
+    assert extract_spans("«" + _letters(1) + "»") == []
+    assert extract_spans("«" + _letters(2) + "»") != []
+
+
+def test_the_engine_has_no_floor_of_its_own_to_fall_back_on():
+    """`engine._is_only_a_citation` must ASK for the floor, not carry a copy.
+
+    The copy it used to carry -- `floor = 2 if span.kind == "wrapped" else 6`
+    -- is indistinguishable from `minimum_chars` on the two kinds that exist,
+    which is why restoring it passes all 105 verify/engine tests. The one
+    place the two differ is a kind nobody has judged yet: `minimum_chars`
+    refuses it, and the copy quietly hands it the bare-run number. So that is
+    where this is measured.
+    """
+    from sanad.verify.engine import _is_only_a_citation
+    from sanad.verify.extract import Span
+    text = "x" + _letters(9)
+    span = Span(text=text, start=0, end=len(text), kind="footnote")
+    with pytest.raises(ValueError, match="no minimum is defined"):
+        _is_only_a_citation(span, [(0, 1)])

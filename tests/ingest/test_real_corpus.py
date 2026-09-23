@@ -127,3 +127,131 @@ def test_every_unscorable_record_still_resolves_by_reference():
         assert rec is not None, record_id
         assert rec.text_ar.strip(), record_id
         assert rec.reference_display, record_id
+
+
+# --- fix round 5: both representations, against the SHIPPED database -------
+#
+# The Arabic here is read out of the corpus rather than typed: this project
+# has shipped eleven defects from Arabic silently altered in transit, one of
+# them inside the test written to catch them. The record ids and the verdicts
+# are the assertions; the text is data.
+
+_ISRA_MIRAJ = ("hadith:bukhari:342", "hadith:bukhari:3164")
+
+
+def test_the_isra_miraj_verifies_both_as_matn_and_as_printed():
+    """342 and 3164 were cut in the middle of one continuous narration.
+
+    The rule fired on a sub-narrator's chain aside, but what follows is the
+    same story going on in the Prophet's first person -- the fifty prayers,
+    the returns to Musa, "they are five and they are fifty", Sidrat
+    al-Muntaha. ~700 characters of Sahih al-Bukhari each, and quoting the
+    whole hadith as the edition prints it returned NOT_FOUND 0.64.
+
+    Both directions are asserted for both records. The cut is still there and
+    is still arguably in the wrong place; what changed is that it no longer
+    costs a verification either way.
+    """
+    from sanad.verify.engine import Verdict, verify_spans
+    conn = db.connect(DB_PATH)
+    for record_id in _ISRA_MIRAJ:
+        rec = db.get_record(conn, record_id)
+        assert rec.addenda_ar, f"{record_id} must still be a cut record"
+        for quoted in (rec.text_ar, rec.text_ar + " " + rec.addenda_ar):
+            matches = verify_spans(conn, f"«{quoted}»")
+            assert len(matches) == 1, record_id
+            assert matches[0].verdict is Verdict.EXACT, (record_id, len(quoted))
+            assert matches[0].record.id == record_id, (record_id, len(quoted))
+
+
+def test_the_full_printed_text_of_every_cut_record_verifies():
+    """The corpus-wide form of the test above: all 383 of them.
+
+    A sample cannot show this. The defect it guards against is one record
+    somewhere in the corpus whose full text is unreachable, which is exactly
+    what a sample misses.
+
+    "Reaches the record" allows `also_at`: a handful of Bukhari records are
+    printed with byte-identical matns (383 and 774, "the Prophet used to
+    spread his arms when he prayed until the whiteness of his armpits
+    showed"), and the engine's long-standing rule for tied text is to select
+    the lowest id and disclose the rest. That is the same answer for a tie
+    between two records as for a tie between two representations, and the
+    quotation is verified either way.
+    """
+    from sanad.verify.engine import Verdict, verify_spans
+    conn = db.connect(DB_PATH)
+    rows = conn.execute(
+        "SELECT id, text_ar, addenda_ar FROM records"
+        " WHERE addenda_ar IS NOT NULL AND unscorable_reason IS NULL").fetchall()
+    assert len(rows) == 383
+    failures = []
+    for row in rows:
+        for quoted in (row["text_ar"], row["text_ar"] + " " + row["addenda_ar"]):
+            matches = verify_spans(conn, f"«{quoted}»")
+            reached = (len(matches) == 1
+                       and matches[0].verdict is Verdict.EXACT
+                       and matches[0].record is not None
+                       and row["id"] in [matches[0].record.id] + matches[0].also_at)
+            if not reached:
+                failures.append((row["id"], len(quoted)))
+    assert failures == []
+
+
+def test_a_narrative_opener_is_no_longer_a_verifiable_quotation():
+    """The four stubs the cut left behind, all of which returned EXACT 1.0.
+
+    "The Prophet passed by a man" and "The Prophet had a she-camel" name
+    nothing; "whoever frees a share of a slave" is a protasis with no
+    apodosis and "it does not cease to be thrown into the Fire" has no
+    subject. Each is read out of the pre-round-5 cut point rather than typed:
+    the assertion is that the prefix of the record's text ending there no
+    longer matches anything.
+    """
+    from sanad.verify.engine import Verdict, verify_spans
+    conn = db.connect(DB_PATH)
+    for record_id, cut_at in (("hadith:bukhari:632", 32),
+                              ("hadith:bukhari:6136", 33),
+                              ("hadith:bukhari:2390", 20),
+                              ("hadith:bukhari:6949", 21)):
+        rec = db.get_record(conn, record_id)
+        stub = rec.text_ar[:cut_at]
+        assert rec.addenda_ar is None, f"{record_id} must no longer be cut"
+        matches = verify_spans(conn, f"«{stub}»")
+        assert len(matches) == 1, record_id
+        assert matches[0].verdict is Verdict.NOT_FOUND, (record_id, stub)
+        assert matches[0].record is None, record_id
+        # ... and the hadith itself is still perfectly verifiable.
+        whole = verify_spans(conn, f"«{rec.text_ar}»")
+        assert whole[0].verdict is Verdict.EXACT, record_id
+        assert whole[0].record.id == record_id, record_id
+
+
+def test_no_record_appears_twice_in_its_own_match():
+    """Over every cut record, in both directions: a record indexed under two
+    representations must never list itself in `also_at`."""
+    from sanad.verify.engine import verify_spans
+    conn = db.connect(DB_PATH)
+    rows = conn.execute(
+        "SELECT id, text_ar, addenda_ar FROM records"
+        " WHERE addenda_ar IS NOT NULL AND unscorable_reason IS NULL").fetchall()
+    for row in rows:
+        for quoted in (row["text_ar"], row["text_ar"] + " " + row["addenda_ar"]):
+            m = verify_spans(conn, f"«{quoted}»")[0]
+            assert m.record.id not in m.also_at, row["id"]
+            assert len(m.also_at) == len(set(m.also_at)), row["id"]
+
+
+def test_the_index_holds_one_row_per_scorable_representation():
+    """13,731 = 13,348 scorable records + 383 full-text representations.
+
+    Asserted as three numbers that have to add up, not as one total: a record
+    dropping out of the index while a variant row appears would keep the
+    total right.
+    """
+    conn = db.connect(DB_PATH)
+    scorable = conn.execute(
+        "SELECT count(*) FROM records WHERE unscorable_reason IS NULL").fetchone()[0]
+    variants = conn.execute("SELECT count(*) FROM record_variants").fetchone()[0]
+    indexed = conn.execute("SELECT count(*) FROM records_fts").fetchone()[0]
+    assert (scorable, variants, indexed) == (13348, 383, 13731)

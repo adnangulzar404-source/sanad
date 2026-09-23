@@ -5,7 +5,7 @@ import sqlite3
 from collections.abc import Iterable, Iterator
 from pathlib import Path
 
-from .models import Record, Source
+from .models import PRIMARY_VARIANT, Candidate, Record, RecordVariant, Source
 from .schema import SCHEMA_SQL
 
 _RECORD_COLS = (
@@ -58,6 +58,29 @@ def insert_records(conn: sqlite3.Connection, records: Iterable[Record]) -> int:
     return len(rows)
 
 
+_VARIANT_COLS = ("record_id", "variant", "text_ar", "norm_light",
+                 "norm_standard", "norm_aggressive")
+
+
+def insert_record_variants(conn: sqlite3.Connection,
+                           variants: Iterable[RecordVariant]) -> int:
+    rows = [tuple(getattr(v, c) for c in _VARIANT_COLS) for v in variants]
+    placeholders = ",".join("?" * len(_VARIANT_COLS))
+    conn.executemany(
+        f"INSERT OR REPLACE INTO record_variants ({','.join(_VARIANT_COLS)}) "
+        f"VALUES ({placeholders})", rows)
+    conn.commit()
+    return len(rows)
+
+
+def get_record_variants(conn: sqlite3.Connection,
+                        record_id: str) -> list[RecordVariant]:
+    rows = conn.execute(
+        f"SELECT {','.join(_VARIANT_COLS)} FROM record_variants"
+        " WHERE record_id = ? ORDER BY variant", (record_id,)).fetchall()
+    return [RecordVariant(**{c: r[c] for c in _VARIANT_COLS}) for r in rows]
+
+
 _TRANSLATION_COLS = ("record_id", "source_id", "lang", "text")
 
 
@@ -73,21 +96,35 @@ def insert_translations(conn: sqlite3.Connection,
 
 
 def rebuild_fts(conn: sqlite3.Connection) -> None:
-    """Rebuild the search index over every SCORABLE record's own norms.
+    """Rebuild the search index over every SCORABLE REPRESENTATION's own norms.
 
-    `unscorable_reason IS NULL` is the whole of the filter: a record whose
-    stored text is the edition's editorial apparatus rather than a narration
-    (see `Record.unscorable_reason`) must not be a match candidate, and
-    keeping it out of the index is how the fuzzy layer never sees it. It is
-    still in `records`, still fetched by `get_record`, still displayed.
+    Two inserts, one per source of a representation: `records` supplies the
+    primary, `record_variants` supplies every additional one (today, the full
+    printed text of a record whose matn was cut). A record with an addendum
+    therefore has two index rows -- see `models.RecordVariant` for why both
+    have to be searchable -- and `records_fts.variant` says which is which so
+    a hit can be scored against the text that was actually indexed.
+
+    `unscorable_reason IS NULL` is the whole of the filter, and it is applied
+    on BOTH inserts: a record whose stored text is the edition's editorial
+    apparatus rather than a narration (see `Record.unscorable_reason`) must
+    not be a match candidate in any of its representations. It is still in
+    `records`, still fetched by `get_record`, still displayed.
     """
     conn.execute("DELETE FROM records_fts")
     conn.execute(
-        "INSERT INTO records_fts (record_id, norm_standard, norm_aggressive, translation) "
-        "SELECT r.id, r.norm_standard, r.norm_aggressive,"
+        "INSERT INTO records_fts (record_id, variant, norm_standard,"
+        "                         norm_aggressive, translation) "
+        "SELECT r.id, ?, r.norm_standard, r.norm_aggressive,"
         "       COALESCE((SELECT group_concat(t.text, ' ') FROM translations t"
         "                 WHERE t.record_id = r.id), '')"
-        " FROM records r WHERE r.unscorable_reason IS NULL")
+        " FROM records r WHERE r.unscorable_reason IS NULL", (PRIMARY_VARIANT,))
+    conn.execute(
+        "INSERT INTO records_fts (record_id, variant, norm_standard,"
+        "                         norm_aggressive, translation) "
+        "SELECT v.record_id, v.variant, v.norm_standard, v.norm_aggressive, ''"
+        " FROM record_variants v JOIN records r ON r.id = v.record_id"
+        " WHERE r.unscorable_reason IS NULL")
     conn.commit()
 
 
@@ -104,18 +141,53 @@ def get_record(conn: sqlite3.Connection, record_id: str) -> Record | None:
 
 
 def fts_candidates(conn: sqlite3.Connection, query_norm: str,
-                   limit: int = 50) -> list[Record]:
-    """Token-OR search. Input is sanitized: a quotation is data, never a query."""
+                   limit: int = 50) -> list[Candidate]:
+    """Token-OR search. Input is sanitized: a quotation is data, never a query.
+
+    Returns one `Candidate` per matching REPRESENTATION, carrying that
+    representation's own text and aggressive norm. A record with an addendum
+    can appear twice, once per representation; callers that report records
+    (rather than score text) must collapse them -- `fts_records` does, and
+    `verify.engine._best_fuzzy` does.
+
+    The `LEFT JOIN` resolves `f.variant` back to its row: NULL for the
+    primary, whose text lives in `records`, so `COALESCE` picks the right
+    side without a second query or a UNION.
+    """
     tokens = [t for t in _FTS_UNSAFE.sub(" ", query_norm).split() if len(t) > 1]
     if not tokens:
         return []
     match = " OR ".join(f'"{t}"' for t in tokens)
     rows = conn.execute(
-        f"SELECT r.{', r.'.join(_RECORD_COLS)} FROM records_fts f"
+        f"SELECT r.{', r.'.join(_RECORD_COLS)}, f.variant AS _variant,"
+        "        COALESCE(v.text_ar, r.text_ar) AS _match_text,"
+        "        COALESCE(v.norm_aggressive, r.norm_aggressive) AS _match_norm"
+        " FROM records_fts f"
         " JOIN records r ON r.id = f.record_id"
+        " LEFT JOIN record_variants v"
+        "        ON v.record_id = f.record_id AND v.variant = f.variant"
         " WHERE records_fts MATCH ? ORDER BY bm25(records_fts) LIMIT ?",
         (match, limit)).fetchall()
-    return [_row_to_record(r) for r in rows]
+    return [Candidate(record=_row_to_record(r), variant=r["_variant"],
+                      text_ar=r["_match_text"], norm_aggressive=r["_match_norm"])
+            for r in rows]
+
+
+def fts_records(conn: sqlite3.Connection, query_norm: str,
+                limit: int = 50) -> list[Record]:
+    """`fts_candidates` collapsed to distinct records, best rank first.
+
+    For callers that list records -- `GET /api/search` -- where the same
+    hadith matching on both its primary matn and its full printed text is one
+    result, not two. Over-fetches so that collapsing cannot silently return
+    fewer rows than asked for.
+    """
+    seen: dict[str, Record] = {}
+    for cand in fts_candidates(conn, query_norm, limit * 2):
+        seen.setdefault(cand.record.id, cand.record)
+        if len(seen) == limit:
+            break
+    return list(seen.values())
 
 
 def corpus_stats(conn: sqlite3.Connection) -> dict[str, int]:

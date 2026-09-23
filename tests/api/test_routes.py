@@ -309,3 +309,64 @@ def test_search_results_include_english_translation(client):
     hit = next(r for r in body["results"] if r["id"] == "quran:105:1")
     assert hit["translation_en"] is not None
     assert "elephant" in hit["translation_en"].lower()
+
+
+# --- fix round 5: the stored-but-unreachable columns reach the client ------
+
+
+def test_a_verified_hadith_carries_its_appended_narrations(client):
+    """`text_ar` is the primary matn alone, so without `addenda_ar` the
+    response silently holds back part of the printed hadith -- and the corpus
+    scores the two rejoined, so a quotation can match text the client has no
+    way of seeing. "Stored and displayed" was true of the first half only.
+
+    342 is the Isra'/Mi'raj; the text is read from the corpus, never typed.
+    """
+    from sanad.corpus import db as corpus_db
+    conn = corpus_db.connect("data/sanad-quran.db")
+    rec = corpus_db.get_record(conn, "hadith:bukhari:342")
+    assert rec.addenda_ar, "fixture record must carry an addendum"
+    body = client.post("/api/verify", json={"text": f"«{rec.text_ar}»"}).json()
+    out = body["quotations"][0]["record"]
+    assert out["id"] == "hadith:bukhari:342"
+    assert out["addenda_ar"] == rec.addenda_ar
+    assert out["unscorable_reason"] is None
+
+
+def test_an_ayah_carries_neither_column(client):
+    """Both fields are None for the 6,236 Qur'anic records, so a client can
+    key on their presence rather than on the record's kind."""
+    body = client.post("/api/verify", json={"text": f"«{IKHLAS_1}»"}).json()
+    out = body["quotations"][0]["record"]
+    assert out["addenda_ar"] is None
+    assert out["unscorable_reason"] is None
+
+
+def test_record_detail_explains_why_an_excluded_record_never_matches(client):
+    """1379 is a real hadith whose matn the edition prints as "bi-hadha", a
+    pointer to a narration given in full elsewhere. Sanad will never verify a
+    quotation of it, and until now the reason for that stopped at the
+    database -- there was no API surface through which a reader could learn
+    it."""
+    body = client.get("/api/records/hadith:bukhari:1379").json()
+    assert body["reference_display"] == "Sahih al-Bukhari 1379"
+    assert "back-reference" in body["unscorable_reason"]
+    assert body["addenda_ar"] is None       # 1379's matn is the pointer alone
+    # 237 is the one excluded record that also carries an addendum: neither
+    # representation is scorable, and both are still readable here.
+    other = client.get("/api/records/hadith:bukhari:237").json()
+    assert other["unscorable_reason"]
+    assert other["addenda_ar"]
+
+
+def test_a_hadith_matching_on_both_representations_is_one_search_result(client):
+    """`GET /api/search` shares the index, which now holds two rows for a cut
+    record. Listing the same hadith twice is not something a reader can make
+    sense of."""
+    from sanad.corpus import db as corpus_db
+    conn = corpus_db.connect("data/sanad-quran.db")
+    rec = corpus_db.get_record(conn, "hadith:bukhari:342")
+    body = client.get("/api/search", params={"q": rec.text_ar[:60], "limit": 20}).json()
+    ids = [r["id"] for r in body["results"]]
+    assert "hadith:bukhari:342" in ids
+    assert len(ids) == len(set(ids))

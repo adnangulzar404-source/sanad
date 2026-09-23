@@ -28,6 +28,18 @@ class RecordOut(BaseModel):
     # rendered translation, not live in a licence file no one reads.
     translation_en: str | None = None
     translation_disclaimer: str | None = None
+    # The further narrations the edition appends after the primary matn, for
+    # hadith records that carry them. `text_ar` is the primary matn alone, so
+    # without this field the response silently holds back part of the printed
+    # hadith -- and the corpus does score the two rejoined (see
+    # `corpus.models.RecordVariant`), so a quotation can match text that had
+    # no way of reaching the client. None for every Qur'anic record.
+    addenda_ar: str | None = None
+    # Why this record is never a match candidate, or None. A client showing a
+    # record reached by reference lookup needs to be able to say why Sanad
+    # will not verify a quotation of it; the explanation used to stop at the
+    # database. None for all but 17 records.
+    unscorable_reason: str | None = None
 
 
 class QuotationOut(BaseModel):
@@ -120,4 +132,10 @@ class RecordDetailOut(BaseModel):
     surah_name_en: str | None = None
     translation_en: str | None = None
     translation_disclaimer: str | None = None
+    # Present for the same reason as on `RecordOut`, and kept in step with it
+    # deliberately: this model is documented as a superset, and a field that
+    # exists on one and not the other is the "two things meant to agree,
+    # quietly diverging" failure this project keeps hitting.
+    addenda_ar: str | None = None
+    unscorable_reason: str | None = None
     source: CorpusSourceOut | None = None

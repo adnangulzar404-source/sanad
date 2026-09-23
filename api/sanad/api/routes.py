@@ -106,6 +106,7 @@ def _record_out(conn: sqlite3.Connection, rec: Record) -> RecordOut:
         id=rec.id, reference_display=rec.reference_display, text_ar=rec.text_ar,
         text_ar_sha256=rec.text_ar_sha256, surah=rec.surah, ayah=rec.ayah,
         translation_en=translation_en, translation_disclaimer=disclaimer,
+        addenda_ar=rec.addenda_ar, unscorable_reason=rec.unscorable_reason,
     )
 
 
@@ -191,6 +192,7 @@ def get_record(record_id: str, request: Request) -> RecordDetailOut:
         surah=rec.surah, ayah=rec.ayah,
         surah_name_ar=rec.surah_name_ar, surah_name_en=rec.surah_name_en,
         translation_en=translation_en, translation_disclaimer=disclaimer,
+        addenda_ar=rec.addenda_ar, unscorable_reason=rec.unscorable_reason,
         source=CorpusSourceOut(**dict(src)) if src else None,
     )
 
@@ -207,7 +209,10 @@ def search(q: str, request: Request, limit: int = 20) -> dict:
         raise HTTPException(status_code=422, detail="q must not be blank")
     limit = max(1, min(limit, 100))
     conn = _conn(request)
-    hits = db.fts_candidates(conn, _normalize_query(q), limit)
+    # `fts_records`, not `fts_candidates`: a hadith indexed under both its
+    # primary matn and its full printed text matches twice and is still one
+    # result. See `corpus.db.fts_records`.
+    hits = db.fts_records(conn, _normalize_query(q), limit)
     return {
         "query": q,
         "count": len(hits),

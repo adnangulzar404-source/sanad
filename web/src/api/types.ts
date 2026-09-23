@@ -224,6 +224,10 @@ export interface components {
             translation_en?: string | null;
             /** Translation Disclaimer */
             translation_disclaimer?: string | null;
+            /** Addenda Ar */
+            addenda_ar?: string | null;
+            /** Unscorable Reason */
+            unscorable_reason?: string | null;
             source?: components["schemas"]["CorpusSourceOut"] | null;
         };
         /** RecordOut */
@@ -244,6 +248,10 @@ export interface components {
             translation_en?: string | null;
             /** Translation Disclaimer */
             translation_disclaimer?: string | null;
+            /** Addenda Ar */
+            addenda_ar?: string | null;
+            /** Unscorable Reason */
+            unscorable_reason?: string | null;
         };
         /** ValidationError */
         ValidationError: {

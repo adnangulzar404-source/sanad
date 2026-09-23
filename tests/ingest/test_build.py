@@ -170,7 +170,7 @@ def test_fts_indexes_translation_text(built_with_translation):
     # Proves rebuild_fts ran AFTER the translations were inserted, not before.
     out, _ = built_with_translation
     results = db.fts_candidates(db.connect(out), "beneficent")
-    assert any(r.id == "quran:1:1" for r in results)
+    assert any(c.record.id == "quran:1:1" for c in results)
 
 
 # --- Arabic source via the XML export (bismillah as metadata) --------------
@@ -413,16 +413,37 @@ def test_the_narrator_name_really_is_in_the_stored_chain(real_corpus):
 
 
 def test_fts_indexes_the_record_norms_and_nothing_else(real_corpus):
-    # The exhaustive form of the test above, over all 13,365 records: the
-    # indexed text must be byte-identical to the columns it claims to index.
-    # Concatenating anything extra -- an isnad, say -- shows up here even if
-    # no single narrator term happens to prove it.
+    # The exhaustive form of the test above, over every index row: the indexed
+    # text must be byte-identical to the column it claims to index. Concatenating
+    # anything extra -- an isnad, say -- shows up here even if no single narrator
+    # term happens to prove it.
+    #
+    # Two clauses because there are two sources of an index row. The primary
+    # rows must equal `records`; the variant rows must equal `record_variants`.
+    # Checking only the first would let a variant row carry anything at all,
+    # since it does not join to a `records` norm in the first place.
     out, _, _ = real_corpus
-    differing = db.connect(out).execute(
+    conn = db.connect(out)
+    differing = conn.execute(
         "SELECT count(*) FROM records_fts f JOIN records r ON r.id = f.record_id"
-        " WHERE f.norm_standard IS NOT r.norm_standard"
-        "    OR f.norm_aggressive IS NOT r.norm_aggressive").fetchone()[0]
+        " WHERE f.variant = 'primary'"
+        "   AND (f.norm_standard IS NOT r.norm_standard"
+        "     OR f.norm_aggressive IS NOT r.norm_aggressive)").fetchone()[0]
     assert differing == 0
+    differing_variants = conn.execute(
+        "SELECT count(*) FROM records_fts f JOIN record_variants v"
+        "   ON v.record_id = f.record_id AND v.variant = f.variant"
+        " WHERE f.variant <> 'primary'"
+        "   AND (f.norm_standard IS NOT v.norm_standard"
+        "     OR f.norm_aggressive IS NOT v.norm_aggressive)").fetchone()[0]
+    assert differing_variants == 0
+    # ... and no index row belongs to neither source.
+    orphans = conn.execute(
+        "SELECT count(*) FROM records_fts f WHERE f.variant <> 'primary'"
+        " AND NOT EXISTS (SELECT 1 FROM record_variants v"
+        "                 WHERE v.record_id = f.record_id"
+        "                   AND v.variant = f.variant)").fetchone()[0]
+    assert orphans == 0
 
 
 def test_every_hadith_norm_derives_from_its_matn_alone(real_corpus):
@@ -556,19 +577,23 @@ def test_duplicate_reference_display_aborts_the_build():
 # --- fix round 1: secondary narrations are stored, not scored --------------
 
 def test_the_appended_narrations_are_stored_but_never_scored(real_corpus):
-    """395 records carry an addendum. It is in the row and out of the score.
+    """384 records carry an addendum. It is in the row and out of THAT score.
 
     hadith 22 is one of the three boundaries named in the fix brief: the
     primary matn ends at "...as the seed grows beside a stream", and a second
     chain ("Wuhayb said: Amr narrated to us...") follows it with a variant
     wording. Before this fix the chain and the variant were both inside
     text_ar and both scored.
+
+    "Never scored" means never scored AS PART OF text_ar. Since round 5 the
+    rejoined text is scored as the record's second representation; see
+    test_the_full_printed_text_is_scored_alongside_the_primary.
     """
     out, _, _ = real_corpus
     conn = db.connect(out)
     n = conn.execute(
         "SELECT count(*) FROM records WHERE addenda_ar IS NOT NULL").fetchone()[0]
-    assert n == 395
+    assert n == 384
     rec = db.get_record(conn, "hadith:bukhari:22")
     assert rec.addenda_ar and _HADDATHANA in rec.addenda_ar
     assert _HADDATHANA not in rec.text_ar
@@ -579,15 +604,15 @@ def test_the_appended_narrations_are_stored_but_never_scored(real_corpus):
         assert _HADDATHANA not in getattr(rec, f"norm_{form}")
 
 
-def test_no_addendum_is_reachable_through_the_search_index(real_corpus):
-    """Exhaustive over all 395, in both the stored and the indexed text.
+def test_no_addendum_reaches_the_primary_representation(real_corpus):
+    """Exhaustive over all 384, in both the stored and the indexed text.
 
     The other half of the guarantee is
-    test_fts_indexes_the_record_norms_and_nothing_else, which pins the index
-    to the record's own norms. Together: the addendum is not in the norms,
-    and the index is nothing but the norms.
+    test_fts_indexes_the_record_norms_and_nothing_else, which pins each index
+    row to the column it claims to index. Together: the addendum is not in the
+    primary's norms, and the primary index row is nothing but those norms.
 
-    394, not 395: hadith 237 both carries an addendum and is on the
+    383, not 384: hadith 237 both carries an addendum and is on the
     unscorable audit list (its matn is a "bayna" clause ending at the
     chain-transfer mark), so it has no index row at all. The two counts are
     asserted separately rather than relaxed into one, so that a record
@@ -601,14 +626,72 @@ def test_no_addendum_is_reachable_through_the_search_index(real_corpus):
     rows = conn.execute(
         "SELECT r.id, r.text_ar, r.addenda_ar, f.norm_standard,"
         "       f.norm_aggressive FROM records r"
-        " JOIN records_fts f ON f.record_id = r.id"
+        " JOIN records_fts f ON f.record_id = r.id AND f.variant = 'primary'"
         " WHERE r.addenda_ar IS NOT NULL").fetchall()
-    assert len(rows) == 394
+    assert len(rows) == 383
     for row in rows:
         assert row["addenda_ar"] not in row["text_ar"], row["id"]
         for form in ("standard", "aggressive"):
             assert normalize(row["addenda_ar"], form) not in row[f"norm_{form}"], \
                 row["id"]
+
+
+def test_the_full_printed_text_is_scored_alongside_the_primary(real_corpus):
+    """Every cut record has a second, scorable representation, and it is the
+    edition's own text: `text_ar + " " + addenda_ar`, byte for byte, with
+    every norm derived from that exact string.
+
+    This is what makes the cut's precision non-load-bearing. Before it, an
+    over-cut (342 and 3164, the Isra'/Mi'raj, split in the middle of one
+    continuous narration) put ~700 characters of Sahih al-Bukhari out of
+    reach of every tier.
+    """
+    out, _, _ = real_corpus
+    conn = db.connect(out)
+    rows = conn.execute(
+        "SELECT r.id, r.text_ar, r.addenda_ar, r.unscorable_reason,"
+        "       v.variant, v.text_ar AS whole, v.norm_light, v.norm_standard,"
+        "       v.norm_aggressive FROM records r"
+        " LEFT JOIN record_variants v ON v.record_id = r.id"
+        " WHERE r.addenda_ar IS NOT NULL").fetchall()
+    assert len(rows) == 384
+    checked = 0
+    for row in rows:
+        if row["unscorable_reason"]:
+            assert row["variant"] is None, row["id"]   # excluded from both
+            continue
+        assert row["variant"] == "full", row["id"]
+        assert row["whole"] == row["text_ar"] + " " + row["addenda_ar"], row["id"]
+        for form in ("light", "standard", "aggressive"):
+            assert row[f"norm_{form}"] == normalize(row["whole"], form), row["id"]
+        checked += 1
+    assert checked == 383
+
+
+def test_a_record_with_no_addendum_has_no_second_representation(real_corpus):
+    """Nothing is indexed twice for no reason: the full text of an uncut
+    record IS its primary, and a duplicate row would let one record occupy two
+    places in a tie set."""
+    out, _, _ = real_corpus
+    n = db.connect(out).execute(
+        "SELECT count(*) FROM record_variants v JOIN records r ON r.id = v.record_id"
+        " WHERE r.addenda_ar IS NULL").fetchone()[0]
+    assert n == 0
+
+
+def test_an_unscorable_record_is_excluded_from_both_representations(real_corpus):
+    """237 carries an addendum and is on the unscorable audit list. Neither
+    its primary nor its full text may be a match candidate."""
+    out, _, _ = real_corpus
+    conn = db.connect(out)
+    rec = db.get_record(conn, "hadith:bukhari:237")
+    assert rec.addenda_ar and rec.unscorable_reason
+    assert conn.execute(
+        "SELECT count(*) FROM record_variants WHERE record_id = 'hadith:bukhari:237'"
+    ).fetchone()[0] == 0
+    assert conn.execute(
+        "SELECT count(*) FROM records_fts WHERE record_id = 'hadith:bukhari:237'"
+    ).fetchone()[0] == 0
 
 
 def test_no_hadith_record_ships_an_empty_scored_text(real_corpus):
@@ -694,7 +777,7 @@ def test_a_famous_short_matn_is_still_indexed_and_scorable(real_corpus):
     for record_id in _GENUINE_SHORT_IDS:
         assert db.get_record(conn, record_id).unscorable_reason is None, record_id
         assert conn.execute(
-            "SELECT count(*) FROM records_fts WHERE record_id = ?",
+            "SELECT count(*) FROM records_fts WHERE record_id = ? AND variant = 'primary'",
             (record_id,)).fetchone()[0] == 1, record_id
 
 
@@ -739,4 +822,37 @@ def test_a_missing_audited_record_aborts_the_build():
         url="https://example.invalid/x", license_id="public-domain",
         content_sha256="0" * 64, modifications="none", expected_records=1)
     with pytest.raises(BuildError, match="hadith:bukhari:1379"):
+        _hadith_records(parsed, locked)
+
+
+def test_a_missing_do_not_cut_record_aborts_the_build():
+    """The same check, for the other audited list -- and separately reachable.
+
+    The unscorable list and the do-not-cut list are two different judgements
+    about two different sets of records, and the loop over them is the only
+    thing making the second one checked at all. With every unscorable record
+    present and one do-not-cut record gone, the build must still stop: an
+    entry that names a record the corpus no longer has is an audit quietly
+    covering less than it claims, whichever list it sits on.
+    """
+    from sanad_ingest.build import BuildError, _hadith_records
+    from sanad_ingest.lockfile import LockedSource
+    from sanad_ingest.openiti import _NEVER_CUT, _UNSCORABLE, HadithUnit, ParsedOpeniti
+
+    def _unit(record_id: str) -> HadithUnit:
+        no = record_id.rsplit(":", 1)[1]
+        return HadithUnit(hadith_no=no, record_id=record_id, is_repeat=False,
+                          kitab_no=1, kitab_ar="k", bab_ar="b",
+                          isnad_ar="i", matn_ar="m", addenda_ar=None)
+
+    # everything on both lists except hadith 632, which this corpus has lost
+    ids = sorted(set(_UNSCORABLE) | (set(_NEVER_CUT) - {"hadith:bukhari:632"}))
+    assert "hadith:bukhari:6136" in ids, "only 632 may be missing"
+    parsed = ParsedOpeniti(units=[_unit(i) for i in ids], attribution="",
+                           content_sha256="0" * 64, noisy=[])
+    locked = LockedSource(
+        id="x", kind="hadith-arabic", format="openiti-markdown", title="X",
+        url="https://example.invalid/x", license_id="public-domain",
+        content_sha256="0" * 64, modifications="none", expected_records=len(ids))
+    with pytest.raises(BuildError, match="hadith:bukhari:632"):
         _hadith_records(parsed, locked)

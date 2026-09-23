@@ -55,6 +55,24 @@ CREATE INDEX IF NOT EXISTS idx_records_ref ON records(surah, ayah);
 CREATE INDEX IF NOT EXISTS idx_records_norm_std ON records(norm_standard);
 CREATE INDEX IF NOT EXISTS idx_records_norm_light ON records(norm_light);
 
+-- Additional scorable representations of a record's text. One row per
+-- representation BEYOND records.text_ar -- today exactly one kind, 'full'
+-- (the primary matn with its addenda rejoined), on the hadith records that
+-- carry an addendum. See corpus.models.RecordVariant for why both sides of
+-- the secondary-narration cut have to be scored.
+CREATE TABLE IF NOT EXISTS record_variants (
+  record_id       TEXT NOT NULL REFERENCES records(id),
+  variant         TEXT NOT NULL,
+  text_ar         TEXT NOT NULL,
+  norm_light      TEXT NOT NULL,
+  norm_standard   TEXT NOT NULL,
+  norm_aggressive TEXT NOT NULL,
+  PRIMARY KEY (record_id, variant)
+);
+
+CREATE INDEX IF NOT EXISTS idx_variants_norm_light ON record_variants(norm_light);
+CREATE INDEX IF NOT EXISTS idx_variants_norm_std ON record_variants(norm_standard);
+
 CREATE TABLE IF NOT EXISTS translations (
   record_id TEXT NOT NULL REFERENCES records(id),
   source_id TEXT NOT NULL REFERENCES sources(id),
@@ -78,8 +96,13 @@ CREATE TABLE IF NOT EXISTS embeddings (
   vec       BLOB NOT NULL
 );
 
+-- One row per SCORABLE REPRESENTATION, not one row per record: a record with
+-- an addendum has two (see record_variants). `variant` names which one, so a
+-- hit can be scored against the text that was actually indexed rather than
+-- against whatever happens to be in records.text_ar.
 CREATE VIRTUAL TABLE IF NOT EXISTS records_fts USING fts5(
   record_id UNINDEXED,
+  variant UNINDEXED,
   norm_standard,
   norm_aggressive,
   translation,

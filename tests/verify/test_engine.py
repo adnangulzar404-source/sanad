@@ -255,3 +255,186 @@ def test_no_non_first_ayah_verifies_with_a_bismillah_prepended(conn):
             if m.verdict in verified:
                 leaked.append(r.id)
     assert leaked == [], f"{len(leaked)} leaked, e.g. {leaked[:5]}"
+
+
+# --- fix round 5: a record is scored under every representation it has -----
+#
+# Built on a throwaway database rather than the shipped corpus, so these pin
+# the ENGINE's behaviour rather than today's data: the same assertions hold if
+# a future edition cuts different records.
+
+
+@pytest.fixture()
+def two_representations(tmp_path):
+    """One hadith, cut: primary matn "AAAA BBBB", addendum "CCCC DDDD"."""
+    from sanad.corpus.models import Record, RecordVariant, Source
+    primary, whole = "اااا بببب", "اااا بببب جججج دددد"
+    conn = db.connect(tmp_path / "c.db", read_only=False)
+    db.insert_source(conn, Source(
+        id="s", kind="hadith-arabic", title="t", publisher=None, edition=None,
+        url="https://example.invalid/", license_id="public-domain",
+        license_url=None, attribution="a", retrieved_at="2026-09-23",
+        upstream_sha256="0" * 64, modifications="none"))
+    db.insert_records(conn, [Record(
+        id="hadith:bukhari:1", source_id="s", kind="hadith", collection="bukhari",
+        hadith_no="1", numbering_scheme="bugha-1987", text_ar=primary,
+        addenda_ar="جججج دددد", text_ar_sha256="x" * 64,
+        norm_light=primary, norm_standard=primary, norm_aggressive=primary,
+        reference_display="Sahih al-Bukhari 1")])
+    db.insert_record_variants(conn, [RecordVariant(
+        record_id="hadith:bukhari:1", variant="full", text_ar=whole,
+        norm_light=whole, norm_standard=whole, norm_aggressive=whole)])
+    db.rebuild_fts(conn)
+    return conn, primary, whole
+
+
+def test_the_primary_matn_verifies(two_representations):
+    conn, primary, _whole = two_representations
+    m = _only(verify_spans(conn, f"«{primary}»"))
+    assert m.verdict is Verdict.EXACT
+    assert m.record.id == "hadith:bukhari:1"
+
+
+def test_the_full_printed_text_verifies_to_the_same_record(two_representations):
+    """The point of the round: quoting the hadith as the edition prints it is
+    the most natural thing a person can do with it, and before this it
+    returned NOT_FOUND on any record the cut had split."""
+    conn, _primary, whole = two_representations
+    m = _only(verify_spans(conn, f"«{whole}»"))
+    assert m.verdict is Verdict.EXACT
+    assert m.record.id == "hadith:bukhari:1"
+    assert m.record.reference_display == "Sahih al-Bukhari 1"
+
+
+def test_a_record_is_never_reported_twice_for_its_own_representations(
+        two_representations):
+    """`also_at` names OTHER records sharing the text. A record listing itself
+    there would read as "this wording also appears at Sahih al-Bukhari 1" on a
+    match to Sahih al-Bukhari 1."""
+    conn, primary, whole = two_representations
+    for quote in (primary, whole):
+        m = _only(verify_spans(conn, f"«{quote}»"))
+        assert m.also_at == [], quote
+
+
+def test_a_near_miss_on_the_full_text_is_scored_against_the_full_text(
+        two_representations):
+    """One character added to the full quotation. Scored against the primary
+    matn instead, the same string sits near 0.6 and reports NOT_FOUND; the
+    diff would also show the whole addendum as text the quoter left out."""
+    conn, _primary, whole = two_representations
+    m = _only(verify_spans(conn, f"«{whole}ق»"))
+    assert m.verdict is Verdict.NEAR_MATCH
+    assert m.score > 0.9   # against the primary matn the same string is ~0.62
+    assert m.record.id == "hadith:bukhari:1"
+    joined = "".join(text for _tag, text in m.diff)
+    assert "جججج" in joined and joined.count("جججج") == 1
+    # The discriminating assertion: the ONE character the quoter added is the
+    # only thing the diff marks. Built against the primary matn instead, the
+    # diff marks the entire addendum as text the quoter invented -- the
+    # quotation would be shown as wrong in the part it got exactly right.
+    assert [text for tag, text in m.diff if tag != "equal"] == ["ق"]
+
+
+@pytest.fixture()
+def a_record_indexed_twice_under_one_text(tmp_path):
+    """A record whose two representations carry IDENTICAL norms.
+
+    The build never emits this -- the full text is strictly longer than the
+    primary -- but the schema permits it, and the collapse is what guarantees
+    a record is reported once regardless of what the build emits. Without a
+    degenerate case the collapse is unobservable, and an unobservable guard
+    is one no test can see fail.
+    """
+    from sanad.corpus.models import Record, RecordVariant, Source
+    text = "اااا بببب جججج"
+    conn = db.connect(tmp_path / "c.db", read_only=False)
+    db.insert_source(conn, Source(
+        id="s", kind="hadith-arabic", title="t", publisher=None, edition=None,
+        url="https://example.invalid/", license_id="public-domain",
+        license_url=None, attribution="a", retrieved_at="2026-09-23",
+        upstream_sha256="0" * 64, modifications="none"))
+    db.insert_records(conn, [Record(
+        id="hadith:bukhari:1", source_id="s", kind="hadith", collection="bukhari",
+        hadith_no="1", numbering_scheme="bugha-1987", text_ar=text,
+        addenda_ar="جججج", text_ar_sha256="x" * 64, norm_light=text,
+        norm_standard=text, norm_aggressive=text,
+        reference_display="Sahih al-Bukhari 1")])
+    db.insert_record_variants(conn, [RecordVariant(
+        record_id="hadith:bukhari:1", variant="full", text_ar=text,
+        norm_light=text, norm_standard=text, norm_aggressive=text)])
+    db.rebuild_fts(conn)
+    return conn, text
+
+
+def test_the_exact_tier_returns_a_tied_record_once(a_record_indexed_twice_under_one_text):
+    from sanad.verify.engine import _exact_at_tier
+    conn, text = a_record_indexed_twice_under_one_text
+    assert [r.id for r in _exact_at_tier(conn, text, "light")] == ["hadith:bukhari:1"]
+
+
+def test_the_fuzzy_tier_returns_a_tied_record_once(a_record_indexed_twice_under_one_text):
+    from sanad.verify.engine import _best_fuzzy
+    conn, text = a_record_indexed_twice_under_one_text
+    candidates, score, matched = _best_fuzzy(conn, text)
+    assert [r.id for r in candidates] == ["hadith:bukhari:1"]
+    assert score == 1.0
+    assert matched == {"hadith:bukhari:1": text}
+
+
+def test_a_tied_record_is_reported_once_end_to_end(a_record_indexed_twice_under_one_text):
+    conn, text = a_record_indexed_twice_under_one_text
+    m = _only(verify_spans(conn, f"«{text}»"))
+    assert m.record.id == "hadith:bukhari:1"
+    assert m.also_at == []
+
+
+@pytest.fixture()
+def an_unscorable_record_with_a_variant(tmp_path):
+    """An excluded record that nonetheless HAS a second representation row.
+
+    `build._hadith_records` refuses to emit this, so on today's corpus the
+    filters downstream of it are unobservable -- and an unobservable filter is
+    one no test can see fail. The exclusion is deliberately enforced in three
+    independent places (build, `rebuild_fts`, `_exact_at_tier`) precisely so
+    that no single mistake can put editorial apparatus behind a verdict, and
+    that design is only real if each place is checked on its own.
+    """
+    from sanad.corpus.models import Record, RecordVariant, Source
+    primary, whole = "اااا بببب", "اااا بببب جججج دددد"
+    conn = db.connect(tmp_path / "c.db", read_only=False)
+    db.insert_source(conn, Source(
+        id="s", kind="hadith-arabic", title="t", publisher=None, edition=None,
+        url="https://example.invalid/", license_id="public-domain",
+        license_url=None, attribution="a", retrieved_at="2026-09-23",
+        upstream_sha256="0" * 64, modifications="none"))
+    db.insert_records(conn, [Record(
+        id="hadith:bukhari:1", source_id="s", kind="hadith", collection="bukhari",
+        hadith_no="1", numbering_scheme="bugha-1987", text_ar=primary,
+        addenda_ar="جججج دددد", text_ar_sha256="x" * 64,
+        unscorable_reason="chapter-heading",
+        norm_light=primary, norm_standard=primary, norm_aggressive=primary,
+        reference_display="Sahih al-Bukhari 1")])
+    db.insert_record_variants(conn, [RecordVariant(
+        record_id="hadith:bukhari:1", variant="full", text_ar=whole,
+        norm_light=whole, norm_standard=whole, norm_aggressive=whole)])
+    db.rebuild_fts(conn)
+    return conn, primary, whole
+
+
+def test_the_exact_tier_excludes_every_representation_of_an_excluded_record(
+        an_unscorable_record_with_a_variant):
+    from sanad.verify.engine import _exact_at_tier
+    conn, primary, whole = an_unscorable_record_with_a_variant
+    for tier in ("light", "standard", "aggressive"):
+        assert _exact_at_tier(conn, primary, tier) == [], tier
+        assert _exact_at_tier(conn, whole, tier) == [], tier
+
+
+def test_an_excluded_record_never_verifies_under_either_representation(
+        an_unscorable_record_with_a_variant):
+    conn, primary, whole = an_unscorable_record_with_a_variant
+    for quote in (primary, whole):
+        m = _only(verify_spans(conn, f"«{quote}»"))
+        assert m.verdict is Verdict.NOT_FOUND, quote
+        assert m.record is None

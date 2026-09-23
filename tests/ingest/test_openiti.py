@@ -16,7 +16,7 @@ FULL = Path("/tmp/bukhari.txt")   # the real download; see Task 2 Step 1
 
 # sha256 of the sorted, comma-joined ids of every record the secondary-narration
 # rule cuts. Measured, not chosen; see test_exactly_the_measured_records_are_cut.
-_CUT_ID_DIGEST = "af95d97ed63225bce8648651a51bfb1f34c8f67bfacd131ed1fc28da436c1ed9"
+_CUT_ID_DIGEST = "64800b05668f46547ccf6311534bf1d69f6bf3c638ab3f4c17ac122866ff64cf"
 
 
 @pytest.fixture(scope="module")
@@ -349,24 +349,53 @@ def test_secondary_narration_is_cut_out_of_the_scored_matn(full):
 
 @pytest.mark.skipif(not FULL.exists(), reason="full download not present")
 def test_nothing_is_lost_when_an_addendum_is_cut_away(full):
-    """matn + addenda reassembles the edition's text, byte for byte.
+    """`full_text` reassembles the edition's text, byte for byte.
 
     Recomputed from the raw file, not from the parser's own output: a cut
-    that dropped or re-spaced a character would pass a self-comparison.
+    that dropped or re-spaced a character would pass a self-comparison. This
+    is also what licenses the build to store `full_text(u)` as the record's
+    second, scored representation -- the string it indexes is the edition's,
+    not an approximation of it.
+
+    The count is pinned exactly rather than floored. A floor ("more than 100")
+    cannot see a skip condition that silently stops covering records, which is
+    how the ordinal-suffixed repeats went unchecked: `_raw_matn` looks up a
+    hadith by its printed number and finds the FIRST unit printed under it, so
+    a "-2" record cannot be compared this way. There is exactly one cut record
+    with an ordinal suffix and it is asserted separately, below.
     """
+    from sanad_ingest.openiti import full_text
     raw = FULL.read_text(encoding="utf-8")
-    checked = 0
+    checked, suffixed = 0, []
     for u in full.units:
-        if u.addenda_ar is None or u.record_id != f"hadith:bukhari:{u.hadith_no}":
-            continue  # skip the ordinal-suffixed repeats: _raw_matn finds the first
-        assert u.matn_ar + " " + u.addenda_ar == _raw_matn(raw, u.hadith_no), u.record_id
+        if u.addenda_ar is None:
+            continue
+        if u.record_id != f"hadith:bukhari:{u.hadith_no}":
+            suffixed.append(u)
+            continue
+        assert full_text(u) == _raw_matn(raw, u.hadith_no), u.record_id
         checked += 1
-    assert checked > 100, "the reassembly check must actually run on the cut records"
+    assert checked == 383
+    assert [u.record_id for u in suffixed] == ["hadith:bukhari:4537-2"]
+    # The one repeat, against the SECOND printed occurrence of its number.
+    second = raw[raw.index("\n# 4537 ") + 1:]
+    assert full_text(suffixed[0]) == _raw_matn(second, "4537")
+
+
+@pytest.mark.skipif(not FULL.exists(), reason="full download not present")
+def test_full_text_of_an_uncut_unit_is_its_matn(full):
+    """No cut, no join: `full_text` must not invent a trailing space or a
+    second copy of anything on the 6,745 units the rule never touched."""
+    from sanad_ingest.openiti import full_text
+    uncut = [u for u in full.units if u.addenda_ar is None]
+    assert len(uncut) == 6745
+    for u in uncut:
+        assert full_text(u) == u.matn_ar, u.record_id
 
 
 @pytest.mark.skipif(not FULL.exists(), reason="full download not present")
 def test_exactly_the_measured_records_are_cut(full):
-    """155 cuts, pinned by count and by the exact set of record ids.
+    """384 cuts, pinned by count and by the exact set of record ids.
 
     The detection rule leans on a closed list of Arabic tokens that cannot be
     a narrator's name. A single mistyped codepoint in that list would silently
@@ -379,7 +408,7 @@ def test_exactly_the_measured_records_are_cut(full):
         if x.addenda_ar is not None)).encode()).hexdigest())"
     """
     cut = sorted(u.record_id for u in full.units if u.addenda_ar is not None)
-    assert len(cut) == 395
+    assert len(cut) == 384
     digest = hashlib.sha256(",".join(cut).encode("utf-8")).hexdigest()
     assert digest == _CUT_ID_DIGEST
 
@@ -501,7 +530,7 @@ def test_the_attribution_window_bounds_the_distance_in_characters():
         name = baa * name_len
         matn = f"{primary} {_QAL} {name} {verb} {baa * 20}"
         assert (len(_QAL) + 1 + name_len + 1 > _ATTRIBUTION_WINDOW) is not expect_cut
-        got_primary, addenda = _split_secondary(matn)
+        got_primary, addenda = _split_secondary(matn, "hadith:bukhari:synthetic")
         if expect_cut:
             assert addenda == f"{_QAL} {name} {verb} {baa * 20}"
             assert got_primary == primary
@@ -564,13 +593,14 @@ def test_an_object_pronoun_directly_after_the_verb_is_not_a_chain():
     """"akhbirni 'an al-islam" is "tell me ABOUT islam", not "X told me from
     Y". A chain always names its narrator first, so "'an" flush against the
     verb is the one position where it cannot be a chain link."""
-    from sanad_ingest.openiti import _split_secondary
+    from sanad_ingest.openiti import _MIN_PRIMARY, _split_secondary
     baa = chr(0x0628)
-    body = f"{baa * 12} {baa * 12}"
+    body = f"{baa * 20} {baa * 20}"
+    assert len(body) >= _MIN_PRIMARY, "the primary must clear the stub floor"
     said = f"{body} {_AKHBARANI} {_AN} {body}"
-    assert _split_secondary(said) == (said, None)
+    assert _split_secondary(said, "hadith:bukhari:synthetic") == (said, None)
     chain = f"{body} {_AKHBARANI} {baa * 6} {_AN} {baa * 6}"
-    primary, addenda = _split_secondary(chain)
+    primary, addenda = _split_secondary(chain, "hadith:bukhari:synthetic")
     assert addenda == f"{_AKHBARANI} {baa * 6} {_AN} {baa * 6}"
     assert primary == body
 
@@ -652,23 +682,28 @@ def test_an_attribution_reported_by_a_speech_verb_is_not_a_boundary():
     and so would be held back by the size cap alone. A guard whose only real
     example is covered twice is a guard no test can see fail.
     """
-    from sanad_ingest.openiti import _split_secondary
+    from sanad_ingest.openiti import _MIN_PRIMARY, _split_secondary
     baa = chr(0x0628)
     lii = "".join(chr(c) for c in (0x0644, 0x064A))           # "li" -- to me
     fa_qal = chr(0x0641) + _QAL                               # "fa-qala"
-    said = (f"{baa * 9} {baa * 9} {fa_qal} {lii} {_QAL} {baa * 6} "
+    body = f"{baa * 20} {baa * 20}"
+    assert len(body) >= _MIN_PRIMARY, "the primary must clear the stub floor"
+    said = (f"{body} {fa_qal} {lii} {_QAL} {baa * 6} "
             f"{_HADDATHANA} {baa * 6} {_AN} {baa * 6}")
-    assert _split_secondary(said) == (said, None)
+    assert _split_secondary(said, "hadith:bukhari:synthetic") == (said, None)
     # the same string without the addressee IS a boundary
     told = said.replace(f"{fa_qal} {lii} ", "")
-    primary, addenda = _split_secondary(told)
+    primary, addenda = _split_secondary(told, "hadith:bukhari:synthetic")
     assert addenda == f"{_QAL} {baa * 6} {_HADDATHANA} {baa * 6} {_AN} {baa * 6}"
-    assert primary == f"{baa * 9} {baa * 9}"
+    assert primary == body
 
 
 @pytest.mark.skipif(not FULL.exists(), reason="full download not present")
 def test_a_nameless_qala_travels_with_the_addendum_it_introduces(full):
-    """"... bay'ihima | qala wa-haddathana Hammam ..." (2008, 6136).
+    """"... bay'ihima | qala wa-haddathana Hammam ..." (2008, 1041).
+
+    (6136 was the second example until round 5 put it on the do-not-cut
+    audit: its primary, "the Prophet had a she-camel", names nothing.)
 
     A bare "qala" with no name in front of the verb is not enough on its own
     to call a boundary -- round 1 measured that and rejected it -- but once
@@ -676,7 +711,7 @@ def test_a_nameless_qala_travels_with_the_addendum_it_introduces(full):
     the addendum. Leaving it behind ends the scored text on "he said".
     """
     by_id = {u.record_id: u for u in full.units}
-    for hadith_no in ("2008", "6136"):
+    for hadith_no in ("2008", "1041"):
         u = by_id[f"hadith:bukhari:{hadith_no}"]
         assert u.addenda_ar.startswith(_QAL + " "), hadith_no
         assert not u.matn_ar.endswith(" " + _QAL), hadith_no
@@ -690,8 +725,11 @@ def test_a_one_token_primary_is_not_a_boundary():
     """
     from sanad_ingest.openiti import _split_secondary
     baa = chr(0x0628)
-    stub = f"{baa * 8} {_HADDATHANA} {baa * 6} {_AN} {baa * 6}"
-    assert _split_secondary(stub) == (stub, None)
+    # 40 characters, so the stub floor is not what rejects this: the one-token
+    # guard is. Two guards covering one input is two guards neither test can
+    # see fail.
+    stub = f"{baa * 40} {_HADDATHANA} {baa * 6} {_AN} {baa * 6}"
+    assert _split_secondary(stub, "hadith:bukhari:synthetic") == (stub, None)
 
 
 # --- fix round 3: editorial pointers are not quotable text -----------------
@@ -740,3 +778,112 @@ def test_the_audited_list_is_checked_against_the_text_it_audited():
     baa = chr(0x0628)
     with pytest.raises(ValueError, match="1379"):
         parse_openiti(_one_unit("1379", baa * 4))
+
+
+# --- fix round 5: a cut may not leave a stub primary -----------------------
+
+
+def test_a_cut_that_would_leave_a_stub_primary_is_refused():
+    """Below the measured floor the record keeps all of its text, uncut.
+
+    The two inputs differ only in the length of the primary, so the floor is
+    the only thing that can decide between them: one character below it the
+    cut is refused, at it the cut is made.
+    """
+    from sanad_ingest.openiti import _MIN_PRIMARY, _split_secondary
+    baa = chr(0x0628)
+    tail = f"{_QAL} {baa * 6} {_HADDATHANA} {baa * 6} {_AN} {baa * 6}"
+    # Two tokens either way, so the one-token guard is not what decides this.
+    half = (_MIN_PRIMARY - 1) // 2
+    short = f"{baa * half} {baa * (_MIN_PRIMARY - 2 - half)}"
+    assert len(short) == _MIN_PRIMARY - 1
+    assert _split_secondary(f"{short} {tail}", "hadith:bukhari:x") == (
+        f"{short} {tail}", None)
+    exact = f"{baa * half} {baa * (_MIN_PRIMARY - 1 - half)}"
+    assert len(exact) == _MIN_PRIMARY
+    assert _split_secondary(f"{exact} {tail}", "hadith:bukhari:x") == (exact, tail)
+
+
+@pytest.mark.skipif(not FULL.exists(), reason="full download not present")
+def test_the_stub_floor_un_cuts_exactly_the_measured_nine(full):
+    """Every record the floor changes, named.
+
+    Measured from the length distribution of the primaries the rule leaves
+    behind: sorted, its lower quartile runs 18 19 20 20 21 21 22 25 25 | 32
+    32 33 34 ..., and 25 -> 32 is the only gap in it wider than three. These
+    nine are the records below that gap. Two of them (2390, 6949) are the
+    fragments that answered a generic phrase with EXACT 1.0; the rest are
+    genuine short matns whose standalone quotation this costs, which is
+    recorded here so the trade is visible rather than implied.
+    """
+    from sanad_ingest.openiti import _MIN_PRIMARY
+    by_id = {u.record_id: u for u in full.units}
+    for hadith_no in ("1366", "2301", "2390", "2405", "3179",
+                      "5526", "5600", "6205", "6949"):
+        u = by_id[f"hadith:bukhari:{hadith_no}"]
+        assert u.addenda_ar is None, f"{hadith_no} must not be cut"
+    # ... and nothing that IS cut sits below the floor.
+    below = [u.record_id for u in full.units
+             if u.addenda_ar is not None and len(u.matn_ar) < _MIN_PRIMARY]
+    assert below == []
+
+
+@pytest.mark.skipif(not FULL.exists(), reason="full download not present")
+def test_a_genuine_short_matn_above_the_floor_is_still_cut(full):
+    """The floor is a floor, not a general refusal to cut short records.
+
+    5381 ("truffles are from the manna, and their water is a cure for the
+    eye") is 32 characters -- the first length above the gap -- and is still
+    split from the second chain the edition appends to it.
+    """
+    u = {x.record_id: x for x in full.units}["hadith:bukhari:5381"]
+    assert u.addenda_ar is not None
+    assert len(u.matn_ar) == 32
+
+
+# --- fix round 5: the audited do-not-cut list ------------------------------
+
+
+@pytest.mark.skipif(not FULL.exists(), reason="full download not present")
+def test_an_audited_narrative_opener_is_never_cut(full):
+    """632 and 6136 keep all of their text.
+
+    The cut is textually right for both -- the edition really does print a
+    short primary and then a second chain -- but the primary it leaves names
+    nothing: "the Prophet passed by a man", "the Prophet had a she-camel".
+    Scored on its own, that answers an everyday sentence of hadith literature
+    with a confident Bukhari citation.
+
+    Uncut, and NOT marked unscorable: the hadith itself is perfectly
+    quotable, and an unscorable_reason would take its full printed text out
+    of the corpus too.
+    """
+    by_id = {u.record_id: u for u in full.units}
+    for hadith_no in ("632", "6136"):
+        u = by_id[f"hadith:bukhari:{hadith_no}"]
+        assert u.addenda_ar is None, hadith_no
+        assert u.unscorable_reason is None, hadith_no
+        assert len(u.matn_ar) > 300, hadith_no   # the whole printed hadith
+
+
+def test_the_do_not_cut_list_is_checked_against_the_text_it_audited():
+    """Same contract as the unscorable audit: the entry pins the sha256 of
+    the matn that was read, so a changed text stops the build instead of
+    inheriting a judgement made about a different string."""
+    from sanad_ingest.openiti import _split_secondary
+    baa = chr(0x0628)
+    tail = f"{_QAL} {baa * 6} {_HADDATHANA} {baa * 6} {_AN} {baa * 6}"
+    with pytest.raises(ValueError, match="632"):
+        _split_secondary(f"{baa * 20} {baa * 20} {tail}", "hadith:bukhari:632")
+
+
+def test_the_do_not_cut_list_only_binds_the_records_it_names():
+    """A record not on the list is cut on the same input that the list
+    refuses, so the list -- and not some other guard -- is what stops it."""
+    from sanad_ingest.openiti import _split_secondary
+    baa = chr(0x0628)
+    tail = f"{_QAL} {baa * 6} {_HADDATHANA} {baa * 6} {_AN} {baa * 6}"
+    body = f"{baa * 20} {baa * 20}"
+    primary, addenda = _split_secondary(f"{body} {tail}", "hadith:bukhari:999999")
+    assert primary == body
+    assert addenda == tail

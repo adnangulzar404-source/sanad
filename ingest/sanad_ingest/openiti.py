@@ -120,6 +120,69 @@ _MAX_NAME_TOKENS = 3
 # this constant.
 _MAX_ADDENDUM = 1000
 
+# A cut that would leave a primary shorter than this is refused: the record
+# keeps all of its text and is simply not cut. A primary of twenty-odd
+# characters standing in for a four-hundred-character hadith misrepresents the
+# narration, and it makes a bare narrative opener into a scorable record that
+# answers an everyday phrase with a confident citation -- "whoever frees a
+# share of a slave" (2390, a protasis with no apodosis) and "it does not cease
+# to be thrown into the Fire" (6949, no subject) both returned EXACT 1.0.
+#
+# MEASURED, from the length distribution of the 395 primaries the rule leaves
+# behind. Sorted, the bottom of that distribution runs
+#   18 19 20 20 21 21 22 25 25 | 32 32 33 34 34 35 36 38 40 40 42 44 ...
+# and 25 -> 32 is the only gap wider than three in the whole lower quartile.
+# 32 is the first length on the far side of it. Nine records sit below it and
+# are no longer cut: 1366, 2301, 2390, 2405, 3179, 5526, 5600, 6205, 6949.
+#
+# This is a blast-radius guard over cuts nobody has read, NOT a classifier:
+# length cannot tell a stub from a genuine short hadith, and this file already
+# says so about `_UNSCORABLE` for the same reason. Two of the nine it un-cuts
+# are stubs; five are genuine complete short matns whose standalone quotation
+# it costs (measured and listed in the round-5 report). The judgement calls it
+# cannot make are made by hand, one record at a time, in `_NEVER_CUT`.
+_MIN_PRIMARY = 32
+
+# Records where the cut is textually correct -- the edition really does print
+# a short primary and then a second chain -- but the primary it leaves is a
+# content-free narrative opener: it names no act, no ruling and no speech, so
+# the entire narration lives in the addendum. Scoring such a primary is the
+# `_UNSCORABLE` defect in a new costume: "the Prophet passed by a man" is an
+# everyday sentence of hadith literature, present verbatim in many narrations
+# across many collections, and answering it with EXACT 1.0 / Sahih al-Bukhari
+# 632 fabricates a citation out of a commonplace.
+#
+# The remedy is to leave the record UNCUT, not to mark it unscorable: the
+# hadith itself is perfectly quotable, and an `unscorable_reason` would take
+# its full printed text out of the corpus too. Uncut, the record has exactly
+# one representation -- the whole printed text -- which still verifies, while
+# the opener on its own no longer does.
+#
+# An AUDIT, like `_UNSCORABLE`: a closed list of records read in the source,
+# keyed to the sha256 of the uncut matn so a changed text stops the build
+# rather than inheriting a judgement made about a different string. The scan
+# that produced it is in the round-5 report -- every cut primary ranked by how
+# many tokens it holds outside the honorific frame ("the Prophet", "may God
+# bless him and grant him peace", "from", "that"). These two rank first and
+# second on all 395 with one and two content words; the third (466, "the
+# Prophet interlaced his fingers") names a specific act and was ruled genuine.
+_STUB_OPENER = ("narrative opener: the primary matn names no act, ruling or "
+                "speech of its own, the narration itself beginning in the "
+                "appended second chain")
+
+_NEVER_CUT: dict[str, tuple[str, str]] = {
+    # "The Prophet passed by a man." The man praying two rak'as after the
+    # iqama, and the Prophet's "the dawn prayer in four?", are the addendum.
+    "hadith:bukhari:632":
+        ("7ec7ade079723e6da94065206461a9c5f530cb9dc4eddcdd37f22f1af4c32908",
+         _STUB_OPENER),
+    # "The Prophet had a she-camel." Al-'Adba' being outrun, and "God raises
+    # nothing of this world without lowering it", are the addendum.
+    "hadith:bukhari:6136":
+        ("50bdf6cc60a370e998897b39f17dc707af23d4022a52e45aa33a82998d54821f",
+         _STUB_OPENER),
+}
+
 # Tokens that cannot be part of a narrator's name. Closed word classes --
 # vocatives, particles, pronouns, demonstratives, prepositions, speech verbs --
 # not a list fitted to the candidates it happens to reject.
@@ -198,14 +261,42 @@ def _attribution_start(matn: str, verb_start: int, pattern: re.Pattern[str],
     return start
 
 
-def _split_secondary(matn: str) -> tuple[str, str | None]:
+def _audited_never_cut(record_id: str, matn: str) -> bool:
+    """Is this record on the hand-read do-not-cut list, for THIS text?
+
+    Same contract as `_unscorable_reason`: the entry records a judgement about
+    one specific string, so a matn that no longer hashes to the audited one
+    stops the build instead of inheriting the judgement.
+    """
+    audited = _NEVER_CUT.get(record_id)
+    if audited is None:
+        return False
+    digest, _reason = audited
+    if hashlib.sha256(matn.encode("utf-8")).hexdigest() != digest:
+        raise ValueError(
+            f"{record_id} is on the do-not-cut audit list, but its matn is no "
+            "longer the text that was audited. The list records a judgement "
+            "about one specific string; it must not be carried over to a new "
+            "one. Read the record in the source, decide again whether the cut "
+            "leaves a quotable primary, and update or remove the entry.")
+    return True
+
+
+def _split_secondary(matn: str, record_id: str) -> tuple[str, str | None]:
     """Split a matn into (primary, addenda) at the first secondary narration.
 
     Returns (matn, None) unless the source marks a boundary. Never invents
     one: every guard below is a reason to leave the text alone, and leaving
     an addendum in the scored text is merely the bug we already had, while
     cutting one word too early destroys scripture.
+
+    The addendum is not lost to scoring by being cut away: `full_text` rejoins
+    it and the build stores the result as the record's second representation
+    (`corpus.models.RecordVariant`), so the whole printed hadith is indexed
+    too. That is what makes the guards below safe to be conservative.
     """
+    if _audited_never_cut(record_id, matn):
+        return matn, None
     for verb in _VERB.finditer(matn):
         forward = _opens_a_chain(matn[verb.end():].split())
         # The backward signal on its own still counts: "wa-qala Sa'id ibn
@@ -237,8 +328,27 @@ def _split_secondary(matn: str) -> tuple[str, str | None]:
             return matn, None
         if len(matn) - cut > _MAX_ADDENDUM:
             return matn, None
-        return matn[:cut].rstrip(), matn[cut:]
+        primary = matn[:cut].rstrip()
+        if len(primary) < _MIN_PRIMARY:
+            # A stub primary is evidence the cut is not worth making here.
+            return matn, None
+        return primary, matn[cut:]
     return matn, None
+
+
+def full_text(unit: HadithUnit) -> str:
+    """The unit's matn as the edition prints it: primary plus every addendum.
+
+    The one place the two halves of a cut are rejoined, so the build and the
+    reassembly test cannot disagree about the join. The single space is the
+    one `_split_secondary` removed with `rstrip()`; `_clean` has already
+    collapsed every whitespace run in the unit to exactly one space, so this
+    restores the source byte for byte. `test_nothing_is_lost_when_an_addendum_
+    is_cut_away` proves that against the raw file, not against the parser.
+    """
+    if unit.addenda_ar is None:
+        return unit.matn_ar
+    return f"{unit.matn_ar} {unit.addenda_ar}"
 
 
 # --- matns that are editorial apparatus, not quotable text -----------------
@@ -485,6 +595,12 @@ def parse_openiti(raw: str) -> ParsedOpeniti:
             # 5833's matn is right there in the file, in front of the
             # misplaced mark.
             isnad, matn = None, _clean(rest.replace("*", " "))
+        # The id is settled before the split, not after: the do-not-cut audit
+        # in `_split_secondary` is keyed by record id.
+        seen[number] = seen.get(number, 0) + 1
+        suffix = "" if seen[number] == 1 else f"-{seen[number]}"
+        record_id = f"hadith:bukhari:{number}{suffix}"
+
         if isnad is None:
             # No source-marked boundary anywhere in this unit, so its leading
             # chain is part of the stored matn. Every narration verb in that
@@ -493,11 +609,8 @@ def parse_openiti(raw: str) -> ParsedOpeniti:
             # text. Where the source marks nothing, nothing is cut.
             addenda = None
         else:
-            matn, addenda = _split_secondary(matn)
+            matn, addenda = _split_secondary(matn, record_id)
 
-        seen[number] = seen.get(number, 0) + 1
-        suffix = "" if seen[number] == 1 else f"-{seen[number]}"
-        record_id = f"hadith:bukhari:{number}{suffix}"
         units.append(
             HadithUnit(
                 hadith_no=number,

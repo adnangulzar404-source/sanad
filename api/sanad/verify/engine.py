@@ -70,43 +70,77 @@ def _exact_at_tier(conn: sqlite3.Connection, text: str, tier: Tier) -> list[Reco
     consider every tied candidate and prefer whichever agrees with a nearby
     reference; see `_select_by_reference`.
 
+    Both halves of the UNION are needed, and an index-only change would have
+    covered neither: this tier reads the tables DIRECTLY, and it is the tier
+    that did the damage the last time a filter was missing from it. The first
+    half is the primary representation, in `records`; the second is every
+    additional representation, in `record_variants` -- so a quotation of a
+    hadith as the edition prints it matches at the same tier, and with the
+    same verdict, as a quotation of its primary matn alone. `UNION` (not
+    `UNION ALL`) collapses a record that ties on both of its representations
+    to one row, so it can never be reported twice in `also_at`.
+
     `unscorable_reason IS NULL` excludes the records whose stored text is the
     edition's editorial apparatus rather than a narration -- see
-    `Record.unscorable_reason`. The FTS filter in `rebuild_fts` already keeps
-    them out of the fuzzy layer, but this tier reads `records` directly, and
-    it is the tier that was doing the damage: "bi-hadha" normalizes to itself
-    and tied four records exactly, verdict EXACT, score 1.0.
+    `Record.unscorable_reason` -- and is applied to both halves: "bi-hadha"
+    normalizes to itself and tied four records exactly, verdict EXACT, score
+    1.0.
     """
     needle = normalize(text, tier)
     if not needle:
         return []
+    column = _NORM_COLUMN[tier]
     rows = conn.execute(
-        f"SELECT id FROM records WHERE {_NORM_COLUMN[tier]} = ?"
-        " AND unscorable_reason IS NULL ORDER BY surah, ayah, id",
-        (needle,)).fetchall()
+        f"SELECT r.id AS id, r.surah AS surah, r.ayah AS ayah FROM records r"
+        f" WHERE r.{column} = ? AND r.unscorable_reason IS NULL"
+        " UNION "
+        "SELECT r.id, r.surah, r.ayah FROM record_variants v"
+        " JOIN records r ON r.id = v.record_id"
+        f" WHERE v.{column} = ? AND r.unscorable_reason IS NULL"
+        " ORDER BY surah, ayah, id",
+        (needle, needle)).fetchall()
     return [db.get_record(conn, row["id"]) for row in rows]
 
 
-def _best_fuzzy(conn: sqlite3.Connection, text: str) -> tuple[list[Record], float]:
+def _best_fuzzy(
+    conn: sqlite3.Connection, text: str
+) -> tuple[list[Record], float, dict[str, str]]:
     """Every fts candidate tied for the highest aggressive-tier score.
 
     Same duplicate-text concern as `_exact_at_tier`: a repeated verse can tie
     for the top fuzzy score across several of its own occurrences, and the
     caller needs all of them to prefer a reference-agreeing one.
+
+    A record may be indexed under more than one representation (primary matn
+    and full printed text -- see `corpus.models.RecordVariant`). Each is
+    scored against the text that was actually indexed, and then the record
+    keeps only its BEST-scoring representation, so one record cannot occupy
+    two places in the tie set and cannot appear in its own `also_at`.
+
+    The third return value maps record id to the representation's text that
+    scored, for `_build_diff`: diffing a full-text hit against the record's
+    primary matn would show the addendum as "corpus-only" text the quoter
+    omitted, when they quoted it exactly.
     """
     needle = normalize(text, "aggressive")
     if not needle:
-        return [], 0.0
-    best: list[Record] = []
-    best_score = 0.0
+        return [], 0.0, {}
+    best_per_record: dict[str, tuple[float, Record, str]] = {}
     for cand in db.fts_candidates(conn, needle, CANDIDATE_LIMIT):
         score = ratio(needle, cand.norm_aggressive)
-        if score > best_score:
-            best, best_score = [cand], score
-        elif score == best_score and best_score > 0.0:
-            best.append(cand)
+        previous = best_per_record.get(cand.record.id)
+        if previous is None or score > previous[0]:
+            best_per_record[cand.record.id] = (score, cand.record, cand.text_ar)
+    if not best_per_record:
+        return [], 0.0, {}
+    best_score = max(score for score, _, _ in best_per_record.values())
+    if best_score == 0.0:
+        return [], 0.0, {}
+    best = [rec for score, rec, _ in best_per_record.values() if score == best_score]
     best.sort(key=lambda r: (r.surah or 0, r.ayah or 0, r.id))
-    return best, best_score
+    texts = {rec.id: matched for score, rec, matched in best_per_record.values()
+             if score == best_score}
+    return best, best_score, texts
 
 
 def _build_diff(quoted: str, canonical: str) -> list[tuple[str, str]]:
@@ -219,12 +253,12 @@ def _match_text(
     if not include_fuzzy:
         return Verdict.NOT_FOUND, None, None, 0.0, None, []
 
-    candidates, score = _best_fuzzy(conn, text)
+    candidates, score, matched_text = _best_fuzzy(conn, text)
     if candidates and score >= NEAR_THRESHOLD:
         tier: Tier = "aggressive"
         selected, _agreed = _select_by_reference(candidates, given)
         also_at = [c.id for c in candidates if c.id != selected.id]
-        diff = _build_diff(text, selected.text_ar)
+        diff = _build_diff(text, matched_text[selected.id])
         return _TIER_VERDICT[tier], selected, tier, score, diff, also_at
 
     return Verdict.NOT_FOUND, None, None, score, None, []

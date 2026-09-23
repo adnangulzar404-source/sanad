@@ -8,12 +8,12 @@ from pathlib import Path
 
 from sanad.arabic.normalize import normalize
 from sanad.corpus import db
-from sanad.corpus.models import Record, Source
+from sanad.corpus.models import FULL_VARIANT, Record, RecordVariant, Source
 from sanad.corpus.surahs import surah_name
 
 from .fetch import fetch_source
 from .lockfile import LockedSource, load_lockfile
-from .openiti import _UNSCORABLE, ParsedOpeniti
+from .openiti import _NEVER_CUT, _UNSCORABLE, ParsedOpeniti, full_text
 from .tanzil import ParsedTanzil, ParsedTanzilXml, parser_for
 
 log = logging.getLogger(__name__)
@@ -86,17 +86,28 @@ def _reference_display(unit, occurrence: int) -> str:
     return ref
 
 
-def _hadith_records(parsed: ParsedOpeniti, locked: LockedSource) -> list[Record]:
+def _hadith_records(
+    parsed: ParsedOpeniti, locked: LockedSource
+) -> tuple[list[Record], list[RecordVariant]]:
+    """The hadith records, and the additional representations of them.
+
+    Two lists, because a record has one row in `records` and zero or one in
+    `record_variants`: a cut record is scored both as its primary matn and as
+    the full printed text, so neither an over-cut nor an under-cut costs a
+    verification. See `corpus.models.RecordVariant`.
+    """
     out: list[Record] = []
+    variants: list[RecordVariant] = []
     seen: dict[str, int] = {}
     for u in parsed.units:
         # text_ar is the PRIMARY MATN: never the isnad in front of it, never
         # the further narrations the edition appends behind it. This is the
         # whole of spec §7: similarity.ratio scores the entire stored string,
         # so a 40-character quotation weighed against a 300-character narrator
-        # chain lands near 0.13 against a 0.86 threshold. Both the chain and
-        # the addenda are stored (and displayed), just not scored -- and not
-        # indexed; see rebuild_fts.
+        # chain lands near 0.13 against a 0.86 threshold. The chain is stored
+        # and displayed but never scored; the addenda are stored, displayed,
+        # AND scored -- not as part of this string, but as the record's second
+        # representation below.
         text = u.matn_ar
         if not text.strip():
             raise BuildError(
@@ -129,6 +140,22 @@ def _hadith_records(parsed: ParsedOpeniti, locked: LockedSource) -> list[Record]
             reference_display=_reference_display(u, seen[u.hadith_no]),
         ))
 
+        # The second representation, for the records the cut actually split.
+        # Skipped where the audit says the record is not quotable at all: an
+        # unscorable_reason excludes every representation, not just the
+        # primary (`rebuild_fts` and `engine._exact_at_tier` filter on it too,
+        # so this is the third of three independent places that agree).
+        if u.addenda_ar is not None and u.unscorable_reason is None:
+            whole = full_text(u)
+            variants.append(RecordVariant(
+                record_id=u.record_id,
+                variant=FULL_VARIANT,
+                text_ar=whole,
+                norm_light=normalize(whole, "light"),
+                norm_standard=normalize(whole, "standard"),
+                norm_aggressive=normalize(whole, "aggressive"),
+            ))
+
     refs: dict[str, str] = {}
     for r in out:
         if r.reference_display in refs:
@@ -145,17 +172,19 @@ def _hadith_records(parsed: ParsedOpeniti, locked: LockedSource) -> list[Record]
     # fires on records that ARE present. `parse_openiti` emits nothing but
     # "hadith:bukhari:" ids, so this is the one ingest path the list belongs
     # to and the check needs no source-specific guard.
-    missing = sorted(set(_UNSCORABLE) - {r.id for r in out})
-    if missing:
-        raise BuildError(
-            f"{locked.id}: {', '.join(missing)} are on the unscorable audit "
-            "list but are not in the parsed corpus. Either the source no "
-            "longer carries these records -- in which case the entries must "
-            "go, and the surrounding records be read again -- or the parser "
-            "stopped producing them, which is a much worse bug. Either way "
-            "the build stops rather than ship an audit that covers less than "
-            "it says it does.")
-    return out
+    present = {r.id for r in out}
+    for list_name, audited in (("unscorable", _UNSCORABLE), ("do-not-cut", _NEVER_CUT)):
+        missing = sorted(set(audited) - present)
+        if missing:
+            raise BuildError(
+                f"{locked.id}: {', '.join(missing)} are on the {list_name} audit "
+                "list but are not in the parsed corpus. Either the source no "
+                "longer carries these records -- in which case the entries must "
+                "go, and the surrounding records be read again -- or the parser "
+                "stopped producing them, which is a much worse bug. Either way "
+                "the build stops rather than ship an audit that covers less than "
+                "it says it does.")
+    return out, variants
 
 
 _NOISE_HEADER = """# Hadith OCR noise report
@@ -260,9 +289,11 @@ def build_corpus(lockfile: Path, out_db: Path, cache_dir: Path,
         parsed = _parse(locked, raw)
         _register_source(conn, locked, parsed, today)
 
-        records = _hadith_records(parsed, locked)
+        records, variants = _hadith_records(parsed, locked)
         db.insert_records(conn, records)
-        log.info("inserted %d records from %s", len(records), locked.id)
+        db.insert_record_variants(conn, variants)
+        log.info("inserted %d records and %d further representations from %s",
+                 len(records), len(variants), locked.id)
         if noise_report is not None:
             _write_noise_report(Path(noise_report), locked, parsed, records)
 

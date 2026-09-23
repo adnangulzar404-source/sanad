@@ -16,7 +16,7 @@ from ..arabic.normalize import Tier, normalize
 from ..arabic.similarity import ratio
 from ..corpus import db
 from ..corpus.models import Record
-from .extract import Span, extract_spans
+from .extract import Span, extract_spans, minimum_chars
 from .references import (
     AnyReference,
     HadithReference,
@@ -501,7 +501,7 @@ def _is_only_a_citation(span: Span, citation_spans: list[tuple[int, int]]) -> bo
         ch for i, ch in enumerate(span.text, start=span.start)
         if not any(s <= i < e for s, e in covered)
     )
-    floor = 2 if span.kind == "wrapped" else 6  # extract_spans' own minimums
+    floor = minimum_chars(span.kind)  # extract_spans' own minimum, not a copy
     return len(normalize(remainder, "aggressive").replace(" ", "")) < floor
 
 

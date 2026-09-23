@@ -127,3 +127,89 @@ def test_an_empty_record_cannot_be_matched():
     conn = db.connect("data/sanad-quran.db")
     for quotation in ("«»", "«   »", ""):
         assert verify_spans(conn, quotation) == []
+
+
+# --- M2: one floor, asked for in one place ---------------------------------
+#
+# `engine._is_only_a_citation` asks this module's question -- "would what is
+# left still have been a span?" -- and answered it with its own copy of the
+# two numbers: `floor = 2 if span.kind == "wrapped" else 6`. Two literals in
+# two files with no way of disagreeing out loud. Lowering the extractor's
+# minimum would have left the engine deleting quotations the extractor had
+# just accepted, and nothing would have failed.
+#
+# The floors are not asserted to be 2 and 6 here. That would pin the numbers
+# without checking that either module uses them. What is asserted is that
+# both modules stop at the same character, measured by running them.
+
+def _letters(n: int) -> str:
+    """`n` Arabic letters, space-separated, built from codepoints.
+
+    Space-separated so a bare run can be made long enough for the run regex
+    (7 characters) while carrying fewer than that many LETTERS -- which is
+    what the floor counts. Codepoints rather than typed Arabic, for the
+    reason this project has learned eleven times.
+    """
+    return " ".join(chr(0x0628 + (i % 10)) for i in range(n))
+
+
+def _extractor_floor(kind: str) -> int:
+    """The fewest letters `extract_spans` will keep, found by asking it."""
+    for n in range(1, 16):
+        text = _letters(n)
+        if kind == "wrapped":
+            text = "«" + text + "»"
+        spans = [s for s in extract_spans(text) if s.kind == kind]
+        if spans:
+            return n
+    raise AssertionError(f"extract_spans never produced a {kind} span")
+
+
+def _engine_floor(kind: str) -> int:
+    """The fewest letters the engine will leave standing beside a citation."""
+    from sanad.verify.engine import _is_only_a_citation
+    from sanad.verify.extract import Span
+    for n in range(1, 16):
+        # One covered character, then the letters: the remainder the engine
+        # measures is exactly `_letters(n)`.
+        text = "x" + _letters(n)
+        span = Span(text=text, start=0, end=len(text), kind=kind)
+        if not _is_only_a_citation(span, [(0, 1)]):
+            return n
+    raise AssertionError(f"the engine discarded every {kind} span")
+
+
+@pytest.mark.parametrize("kind", ["wrapped", "arabic-run"])
+def test_the_engine_and_the_extractor_stop_at_the_same_character(kind):
+    from sanad.verify.extract import minimum_chars
+    assert _extractor_floor(kind) == minimum_chars(kind)
+    assert _engine_floor(kind) == minimum_chars(kind)
+
+
+def test_the_two_kinds_do_not_share_a_floor():
+    """Otherwise the test above would pass with one number for both, and the
+    distinction the floors exist to draw -- a reader who typed quotation
+    marks has said they are quoting; a bare run has said nothing -- would be
+    gone without a failure.
+    """
+    from sanad.verify.extract import minimum_chars
+    assert minimum_chars("wrapped") < minimum_chars("arabic-run")
+
+
+def test_every_kind_the_extractor_produces_has_a_floor():
+    from sanad.verify.extract import minimum_chars
+    text = "«" + _letters(4) + "» and " + _letters(9)
+    kinds = {s.kind for s in extract_spans(text)}
+    assert kinds == {"wrapped", "arabic-run"}, kinds
+    for kind in kinds:
+        assert minimum_chars(kind) > 0
+
+
+def test_a_kind_with_no_judgement_behind_it_is_refused():
+    """Not a default. A third span kind is a question about how much Arabic
+    makes that kind a quotation, and silently handing it the bare-run floor
+    would answer it by accident in two modules at once.
+    """
+    from sanad.verify.extract import minimum_chars
+    with pytest.raises(ValueError, match="no minimum is defined"):
+        minimum_chars("footnote")

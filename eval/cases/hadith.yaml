@@ -1,0 +1,249 @@
+# Adversarial cases for the Sahih al-Bukhari layer. Same gate as every other
+# file here: zero false verifications, no exceptions.
+#
+# A false EXACT on a hadith is worse than on an ayah. A reader who half-knows
+# the Qur'an has a memorised text to catch Sanad with; almost nobody has 7,129
+# hadith by heart, so whatever Sanad says about a narration is what the reader
+# walks away believing. Every case below is here because the behaviour it
+# describes was, at some point on this branch, wrong.
+#
+# Two standing rules for anything added to this file:
+#
+#   1. Sanad may say "this text is in Sahih al-Bukhari". It may never say, or
+#      let a case imply, "this hadith is sahih". Nothing here asserts or
+#      depends on an authenticity claim -- including the cases about texts that
+#      are absent, where the temptation is strongest.
+#   2. Every Arabic string that is meant to match the corpus was EXTRACTED
+#      from the built database, byte for byte, never typed -- eleven defects
+#      on this project came from Arabic altered in transit, one of them inside
+#      the test written to catch them. `tests/eval/test_cases.py` re-checks
+#      those bytes against the database on every run: both that the strings
+#      meant to match still match, and that the one meant to differ (a
+#      deliberate misquote) still differs. Add a case the same way.
+
+- id: hadith-famous-matn-bare
+  text: 'إنما الأعمال بالنيات وإنما لكل امرئ ما نوى فمن كانت هجرته إلى دنيا يصيبها أو إلى امرأة ينكحها فهجرته إلى ما هاجر إليه'
+  expect_verdict: EXACT
+  expect_record: hadith:bukhari:1
+  rationale: >-
+    THE CANARY for spec section 7. The single most quoted sentence in the collection,
+    quoted the way people actually quote it: the Prophet's words alone, no chain, no
+    citation. It verifies only because `text_ar` holds the matn and nothing else. Store
+    the isnad in there alongside it and this span scores about 0.41 against a 0.86 floor
+    (measured, see hadith-quoted-with-its-isnad) and the case fails the moment the
+    invariant is undone -- which is the entire reason it exists.
+- id: hadith-quoted-with-its-isnad
+  text: 'حدثنا الحميدي عبد الله بن الزبير قال حدثنا سفيان قال حدثنا يحيى بن سعيد الأنصاري قال أخبرني محمد بن إبراهيم التيمي أنه سمع علقمة بن وقاص الليثي يقول سمعت عمر بن الخطاب رضي الله عنه على المنبر قال سمعت رسول الله صلى الله عليه وسلم يقول إنما الأعمال بالنيات وإنما لكل امرئ ما نوى فمن كانت هجرته إلى دنيا يصيبها أو إلى امرأة ينكحها فهجرته إلى ما هاجر إليه'
+  expect_no_other_record: hadith:bukhari:1
+  rationale: >-
+    A realistic copy-paste from a website: the chain of transmission and the narration
+    as one unbroken run of Arabic. MEASURED, not assumed -- NOT_FOUND at aggressive-tier
+    score 0.4119, because the chain is longer than the narration and drags the
+    similarity under the floor. That is a documented Stage A limitation, and the wrong
+    way to fix it is to lower NEAR_THRESHOLD, which would buy this one match at the
+    price of false verifications across all 13,365 records.
+
+    The verdict is deliberately NOT pinned, so a later improvement that matches hadith 1
+    correctly does not fail this case. What IS pinned is the invariant that survives any
+    such improvement: whatever this does, it must not land on a DIFFERENT hadith.
+    Measured, because it is not hypothetical -- drop NEAR_THRESHOLD to 0.40 and this
+    text near-matches Sahih al-Bukhari 4783, a narration it has nothing to do with, and
+    the reader is handed a citation to go and repeat. With no `expect_verdict`, the
+    suite's zero-false-verification gate also applies to every span here, so it can
+    never quietly start reporting EXACT either.
+- id: hadith-with-quranic-quotation
+  text: 'اللهم ربنا آتنا في الدنيا حسنة وفي الآخرة حسنة وقنا عذاب النار'
+  expect_verdict: EXACT
+  expect_record: hadith:bukhari:4250
+  rationale: >-
+    The matn is one word of address followed by the supplication of Qur'an 2:201, which
+    the source marks with @QB@ / @QE@. Those markers are stripped and the words between
+    them are kept. Strip the words too and this record's stored text collapses to that
+    single opening word, and the case fails -- which is precisely the check it is here
+    to make.
+
+    It is also the adversarial half of the same thing: a hadith whose wording is almost
+    an ayah must still resolve to the hadith, under its own printed number, and must not
+    be reported as the ayah.
+- id: hadith-right-text-wrong-number
+  text: 'إنما الأعمال بالنيات وإنما لكل امرئ ما نوى فمن كانت هجرته إلى دنيا يصيبها أو إلى امرأة ينكحها فهجرته إلى ما هاجر إليه (Bukhari 4321)'
+  expect_verdict: WRONG_REFERENCE
+  expect_record: hadith:bukhari:1
+  rationale: >-
+    Genuine wording, wrong printed number. The text is byte-identical to hadith 1, so
+    the only thing wrong is the citation, and saying so is the whole point: reporting
+    EXACT here would endorse a number the reader will go on to repeat.
+- id: hadith-cited-as-quran
+  text: 'إنما الأعمال بالنيات وإنما لكل امرئ ما نوى فمن كانت هجرته إلى دنيا يصيبها أو إلى امرأة ينكحها فهجرته إلى ما هاجر إليه (2:255)'
+  expect_verdict: WRONG_REFERENCE
+  expect_record: hadith:bukhari:1
+  rationale: >-
+    A hadith attributed to the Qur'an. This returned EXACT with no complaint until
+    cross-kind citations were compared by kind FIRST: the record's `surah` and `ayah`
+    are both NULL on a hadith, so a Qur'anic citation and a hadith record used to
+    "agree" by both being nothing. Attributing the Prophet's words to the Qur'an is a
+    graver error than any wrong number and must be reported, not passed over.
+- id: ayah-cited-as-bukhari
+  text: 'قُلْ هُوَ ٱللَّهُ أَحَدٌ (Bukhari 1)'
+  expect_verdict: WRONG_REFERENCE
+  expect_record: quran:112:1
+  rationale: >-
+    The same category error in the other direction: an ayah attributed to Sahih
+    al-Bukhari. Both directions are cased because a kind check can be got right one way
+    round and wrong the other, and a suite that tested only one would not notice.
+- id: hadith-correct-citation-not-flagged-by-a-distant-one
+  text: 'The hadith «الحرب خدعة» (Bukhari 2866) is often paired with «قُلْ هُوَ ٱللَّهُ أَحَدٌ» (112:1) in sermons.'
+  expect_verdict: EXACT
+  expect_record: hadith:bukhari:2866
+  forbid_verdict: WRONG_REFERENCE
+  rationale: >-
+    The false-WRONG_REFERENCE case. Two correctly cited quotations in one sentence, each
+    beside its own citation. A hadith span used to reach past its adjacent "(Bukhari
+    2866)" and pick up the distant "(112:1)", and Sanad then told a reader their correct
+    citation was a misattribution. Telling someone their correct citation is wrong is a
+    false claim about scripture in its own right, and it is the failure mode the
+    zero-false-verification gate does NOT catch.
+
+    `forbid_verdict` covers BOTH spans: `expect_verdict` only ever looks at the first,
+    so a version of this defect that struck the ayah instead would otherwise slip
+    through.
+- id: hadith-editorial-pointer-is-not-a-text
+  text: '«بهذا»'
+  expect_verdict: NOT_FOUND
+  rationale: >-
+    THE false-EXACT case. This is not a quotation of anything -- it is the edition's own
+    back-reference, "with this", printed where a narration that appears in full
+    elsewhere would go. It is also an everyday Arabic commonplace, and it used to return
+    EXACT at score 1.0 citing Sahih al-Bukhari 1379: Sanad telling a reader that one
+    everyday word was a hadith. Seventeen records in all carry an `unscorable_reason`,
+    and all seventeen are excluded at every tier, from both halves of the exact-match
+    lookup.
+
+    Quoted with guillemets on purpose. Bare, it is under the extraction floor and yields
+    no span at all, and a case that never reaches the matcher tests nothing.
+- id: hadith-editorial-incipit-is-not-a-text
+  text: '«التمسوا»'
+  expect_verdict: NOT_FOUND
+  rationale: >-
+    The second family of unscorable record: the edition prints only the opening word,
+    "seek ye", in place of the narration. A different kind of editorial apparatus from
+    the back-reference above, excluded by the same mechanism -- so a fix that suppressed
+    only the handful of literal pointer words would pass the case above and fail this
+    one.
+- id: hadith-short-matn-verifies
+  text: 'لا توكي فيوكى عليك'
+  expect_verdict: EXACT
+  expect_record: hadith:bukhari:1366
+  rationale: >-
+    Four words, and genuinely the whole matn. Short narrations are where a conservative
+    extraction floor or an over-eager unscorable filter does its damage quietly: the
+    text is real, the reader gets NOT_FOUND, and nothing looks broken. Paired with the
+    case below, which quotes the same record the other way round.
+- id: hadith-full-printed-text-is-the-same-record
+  text: 'لا توكي فيوكى عليك حدثنا عثمان بن أبي شيبة عن عبدة وقال لا تحصي فيحصي الله عليك'
+  expect_verdict: EXACT
+  expect_record: hadith:bukhari:1366
+  rationale: >-
+    The same hadith as printed, matn plus the secondary narration the edition appends
+    after it. Those additions used to sit inside the scored text, so quoting the
+    Prophet's words alone returned NOT_FOUND for hundreds of records. 393 now carry
+    their appended material in `addenda_ar` instead, and 392 of those (all but the one
+    that is unscorable anyway) are indexed under BOTH representations. Both must resolve
+    to the same record: a reader who pastes the whole printed entry and a reader who
+    quotes the narration alone are asking about the same hadith and must not get
+    different answers.
+- id: hadith-one-word-altered
+  text: 'إنما الأعمال بالنية وإنما لكل امرئ ما نوى فمن كانت هجرته إلى دنيا يصيبها أو إلى امرأة ينكحها فهجرته إلى ما هاجر إليه'
+  expect_verdict: NEAR_MATCH
+  expect_record: hadith:bukhari:1
+  rationale: >-
+    The commonest real misquote of the most quoted hadith there is: the plural in "by
+    intentions" read as a singular. One character, and the rest byte-identical to the
+    corpus. MEASURED: aggressive-tier 0.9829, NEAR_MATCH with a diff. A score that high
+    is exactly why the tier and the verdict are coupled -- 0.98 is not a reason to call
+    something verified, and the gate here is that it never reports EXACT no matter how
+    near it gets.
+- id: hadith-outside-this-corpus
+  text: 'الطهور شطر الإيمان'
+  expect_verdict: NOT_FOUND
+  expect_scope_caveat: true
+  rationale: >-
+    A hadith that is widely transmitted and is not in Sahih al-Bukhari. Sanad has
+    nothing to say about it and must say exactly that much: this corpus is one
+    collection, absence from it establishes nothing, and Sanad does not grade. NOT_FOUND
+    here is a statement about a database, and the scope caveat is what stops a reader
+    hearing it as a statement about the narration.
+
+    Not copied from the corpus, because it is not in the corpus. Every word of it is
+    checked against the corpus vocabulary by the generator instead -- the nearest
+    available guard against a typo turning this into a case that passes for the wrong
+    reason.
+- id: hadith-in-circulation-not-in-corpus
+  text: 'اطلبوا العلم ولو بالصين'
+  expect_verdict: NOT_FOUND
+  expect_scope_caveat: true
+  rationale: >-
+    "Seek knowledge even unto China" -- endlessly repeated, and not in this corpus. The
+    point of casing it directly beside the case above is that the two must come out
+    IDENTICAL. Sanad cannot tell them apart and must not pretend to: it is a text
+    matcher with one collection in it, not a judge of authenticity. Any future change
+    that gives this case a harsher outcome than its neighbour has invented an
+    authenticity verdict Sanad has no basis for.
+- id: hadith-in-personal-ruling-question
+  text: 'Can I divorce my wife this way? إنما الأعمال بالنيات وإنما لكل امرئ ما نوى فمن كانت هجرته إلى دنيا يصيبها أو إلى امرأة ينكحها فهجرته إلى ما هاجر إليه'
+  expect_verdict: EXACT
+  expect_record: hadith:bukhari:1
+  expect_risk: PERSONAL_RULING
+  expect_handoff: true
+  rationale: >-
+    A genuine hadith wrapped in a question only a qualified human should answer. Both
+    facts are reported, and they are independent: the quotation really is verbatim
+    hadith 1, AND the request must divert.
+
+    The plan sketched this case as `expect_no_verdict: true`. That would have been false
+    -- the engine does verify the quotation, and the handoff is what governs what the
+    reader is shown -- so it is encoded as measured: EXACT, plus PERSONAL_RULING, plus
+    the handoff. Pinning a verdict that is not produced would have made the case
+    unfailable in the worst way, by describing behaviour that does not exist.
+- id: hadith-arabic-citation-picks-the-cited-occurrence
+  text: '«ثلاث من كن فيه وجد حلاوة الإيمان أن يكون الله ورسوله أحب إليه مما سواهما وأن يحب المرء لا يحبه إلا لله وأن يكره أن يعود في الكفر كما يكره أن يقذف في النار» صحيح البخاري ٦٥٤٢'
+  expect_verdict: EXACT
+  expect_record: hadith:bukhari:6542
+  rationale: >-
+    The citation written the way an Arabic-speaking reader writes it: "Sahih al-Bukhari"
+    in Arabic script, with an Arabic-Indic number. It has to resolve to the same record
+    "(Bukhari 6542)" would, or the readers most likely to cite precisely are the ones
+    Sanad serves worst.
+
+    The matn is chosen so the case CANNOT pass without the citation being parsed and
+    compared. Hadith 16 and hadith 6542 are byte-identical, so an unparsed citation
+    falls back to the first tied candidate -- hadith 16 -- and `expect_record` fails. An
+    earlier version of this case quoted a unique matn and survived a mutation that made
+    the Arabic collection name unparseable outright, because EXACT against the right
+    record is the answer with or without a citation. A case that passes whether or not
+    the feature works is not a test of the feature.
+
+    It is also the hadith form of the Ar-Rahman refrain problem: text that repeats
+    verbatim under more than one number, where the only thing that can say which one the
+    reader means is the citation they gave.
+- id: hadith-arabic-citation-disagrees
+  text: '«الحرب خدعة» صحيح البخاري ٣٤٢'
+  expect_verdict: WRONG_REFERENCE
+  expect_record: hadith:bukhari:2866
+  rationale: >-
+    Same Arabic-script citation, wrong number. Cased alongside the agreeing one because
+    a parser that merely FINDS the citation and never compares its number would pass
+    hadith-arabic-citation-agrees and fail here -- and a citation that is parsed but not
+    checked is worse than one that is not parsed at all.
+- id: hadith-arabic-citation-alone-is-not-a-quotation
+  text: 'صحيح البخاري ٣٤٢'
+  expect_no_quotation: true
+  rationale: >-
+    An Arabic-script citation is itself a run of Arabic, so this was once offered up as
+    a quotation and duly answered "not in this corpus" -- a reference, reported as an
+    unverifiable quotation, to a reader who had quoted nothing. Only people who cite in
+    Arabic ever saw it.
+
+    `expect_no_quotation` exists for this case: with no spans there is no verdict, so
+    every verdict-shaped expectation would pass vacuously and the case would be
+    incapable of failing.

@@ -78,3 +78,16 @@
     two-ayah quotation should verify -- but it is measured and pinned here on purpose
     so that when Stage B adds sliding-window multi-ayah matching, this case fails loudly
     and gets updated, instead of the gap silently persisting forever.
+- id: short-verse-taha-20-1
+  text: «طه»
+  expect_verdict: EXACT
+  expect_record: quran:20:1
+  rationale: >-
+    Two characters -- the shortest ayah in the Qur'an, and well under the six-character
+    floor `extract_spans` applies to a bare run of Arabic. It verifies only because a
+    guillemet-wrapped span has a separate floor of two. That same wrapped floor is what
+    now lets the corpus's short narrations be quoted (see hadith-short-matn-verifies and
+    hadith-editorial-pointer-is-not-a-text, which sit either side of it), so the two
+    floors are no longer a Qur'an-only concern: raising the wrapped one to match the
+    bare-run one would silently un-quote this ayah and every four-word matn at the same
+    time. Pinned on both sides of the corpus for that reason.

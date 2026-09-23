@@ -12,10 +12,24 @@ from pathlib import Path
 
 import yaml
 from sanad.corpus import db
-from sanad.verify.claims import detect_claims, route_risk
+from sanad.corpus.scope import CORPUS_SCOPE
+from sanad.verify.claims import detect_claims, requires_handoff, route_risk
 from sanad.verify.engine import Verdict, verify_spans
 
 VERIFIED = {Verdict.EXACT.value, Verdict.EXACT_ORTHOGRAPHY.value}
+
+# What `expect_scope_caveat: true` is actually asserting about the caveat that
+# accompanies a NOT_FOUND. Absence from this corpus is not evidence of
+# anything, so the caveat has to say two things or it is an accusation by
+# omission: that Sahih al-Bukhari is the ONLY collection here, and that not
+# finding a text does not make it fabricated. Both are substrings of the
+# single wording chosen in R22, so a reworded caveat that quietly drops either
+# half fails the cases that depend on it rather than passing on the strength
+# of the field merely existing.
+_SCOPE_CAVEAT_MUST_CONTAIN = (
+    "Sahih al-Bukhari",
+    "does not establish that a quotation is fabricated",
+)
 
 # Every verdict the engine can actually produce. A case whose expect_verdict
 # does not spell one of these correctly (a typo such as "EXCAT") must be
@@ -34,12 +48,52 @@ class Case:
     expect_record: str | None = None
     expect_claim: str | None = None
     expect_risk: str | None = None
+    # --- fields added for the Bukhari cases -------------------------------
+    # `expect_verdict`/`expect_record` only ever describe the FIRST span, and
+    # only the verdict/record pair. The four below exist because the hadith
+    # layer's failure modes are not expressible that way. Each is checked
+    # against every span, not just `matches[0]`.
+    #
+    # No span in the text may carry this verdict. Written for the defect where
+    # a correctly cited hadith was called a misattribution because a Qur'anic
+    # citation elsewhere in the sentence got attached to it: telling a reader
+    # their correct citation is wrong is its own false claim, and it lands on
+    # whichever span the distance bug touches -- not necessarily the first.
+    forbid_verdict: str | None = None
+    # Every span that matched something matched THIS record. The invariant for
+    # a quotation that may legitimately fail to match at all (an isnad pasted
+    # in front of its matn): whatever it does, it must not land on a DIFFERENT
+    # hadith. Stated this way it survives a future improvement that correctly
+    # matches the intended record, which pinning the measured verdict would
+    # not.
+    expect_no_other_record: str | None = None
+    # The text yields no quotation to verify at all. An Arabic-script citation
+    # is itself a run of Arabic, so "صحيح البخاري ٣٤٢" was once offered up as
+    # a quotation and answered "not in this corpus". Without this field that
+    # case is untestable: no spans means no verdict, and every expectation
+    # keyed off a verdict passes vacuously.
+    expect_no_quotation: bool | None = None
+    # `requires_handoff(route_risk(text))`. Distinct from `expect_risk`: the
+    # risk code is what the router decided, the handoff is what the reader
+    # actually gets, and it is the handoff that keeps a machine from answering
+    # a personal question.
+    expect_handoff: bool | None = None
+    # The result carries the corpus-scope caveat, and that caveat still says
+    # what it has to say -- see `_SCOPE_CAVEAT_MUST_CONTAIN`. Used by the cases
+    # where NOT_FOUND must not be readable as a verdict on the text.
+    expect_scope_caveat: bool | None = None
 
     def __post_init__(self) -> None:
-        if self.expect_verdict is not None and self.expect_verdict not in _VALID_VERDICTS:
-            raise ValueError(
-                f"case {self.id!r}: expect_verdict {self.expect_verdict!r} is not a real "
-                f"Verdict (expected one of {sorted(_VALID_VERDICTS)})")
+        # Both verdict fields are validated: an `expect_verdict` typo makes a
+        # case fail loudly, but a `forbid_verdict` typo makes it pass
+        # vacuously forever -- no real verdict can ever equal "WRONG_REFRENCE"
+        # -- which is the exact failure mode this check exists to prevent.
+        for field_name in ("expect_verdict", "forbid_verdict"):
+            value = getattr(self, field_name)
+            if value is not None and value not in _VALID_VERDICTS:
+                raise ValueError(
+                    f"case {self.id!r}: {field_name} {value!r} is not a real "
+                    f"Verdict (expected one of {sorted(_VALID_VERDICTS)})")
 
 
 @dataclass
@@ -113,6 +167,49 @@ def run_eval(conn, cases: list[Case]) -> Metrics:
             got_risk = route_risk(case.text).value
             if got_risk != case.expect_risk:
                 problems.append(f"risk: expected {case.expect_risk}, got {got_risk}")
+
+        if case.expect_handoff is not None:
+            got_handoff = requires_handoff(route_risk(case.text))
+            if got_handoff != case.expect_handoff:
+                problems.append(
+                    f"handoff: expected {case.expect_handoff}, got {got_handoff}")
+
+        if case.forbid_verdict is not None:
+            offenders = [mt.verdict.value for mt in matches
+                         if mt.verdict.value == case.forbid_verdict]
+            if offenders:
+                problems.append(
+                    f"forbidden verdict {case.forbid_verdict} produced "
+                    f"{len(offenders)}x across {len(matches)} span(s)")
+
+        if case.expect_no_other_record is not None:
+            strays = sorted({mt.record.id for mt in matches if mt.record
+                             and mt.record.id != case.expect_no_other_record})
+            if strays:
+                problems.append(
+                    f"matched a different record than {case.expect_no_other_record}: "
+                    f"{strays}")
+
+        if case.expect_no_quotation is not None:
+            got_any = bool(matches)
+            if got_any == case.expect_no_quotation:
+                problems.append(
+                    f"quotations: expected "
+                    f"{'none' if case.expect_no_quotation else 'at least one'}, got "
+                    f"{[mt.span.text for mt in matches]}")
+
+        if case.expect_scope_caveat:
+            # The caveat is what stands between "not in this corpus" and the
+            # reader hearing "not genuine". If the text DID resolve to a
+            # record there is no absence to explain and the case is
+            # mis-specified, so that is a failure too, not a silent pass.
+            if top is not None and top.record is not None:
+                problems.append(
+                    f"scope caveat: expected an unresolved quotation, got "
+                    f"{top.record.id}")
+            missing = [s for s in _SCOPE_CAVEAT_MUST_CONTAIN if s not in CORPUS_SCOPE]
+            if missing:
+                problems.append(f"scope caveat no longer states: {missing}")
 
         if problems:
             m.failures.append(f"{case.id}: " + "; ".join(problems))

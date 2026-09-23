@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import re
 import sqlite3
 from collections.abc import Iterable, Iterator
@@ -194,6 +195,64 @@ def fts_records(conn: sqlite3.Connection, query_norm: str,
         if len(seen) == limit:
             break
     return list(seen.values())
+
+
+# Every table the build writes, the columns compared, and the order they are
+# read in. `sources.retrieved_at` is the one column deliberately absent: it
+# records the day the build ran, so a rebuild on any other day would differ
+# for a reason that says nothing about the corpus. Everything else in that row
+# -- licence, attribution, upstream sha256 -- is compared.
+#
+# `records_fts` is derived from the three tables above it and is in here
+# anyway, because that derivation is where a corpus goes wrong silently: a
+# build that stores every record correctly and indexes one of them wrongly
+# puts it out of reach of every tier while every row of `records` still
+# matches. That is not hypothetical -- it is the half of the I1 fix that the
+# CI step's old records-only fingerprint could not see.
+FINGERPRINT_TABLES: tuple[tuple[str, tuple[str, ...], str], ...] = (
+    ("sources", tuple(c for c in (
+        "id", "kind", "title", "publisher", "edition", "url", "license_id",
+        "license_url", "attribution", "upstream_sha256", "modifications")),
+     "id"),
+    ("records", _RECORD_COLS, "id"),
+    ("record_variants", _VARIANT_COLS, "record_id, variant"),
+    ("translations", _TRANSLATION_COLS, "record_id, source_id"),
+    ("records_fts", ("record_id", "variant", "norm_standard",
+                     "norm_aggressive", "translation"), "record_id, variant"),
+)
+
+# Field and row separators, and a stand-in for SQL NULL. All three are control
+# characters no corpus text contains, so "abc" + NULL and "abc" + "" cannot
+# hash to the same thing -- which they would under a plain str() join.
+_FP_FIELD, _FP_ROW, _FP_NULL = "\x1f", "\x1e", "\x00"
+
+
+def corpus_fingerprint(conn: sqlite3.Connection) -> str:
+    """A content hash over everything `sanad-ingest build` writes.
+
+    CI compares this between the committed `data/sanad-quran.db` and a fresh
+    build, which is the check that stops a hand-edited corpus from shipping.
+    It is deliberately NOT the file's sha256: two byte-different SQLite files
+    can hold identical content (page layout, vacuum state, index ordering),
+    and a check that fails on those is a check people learn to ignore.
+
+    It is equally deliberately not `(id, text_ar_sha256)` over `records`,
+    which is what it used to be. That covered one of the four tables the build
+    populates and none of the columns the matcher actually compares, so the
+    I1 fix's own subject -- `record_variants` and `records_fts` -- was outside
+    it, and deleting a record's variant and index rows left the digest
+    byte-identical. See `FINGERPRINT_TABLES`.
+    """
+    digest = hashlib.sha256()
+    for table, columns, order in FINGERPRINT_TABLES:
+        digest.update(f"{_FP_ROW}table:{table}{_FP_FIELD}".encode())
+        rows = conn.execute(
+            f"SELECT {','.join(columns)} FROM {table} ORDER BY {order}")
+        for row in rows:
+            digest.update(_FP_FIELD.join(
+                _FP_NULL if v is None else str(v) for v in row).encode())
+            digest.update(_FP_ROW.encode())
+    return digest.hexdigest()
 
 
 def corpus_stats(conn: sqlite3.Connection) -> dict[str, int]:

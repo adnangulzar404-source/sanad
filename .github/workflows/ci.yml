@@ -33,28 +33,24 @@ jobs:
         #
         # The comparison is over CONTENT, not row counts: two databases with
         # the same number of records but different verse text would pass a
-        # count-only check and still be silently wrong. Hashing every
-        # (id, text_ar_sha256) pair catches that.
+        # count-only check and still be silently wrong.
+        #
+        # It is over EVERY table the build writes, not just `records`. This
+        # step used to hash `(records.id, records.text_ar_sha256)` and nothing
+        # else, so the half of the corpus that `record_variants` and
+        # `records_fts` hold was outside it: deleting a cut hadith's second
+        # representation and its index rows left the digest byte-identical
+        # while taking a real printed narration out of reach of every tier.
+        # The rule the fingerprint has to satisfy is in
+        # `corpus.db.FINGERPRINT_TABLES`, with tests, rather than in this
+        # heredoc where nothing runs it.
         run: |
           sanad-ingest build --out /tmp/rebuilt.db
           python - <<'PY'
-          import hashlib
-
           from sanad.corpus import db
 
-
-          def fingerprint(path):
-              conn = db.connect(path)
-              rows = conn.execute(
-                  "SELECT id, text_ar_sha256 FROM records ORDER BY id"
-              ).fetchall()
-              return hashlib.sha256(
-                  "".join(f"{r[0]}:{r[1]}" for r in rows).encode()
-              ).hexdigest()
-
-
-          committed = fingerprint("data/sanad-quran.db")
-          rebuilt = fingerprint("/tmp/rebuilt.db")
+          committed = db.corpus_fingerprint(db.connect("data/sanad-quran.db"))
+          rebuilt = db.corpus_fingerprint(db.connect("/tmp/rebuilt.db"))
           assert committed == rebuilt, (
               f"committed corpus differs from a fresh build: "
               f"{committed} != {rebuilt}"

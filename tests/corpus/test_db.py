@@ -332,3 +332,130 @@ def test_rebuild_fts_selects_only_the_norm_columns():
     assert "addenda_ar" not in source
     assert "isnad_ar" not in source
     assert "text_ar" not in source
+
+
+# --- the fingerprint CI compares a fresh build against -----------------------
+#
+# F5: the CI step's own fingerprint was `sha256` over `(records.id,
+# records.text_ar_sha256)`. The I1 fix changed `record_variants` and
+# `records_fts` and changed no `records` row, so deleting hadith 237's variant
+# and index rows left that fingerprint byte-identical. pytest caught the
+# mutation; the step whose whole job is to catch it did not. Its comment said
+# "the comparison is over CONTENT, not row counts", which a reader takes as
+# covering the corpus, and it covered one table.
+#
+# The fingerprint now lives here rather than inline in ci.yml, so it is code
+# with tests rather than a YAML heredoc nobody runs.
+
+
+def _rows_of(conn, table):
+    return conn.execute(f"SELECT count(*) FROM {table}").fetchone()[0]
+
+
+def test_the_fingerprint_is_stable_for_an_unchanged_database(conn):
+    assert db.corpus_fingerprint(conn) == db.corpus_fingerprint(conn)
+
+
+def test_deleting_a_variant_row_changes_the_fingerprint(tmp_path):
+    """The exact mutation the re-review used. `record_variants` holds the
+    second scorable representation of a cut hadith; losing one takes a real
+    printed narration out of the corpus and touches no `records` row."""
+    c = db.connect(tmp_path / "t.db", read_only=False)
+    db.insert_source(c, SRC)
+    db.insert_records(c, [_rec("quran:112:1", 112, 1, "قل هو الله احد")])
+    db.insert_record_variants(c, [RecordVariant(
+        record_id="quran:112:1", variant="full", text_ar="x",
+        norm_light="x", norm_standard="x", norm_aggressive="x")])
+    db.rebuild_fts(c)
+    before = db.corpus_fingerprint(c)
+    c.execute("DELETE FROM record_variants WHERE variant = 'full'")
+    c.commit()
+    assert _rows_of(c, "record_variants") == 0
+    assert db.corpus_fingerprint(c) != before
+
+
+def test_deleting_an_index_row_changes_the_fingerprint(conn):
+    """`records_fts` is derived from the other tables, which is exactly why
+    it has to be in the comparison: a build that wrote the records correctly
+    and indexed them wrongly puts them out of reach of every tier, and every
+    row of `records` still matches."""
+    before = db.corpus_fingerprint(conn)
+    conn.execute("DELETE FROM records_fts WHERE record_id = 'quran:112:1'")
+    conn.commit()
+    assert db.corpus_fingerprint(conn) != before
+
+
+def test_changing_a_norm_column_changes_the_fingerprint(conn):
+    """`text_ar_sha256` alone cannot see this: the norms are what the tiers
+    actually compare, and a normalizer change rewrites them while every
+    stored text stays byte-identical."""
+    before = db.corpus_fingerprint(conn)
+    conn.execute("UPDATE records SET norm_aggressive = norm_aggressive || 'x'"
+                 " WHERE id = 'quran:112:1'")
+    conn.commit()
+    assert db.corpus_fingerprint(conn) != before
+
+
+def test_the_retrieval_DATE_is_the_one_thing_the_fingerprint_ignores(conn):
+    """A rebuild happens on a different day from the committed build, and
+    `sources.retrieved_at` records the day. Including it would make the CI
+    step fail every day for no reason, so it is excluded -- and it is the
+    ONLY exclusion: the licence, the attribution and the upstream sha256 in
+    the same row are all compared."""
+    before = db.corpus_fingerprint(conn)
+    conn.execute("UPDATE sources SET retrieved_at = '1999-01-01'")
+    conn.commit()
+    assert db.corpus_fingerprint(conn) == before
+    conn.execute("UPDATE sources SET license_id = 'something-else'")
+    conn.commit()
+    assert db.corpus_fingerprint(conn) != before
+
+
+def test_the_fingerprint_covers_every_table_the_build_writes():
+    """The guard against this narrowing happening again. Any table declared
+    in the schema that the shipped corpus actually has rows in must be in the
+    fingerprint; a new table added to the build and not here would otherwise
+    go uncompared in silence, which is what F5 was.
+    """
+    import re
+
+    from sanad.corpus.schema import SCHEMA_SQL
+    declared = re.findall(r"CREATE (?:VIRTUAL )?TABLE IF NOT EXISTS (\w+)",
+                          SCHEMA_SQL)
+    assert len(declared) >= 6, declared
+    conn = db.connect("data/sanad-quran.db")
+    populated = {t for t in declared if _rows_of(conn, t)}
+    covered = {t for t, _cols, _order in db.FINGERPRINT_TABLES}
+    assert populated - covered == set(), populated - covered
+    assert covered - populated == set(), covered - populated
+
+
+def _one_record_db(tmp_path, name, **overrides):
+    c = db.connect(tmp_path / name, read_only=False)
+    db.insert_source(c, SRC)
+    db.insert_records(c, [replace(_rec("quran:112:1", 112, 1, "قل هو الله احد"),
+                                  **overrides)])
+    db.rebuild_fts(c)
+    return c
+
+
+def test_an_empty_column_and_an_absent_one_do_not_hash_alike(tmp_path):
+    """A record with no addendum and a record with an empty-string addendum
+    are different content, and a fingerprint that flattens both to "" would
+    call a build that lost every NULL identical to the one that kept them.
+    The stand-in for NULL is a control character no corpus text contains, so
+    it cannot be forged by the text either."""
+    absent = _one_record_db(tmp_path, "a.db", addenda_ar=None)
+    empty = _one_record_db(tmp_path, "b.db", addenda_ar="")
+    assert db.corpus_fingerprint(absent) != db.corpus_fingerprint(empty)
+
+
+def test_content_moved_across_a_column_boundary_changes_the_fingerprint(tmp_path):
+    """The field separator, pinned. Concatenating the columns without one
+    makes ("ab", "c") and ("a", "bc") the same string, so a build that wrote
+    the surah's Arabic name into its English name would hash identically."""
+    split_one = _one_record_db(tmp_path, "c.db", surah_name_ar="ab",
+                               surah_name_en="c")
+    split_two = _one_record_db(tmp_path, "d.db", surah_name_ar="a",
+                               surah_name_en="bc")
+    assert db.corpus_fingerprint(split_one) != db.corpus_fingerprint(split_two)

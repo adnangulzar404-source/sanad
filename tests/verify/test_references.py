@@ -478,3 +478,48 @@ def test_prose_with_no_citation_claims_no_spans():
     """The filter downstream keys off these spans; if everything claimed a
     span, every quotation would be discarded as a citation."""
     assert parse_citations("There is no citation in this sentence.").spans == []
+
+
+# --- leading zeros are dropped by digit VALUE, not by the character "0" ------
+#
+# `_hadith_number` scans for the first character whose `unicodedata.digit` is
+# non-zero rather than calling `digits.lstrip("0")`. The two agree on every
+# ASCII citation in this file, which is why replacing one with the other
+# passed all 80 reference tests (F3). They disagree the moment a reader pads
+# with the zero of the script they are writing in: U+0660 ARABIC-INDIC DIGIT
+# ZERO and U+06F0 EXTENDED ARABIC-INDIC DIGIT ZERO are not the character "0",
+# so `lstrip` leaves them in place, the run is seven digits long, the
+# four-digit bound rejects it, and a real citation resolves to nothing.
+#
+# Every Arabic character below is an explicit escape, never a glyph -- the
+# digits especially, since a padded run is a row of near-identical marks.
+# Name: al-bukhari (U+0627 U+0644 U+0628 U+062E U+0627 U+0631 U+064A).
+_AL_BUKHARI = "\u0627\u0644\u0628\u062E\u0627\u0631\u064A"
+# 0002866 in each script: zero, two, eight, six.
+_ARABIC_INDIC_0002866 = "\u0660\u0660\u0660\u0662\u0668\u0666\u0666"
+_EASTERN_ARABIC_0002866 = "\u06F0\u06F0\u06F0\u06F2\u06F8\u06F6\u06F6"
+
+
+@pytest.mark.parametrize("padded", [_ARABIC_INDIC_0002866,
+                                    _EASTERN_ARABIC_0002866])
+def test_a_citation_padded_with_its_own_scripts_zero_still_resolves(padded):
+    """The same citation as "Bukhari 0002866", written by someone typing in
+    Arabic. It resolves to the same hadith, and the digits the reader wrote
+    are preserved untouched in `raw`: the numeral SCRIPT is not part of the
+    text being verified, but this module still never re-spells what was
+    written.
+    """
+    text = f"{_AL_BUKHARI} {padded}"
+    refs = [r for r in parse_references(text) if isinstance(r, HadithReference)]
+    assert len(refs) == 1
+    assert refs[0].hadith_no == "2866"
+    assert padded in refs[0].raw
+
+
+def test_a_run_of_non_ascii_zeros_is_not_a_reference_to_hadith_zero():
+    """The other half of the same scan: zeros all the way down name nothing,
+    in any script. `MIN_HADITH_NO` refuses it rather than letting "Bukhari
+    ٠٠٠" resolve to a record that cannot exist.
+    """
+    for zero in ("\u0660", "\u06F0", "0"):
+        assert parse_references(f"{_AL_BUKHARI} {zero * 3}") == []

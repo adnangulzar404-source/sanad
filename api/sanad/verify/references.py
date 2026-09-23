@@ -356,7 +356,13 @@ def parse_citations(text: str) -> ParsedCitations:
 
     # Hadith citations run FIRST and claim their span so the verse-numeric
     # pass below skips text they've already consumed -- that is what makes
-    # "Bukhari 1:1" resolve as kitab 1, hadith 1, and never as surah 1, ayah 1.
+    # "Bukhari 1:1" resolve to NOTHING, and never to surah 1, ayah 1. The
+    # collection name governs the colon pair; the pair is book-relative
+    # numbering this corpus does not ship, so it is recognised and refused
+    # (see the note above `_HADITH_CITE`). Without the claim, the verse pass
+    # would read the same characters as a verse address and answer a hadith
+    # citation with an ayah. This comment said "resolves as kitab 1, hadith 1"
+    # until the refusal landed two screens below it and left it false.
     _collect_hadith_citations(_HADITH_CITE, text, refs, claimed)
     _collect_hadith_citations(_HADITH_CITE_AR, text, refs, claimed)
 

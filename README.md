@@ -48,6 +48,8 @@ Stage A — the deterministic core:
 - The full Tanzil Uthmani Qur'an — 6,236 verses — verified against a
   committed content hash at build time, plus the Pickthall English
   translation (see **Corpus and licensing** below)
+- Sahih al-Bukhari — 7,129 hadith, matn and isnad both stored, matn-only
+  matching, **no gradings shipped** (see **Corpus and licensing** below)
 - Three-tier Arabic normalization, with the matching tier reported so an
   orthographic variant is never conflated with a textual one
 - Verdicts: exact, exact-with-orthographic-variance, near match with a
@@ -56,12 +58,16 @@ Stage A — the deterministic core:
   qualified person
 - `POST /api/verify` — deterministic, no model, no API key
 - `GET /api/corpus` — the provenance manifest: sources, licences, hashes
-- An adversarial evaluation suite (33 cases) that fails CI if any misquote
+- An adversarial evaluation suite (54 cases) that fails CI if any misquote
   is reported as verified
 
-Not yet included: Hadith (no licence-cleared source yet — see
-`docs/superpowers/specs/2026-09-19-sanad-design.md` §14.1) and the Ask
-pipeline (Stage B).
+Not yet included: the Ask pipeline (Stage B).
+
+**Sanad does not grade hadith authenticity.** A `Sahih al-Bukhari <n>` result
+means the quoted text is present in that collection, nothing more. Modern
+authenticity gradings are copyrighted scholarly work and are not shipped;
+Sanad may say "this text is in Sahih al-Bukhari" and must never say or imply
+"this hadith is sahih."
 
 ## Corpus and licensing
 
@@ -88,6 +94,39 @@ translation, not just in this file:
 
 > No translation of Quran can be a hundred percent accurate, nor it can be
 > used as a replacement of the Quran text.
+
+**Hadith Arabic.** Sahih al-Bukhari, 7,129 records, from OpenITI's
+transcription of the al-Bugha 3rd edition (Dar Ibn Kathir / al-Yamama,
+Beirut, 1407/1987), file `JK000110`, pinned to OpenITI/0275AH commit
+`47dfd28db9e158c7101c7df1162d4dc99bb70303`. The legal basis is **the matn's
+own public-domain status** — al-Bukhari died in 870 CE — not a licence grant
+from OpenITI: their `0275AH` data repository carries no `LICENSE` file, and
+their organisation-wide MIT licence covers tooling, not corpus text
+(verified 2026-09-22). OpenITI's structural markup is parsed and discarded
+at ingest, so what is stored is the public-domain matn and isnad and nothing
+else; attribution to OpenITI is given as credit, not as licence compliance.
+Full reasoning, the pinned commit, and the content hash are in
+`docs/SOURCES.md` and `ingest/corpus.lock.toml`.
+
+Each hadith stores its matn (`text_ar`, scored) separately from its isnad
+(`isnad_ar`, shown for context, never scored). The 1987 edition appends
+secondary narrations after the primary matn; 393 records were cut at a
+detected secondary-narration boundary, with the removed text preserved
+verbatim in `addenda_ar`. 392 of those are indexed under *two* scored
+representations — the primary matn and the full printed text — so that
+either the intended quotation or the full printed hadith verifies, and
+neither an over-cut nor an under-cut costs a verification. 17 records whose
+matn is an editorial pointer (e.g. `بهذا`, `مثله`, `نحوه`) or a bare incipit
+are excluded from scoring (`unscorable_reason` set) but remain reachable by
+reference lookup.
+
+**Corpus totals.** 13,365 records: 6,236 ayat + 7,129 hadith. The committed
+`data/sanad-quran.db` currently hashes to
+`d1b035afa4d324907e56a50351bb0ed8cb90d73f212784942d29f58069096338`
+(whole-file SHA-256, printed by `sanad-ingest build` and re-checked by
+rebuilding from the pinned, cached sources — see **Run locally** above).
+This hash changes whenever the corpus is rebuilt with different inputs;
+treat the value printed by your own build as authoritative, not this line.
 
 ## Known limitations
 
@@ -130,11 +169,30 @@ Sanad is a tool about honesty, so it should not overstate what it does:
   orthographic variance even though the word itself changed. See
   `docs/superpowers/specs/2026-09-19-sanad-design.md` §6 for the full
   trade-off analysis.
-- **No Hadith corpus is bundled.** `NOT_FOUND` means "not present in this
-  corpus" — it never means "fabricated," and it is not a judgment on
-  whether a quotation is a genuine, licensed Hadith. See
-  `docs/superpowers/specs/2026-09-19-sanad-design.md` §14.1 for why Hadith
-  is not yet included.
+- **`NOT_FOUND` never means "fabricated."** It means "not present in this
+  corpus." A quotation can be a genuine hadith from a different collection,
+  or genuine but paraphrased, and still return `NOT_FOUND`.
+- **No hadith gradings are shipped, by design.** A match only says the text
+  is present in Sahih al-Bukhari — never that the hadith is authentic
+  (sahih). Modern gradings are copyrighted scholarly work and are not
+  Sanad's to assert.
+- **42 records (0.6% of 7,129) still hold a narration verb followed by
+  chain material inside the scored matn.** The secondary-narration cut
+  could not separate these cleanly; they still verify correctly against
+  their own printed text, but a quotation of *only* the true matn, stopping
+  exactly before the trailing narration verb, may not match.
+- **About 98 primaries carry chain residue at the end of the matn,
+  display-only.** This does not affect verification outcomes; the residue
+  is part of what a user pasting from this edition would actually see.
+- **Hadith 342 and 3164 (the Isra'/Mi'raj narration) are split
+  mid-narration**, not at a narration boundary. Both the primary matn and
+  the full printed text are indexed and verify correctly, so this costs no
+  verification, but the split itself is wrong and known to be wrong.
+- **The `MarkedText` accessibility fix is unverified against a real screen
+  reader.** Verdict-diff spans carry an `aria-label` (not just a `title`
+  attribute) so the verdict is announced rather than silently omitted. This
+  is an improvement, confirmed only by unit tests asserting the attribute is
+  present — it has not been checked against actual assistive technology.
 - **The risk router deliberately over-diverts.** Roughly 15–20% of
   ordinary, non-personal general questions are routed to a human as a
   false positive. That is the chosen direction of error for a system whose
@@ -149,6 +207,12 @@ under Creative Commons Attribution 3.0. The full copyright notice is stored
 in the corpus database and served at `GET /api/corpus`. The Pickthall
 translation is distributed by Tanzil at https://tanzil.net/trans/ on the
 basis of its own public-domain status (see **Corpus and licensing** above).
+
+Sahih al-Bukhari text transcribed by [OpenITI](https://openiti.org) from the
+al-Bugha 3rd edition (Dar Ibn Kathir / al-Yamama, Beirut, 1407/1987), file
+JK000110 in `github.com/OpenITI/0275AH`, used on the basis of the matn's own
+public-domain status (see **Corpus and licensing** above). Attribution to
+OpenITI is given as credit, not as licence compliance — see `docs/SOURCES.md`.
 
 ## Repository map
 

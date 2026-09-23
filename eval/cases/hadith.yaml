@@ -96,6 +96,7 @@
   expect_verdict: EXACT
   expect_record: hadith:bukhari:2866
   forbid_verdict: WRONG_REFERENCE
+  expect_verified_spans: 2
   rationale: >-
     The false-WRONG_REFERENCE case. Two correctly cited quotations in one sentence, each
     beside its own citation. A hadith span used to reach past its adjacent "(Bukhari
@@ -107,6 +108,14 @@
     `forbid_verdict` covers BOTH spans: `expect_verdict` only ever looks at the first,
     so a version of this defect that struck the ayah instead would otherwise slip
     through.
+
+    `expect_verified_spans: 2` is the only place in the suite that raises the
+    false-verification budget above its default, and it is a stronger statement than the
+    default would be, not a concession to it. This is the one case whose text really
+    does contain two separately verifiable quotations; saying so leaves the gate armed
+    for a THIRD. Under the old case-level gate this text had no gate at all -- expecting
+    EXACT turned it off for every span, so a fabrication sitting beside a genuine ayah
+    would have verified in silence.
 - id: hadith-editorial-pointer-is-not-a-text
   text: '«بهذا»'
   expect_verdict: NOT_FOUND

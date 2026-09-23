@@ -82,6 +82,34 @@ class Case:
     # what it has to say -- see `_SCOPE_CAVEAT_MUST_CONTAIN`. Used by the cases
     # where NOT_FOUND must not be readable as a verdict on the text.
     expect_scope_caveat: bool | None = None
+    # How many spans in this text this case LICENSES to report a verified
+    # verdict. Leave it unset unless the answer is neither 0 nor 1: see
+    # `verified_span_budget`. Set it explicitly and the case is declaring the
+    # shape of its own text, which is a stronger statement than the default,
+    # not a weaker one -- a case with a budget of 2 that grows a third
+    # verified span trips the gate.
+    expect_verified_spans: int | None = None
+
+    def verified_span_budget(self) -> int:
+        """How many verified spans this case is allowed to produce.
+
+        The gate used to be case-level: `expect_verdict not in VERIFIED and
+        any(span is verified)`. That switched the gate OFF ENTIRELY for any
+        case expecting EXACT or EXACT_ORTHOGRAPHY -- including for that case's
+        OTHER spans. A case quoting a real ayah and a fabrication, expecting
+        EXACT for the ayah, would let the fabrication verify invisibly: the
+        gate saw a case that was allowed to verify and stopped looking.
+
+        Budgeting makes it span-level. The default is deliberately the
+        tightest reading of what the case already says: 0 when the case
+        expects no verified verdict, 1 when it expects one. A case whose text
+        genuinely contains more than one verifiable quotation has to say so,
+        and then says exactly how many -- so the gate stays armed for the
+        (n+1)th span instead of going quiet for all of them.
+        """
+        if self.expect_verified_spans is not None:
+            return self.expect_verified_spans
+        return 1 if self.expect_verdict in VERIFIED else 0
 
     def __post_init__(self) -> None:
         # Both verdict fields are validated: an `expect_verdict` typo makes a
@@ -94,6 +122,16 @@ class Case:
                 raise ValueError(
                     f"case {self.id!r}: {field_name} {value!r} is not a real "
                     f"Verdict (expected one of {sorted(_VALID_VERDICTS)})")
+        # A negative budget would be silently equivalent to 0 and a non-int
+        # (True, "2", 1.5) would compare in ways nobody intended. Either is a
+        # mistake in a number that decides how many false verifications the
+        # gate tolerates, so neither is guessed at.
+        budget = self.expect_verified_spans
+        if budget is not None and (not isinstance(budget, int)
+                                   or isinstance(budget, bool) or budget < 0):
+            raise ValueError(
+                f"case {self.id!r}: expect_verified_spans must be a "
+                f"non-negative int, got {budget!r}")
 
 
 @dataclass
@@ -135,20 +173,32 @@ def run_eval(conn, cases: list[Case]) -> Metrics:
         if verdict:
             m.by_verdict[verdict] = m.by_verdict.get(verdict, 0) + 1
 
-        # The gate: a case whose expectation is not a verified verdict must
-        # never actually produce one -- in ANY span, not just the first. A
-        # false verification landing in a second or later span (e.g. a
-        # two-quotation case where only the second is the fabrication) is
-        # exactly as dangerous as one in the first, and must not be invisible
-        # to CI just because `matches[0]` happened to be clean. Per-case
-        # verdict/record assertions below stay scoped to `top` -- only this
-        # gate broadens to scan every match.
-        if case.expect_verdict not in VERIFIED and any(
-                mt.verdict.value in VERIFIED for mt in matches):
-            m.false_verifications += 1
+        # THE GATE. Counted per span against a budget, not asked as a yes/no
+        # question about the case -- see `Case.verified_span_budget`.
+        #
+        # Two earlier shapes of this check were each weaker than they looked.
+        # The first inspected only `matches[0]`, so a false verification in a
+        # later span was invisible. The second scanned every span but only
+        # for cases that expected nothing verified, so a case expecting EXACT
+        # had the gate switched off for ALL of its spans -- a real ayah plus a
+        # fabricated hadith, expecting EXACT for the ayah, would let the
+        # fabrication verify in silence. Both times the gate looked like it
+        # covered the whole text and covered part of it.
+        #
+        # Every span is counted now, and a case may only verify as many as it
+        # has declared. Per-case verdict/record assertions below stay scoped
+        # to `top`; only this gate reads every match.
+        verified = [mt.verdict.value for mt in matches if mt.verdict.value in VERIFIED]
+        budget = case.verified_span_budget()
+        if len(verified) > budget:
+            # Counted as one breach per excess span: two fabrications verifying
+            # in one case is twice the damage of one, and the headline number
+            # in CI should say so.
+            m.false_verifications += len(verified) - budget
             problems.append(
-                f"FALSE VERIFICATION: expected {case.expect_verdict}, got "
-                f"{[mt.verdict.value for mt in matches]}")
+                f"FALSE VERIFICATION: {len(verified)} span(s) verified but this case "
+                f"licenses {budget} (expect_verdict={case.expect_verdict}); all "
+                f"verdicts {[mt.verdict.value for mt in matches]}")
 
         if case.expect_verdict is not None and verdict != case.expect_verdict:
             problems.append(f"verdict: expected {case.expect_verdict}, got {verdict}")
@@ -240,7 +290,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"  FAIL {failure}", file=sys.stderr)
 
     if m.false_verifications:
-        print("\nGATE FAILED: a misquote was reported as verified.", file=sys.stderr)
+        print("\nGATE FAILED: a quotation verified that no case licensed.",
+              file=sys.stderr)
         return 1
     return 1 if m.failures else 0
 

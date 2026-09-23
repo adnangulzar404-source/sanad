@@ -299,6 +299,118 @@ def test_verified_verdicts_are_the_two_that_endorse_a_quotation():
     assert VERIFIED == {"EXACT", "EXACT_ORTHOGRAPHY"}
 
 
+def _two_verified_spans(conn) -> str:
+    """Text with two spans that both verify, built from corpus bytes."""
+    return (f"«{db.get_record(conn, 'quran:112:1').text_ar}» and "
+            f"«{db.get_record(conn, 'hadith:bukhari:2866').text_ar}»")
+
+
+def test_gate_catches_an_extra_verified_span_in_a_case_that_expects_one(conn):
+    """THE case the old gate could not see.
+
+    The gate used to ask a question about the CASE -- "does this case expect a
+    verified verdict?" -- and stop looking if the answer was yes. So a case
+    quoting a genuine ayah and something the author believed was not
+    scripture, expecting EXACT for the ayah, had no gate on its second span at
+    all: a fabrication verifying there was invisible to CI.
+
+    This case is exactly that shape. `expect_verdict: EXACT` is satisfied by
+    the first span, and the second verifies too. Under the case-level gate it
+    passed clean. Under the budget it is a false verification, because the
+    case licensed one verified span and got two.
+    """
+    case = Case(
+        id="unlicensed-second-verification",
+        text=_two_verified_spans(conn),
+        rationale="second span verifies and the case never said it could",
+        expect_verdict="EXACT",
+        expect_record="quran:112:1",
+    )
+    # Precondition, asserted rather than assumed: this case really does satisfy
+    # the OLD gate's condition for switching itself off.
+    assert case.expect_verdict in VERIFIED
+    assert case.verified_span_budget() == 1
+
+    metrics = run_eval(conn, [case])
+    assert metrics.false_verifications == 1, metrics.failures
+    assert any("FALSE VERIFICATION" in f and "licenses 1" in f
+               for f in metrics.failures), metrics.failures
+
+
+def test_a_case_may_declare_a_larger_budget_and_then_is_held_to_it(conn):
+    """The escape hatch is not a mute button.
+
+    A case whose text genuinely holds two verifiable quotations says so, and
+    passes. The same case with a third verified span would trip again -- the
+    budget arms the gate at n+1 rather than turning it off, which is the
+    whole difference between this and the old behaviour.
+    """
+    text = _two_verified_spans(conn)
+    declared = Case(id="declared", text=text, rationale="r",
+                    expect_verdict="EXACT", expect_verified_spans=2)
+    assert run_eval(conn, [declared]).false_verifications == 0
+
+    third = db.get_record(conn, "hadith:bukhari:1366").text_ar
+    grown = Case(id="grown", text=f"{text} «{third}»", rationale="r",
+                 expect_verdict="EXACT", expect_verified_spans=2)
+    metrics = run_eval(conn, [grown])
+    assert metrics.false_verifications == 1, metrics.failures
+    assert any("3 span(s) verified" in f for f in metrics.failures), metrics.failures
+
+
+def test_the_budget_counts_every_excess_span_not_just_the_first(conn):
+    """Two fabrications verifying is twice the damage of one, and the headline
+    number CI prints has to say so rather than capping at 1 per case.
+    """
+    a = db.get_record(conn, "quran:112:1").text_ar
+    b = db.get_record(conn, "hadith:bukhari:2866").text_ar
+    c = db.get_record(conn, "hadith:bukhari:1366").text_ar
+    case = Case(id="three", text=f"«{a}» «{b}» «{c}»", rationale="r",
+                expect_verdict="NOT_FOUND")
+    metrics = run_eval(conn, [case])
+    assert metrics.false_verifications == 3, metrics.failures
+
+
+def test_the_default_budget_is_the_tightest_reading_of_the_case(conn):
+    assert Case(id="a", text="t", rationale="r").verified_span_budget() == 0
+    assert Case(id="b", text="t", rationale="r",
+                expect_verdict="NOT_FOUND").verified_span_budget() == 0
+    assert Case(id="c", text="t", rationale="r",
+                expect_verdict="NEAR_MATCH").verified_span_budget() == 0
+    assert Case(id="d", text="t", rationale="r",
+                expect_verdict="WRONG_REFERENCE").verified_span_budget() == 0
+    assert Case(id="e", text="t", rationale="r",
+                expect_verdict="EXACT").verified_span_budget() == 1
+    assert Case(id="f", text="t", rationale="r",
+                expect_verdict="EXACT_ORTHOGRAPHY").verified_span_budget() == 1
+    assert Case(id="g", text="t", rationale="r",
+                expect_verdict="EXACT", expect_verified_spans=0
+                ).verified_span_budget() == 0
+
+
+def test_a_nonsense_budget_is_rejected_at_load_time():
+    """A budget is the number of false verifications the gate will tolerate.
+    Guessing at a malformed one is how a gate quietly stops gating: `True`
+    would pass `isinstance(x, int)` and mean 1, a negative would silently
+    mean 0, and "2" would blow up somewhere far from here.
+    """
+    for bad in (-1, True, "2", 1.5):
+        with pytest.raises(ValueError, match="non-negative int"):
+            Case(id="x", text="y", rationale="z", expect_verified_spans=bad)
+    Case(id="x", text="y", rationale="z", expect_verified_spans=0)
+
+
+def test_only_the_one_case_that_needs_a_budget_declares_one(cases):
+    """A creeping habit of declaring budgets would hollow the gate out one
+    case at a time, and nothing else would notice. Today exactly one case in
+    the suite has two genuinely verifiable quotations in it; if a second ever
+    earns a budget, this assertion is where someone has to look at it.
+    """
+    declared = {c.id: c.expect_verified_spans for c in cases
+                if c.expect_verified_spans is not None}
+    assert declared == {"hadith-correct-citation-not-flagged-by-a-distant-one": 2}
+
+
 def test_whole_suite_still_has_zero_false_verifications(conn, cases):
     metrics = run_eval(conn, cases)
     assert metrics.false_verifications == 0

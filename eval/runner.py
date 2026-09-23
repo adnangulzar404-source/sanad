@@ -1,7 +1,20 @@
 """Adversarial evaluation harness.
 
-False verification -- reporting a misquote as EXACT or EXACT_ORTHOGRAPHY -- is
-the one metric that gates CI. Everything else is tracked and reported.
+Two metrics gate CI, and they are the two halves of one severity class.
+
+A false VERIFICATION reports a misquote as EXACT or EXACT_ORTHOGRAPHY. A false
+MISATTRIBUTION reports WRONG_REFERENCE against a quotation whose citation was
+right, which tells a reader their correct citation is a misattribution. Both
+are Sanad asserting something false about scripture, and the second is not the
+lesser one: it is an accusation aimed at the reader.
+
+Only the first was gated until the whole-branch review, and the asymmetry was
+load-bearing rather than theoretical -- the branch shipped two false
+WRONG_REFERENCEs (a Qur'anic ayah stored as a hadith matn, and `Book N, Hadith
+M` read as an al-Bugha sequential number) while this suite reported 54/54 with
+zero false verifications throughout. A defect class that only fails CI when a
+case remembers to opt in with `forbid_verdict` is a defect class CI does not
+cover. Everything else here is tracked and reported.
 """
 from __future__ import annotations
 
@@ -17,6 +30,11 @@ from sanad.verify.claims import detect_claims, requires_handoff, route_risk
 from sanad.verify.engine import Verdict, verify_spans
 
 VERIFIED = {Verdict.EXACT.value, Verdict.EXACT_ORTHOGRAPHY.value}
+# The verdicts that accuse the READER of a misattribution rather than
+# endorsing their quotation. Kept as a set, like VERIFIED, so a future verdict
+# in the same class joins the gate by being added here rather than by every
+# case remembering it.
+MISATTRIBUTED = {Verdict.WRONG_REFERENCE.value}
 
 # What `expect_scope_caveat: true` is actually asserting about the caveat that
 # accompanies a NOT_FOUND. Absence from this corpus is not evidence of
@@ -89,6 +107,11 @@ class Case:
     # not a weaker one -- a case with a budget of 2 that grows a third
     # verified span trips the gate.
     expect_verified_spans: int | None = None
+    # The same declaration for the other half of the severity class: how many
+    # spans in this text this case LICENSES to report WRONG_REFERENCE. Same
+    # default rule, same meaning -- see `misattributed_span_budget`. Leave it
+    # unset unless the answer is neither 0 nor 1.
+    expect_misattributed_spans: int | None = None
 
     def verified_span_budget(self) -> int:
         """How many verified spans this case is allowed to produce.
@@ -111,6 +134,27 @@ class Case:
             return self.expect_verified_spans
         return 1 if self.expect_verdict in VERIFIED else 0
 
+    def misattributed_span_budget(self) -> int:
+        """How many WRONG_REFERENCE spans this case is allowed to produce.
+
+        Deliberately the exact mirror of `verified_span_budget`, down to the
+        default: 0 unless the case says it expects a misattribution, 1 if it
+        does. `forbid_verdict` stays as it is -- it is a per-case statement
+        that reads well in a rationale -- but it can no longer be the only
+        thing standing between a false accusation and a green suite, because
+        a case has to think of it. A budget applies whether anyone thought of
+        it or not.
+
+        Measured before it was adopted: across all 54 cases in the suite at
+        the time, every case's WRONG_REFERENCE span count already equalled
+        this default exactly, so the symmetric gate cost zero declarations.
+        The reviewer's worry that a blanket rule would be noisy is answered by
+        that measurement rather than by argument.
+        """
+        if self.expect_misattributed_spans is not None:
+            return self.expect_misattributed_spans
+        return 1 if self.expect_verdict in MISATTRIBUTED else 0
+
     def __post_init__(self) -> None:
         # Both verdict fields are validated: an `expect_verdict` typo makes a
         # case fail loudly, but a `forbid_verdict` typo makes it pass
@@ -126,12 +170,13 @@ class Case:
         # (True, "2", 1.5) would compare in ways nobody intended. Either is a
         # mistake in a number that decides how many false verifications the
         # gate tolerates, so neither is guessed at.
-        budget = self.expect_verified_spans
-        if budget is not None and (not isinstance(budget, int)
-                                   or isinstance(budget, bool) or budget < 0):
-            raise ValueError(
-                f"case {self.id!r}: expect_verified_spans must be a "
-                f"non-negative int, got {budget!r}")
+        for field_name in ("expect_verified_spans", "expect_misattributed_spans"):
+            budget = getattr(self, field_name)
+            if budget is not None and (not isinstance(budget, int)
+                                       or isinstance(budget, bool) or budget < 0):
+                raise ValueError(
+                    f"case {self.id!r}: {field_name} must be a "
+                    f"non-negative int, got {budget!r}")
 
 
 @dataclass
@@ -139,6 +184,7 @@ class Metrics:
     total: int = 0
     passed: int = 0
     false_verifications: int = 0
+    false_misattributions: int = 0
     failures: list[str] = field(default_factory=list)
     by_verdict: dict[str, int] = field(default_factory=dict)
 
@@ -199,6 +245,23 @@ def run_eval(conn, cases: list[Case]) -> Metrics:
                 f"FALSE VERIFICATION: {len(verified)} span(s) verified but this case "
                 f"licenses {budget} (expect_verdict={case.expect_verdict}); all "
                 f"verdicts {[mt.verdict.value for mt in matches]}")
+
+        # THE OTHER HALF OF THE GATE. Same shape, same per-span counting, for
+        # the verdict that tells a reader their citation is wrong. This is
+        # structural rather than opt-in on purpose: `forbid_verdict` already
+        # existed and both of the branch's false WRONG_REFERENCEs went past it,
+        # because no case had thought to forbid the verdict on a text nobody
+        # suspected.
+        misattributed = [mt.verdict.value for mt in matches
+                         if mt.verdict.value in MISATTRIBUTED]
+        wr_budget = case.misattributed_span_budget()
+        if len(misattributed) > wr_budget:
+            m.false_misattributions += len(misattributed) - wr_budget
+            problems.append(
+                f"FALSE MISATTRIBUTION: {len(misattributed)} span(s) reported "
+                f"WRONG_REFERENCE but this case licenses {wr_budget} "
+                f"(expect_verdict={case.expect_verdict}); all verdicts "
+                f"{[mt.verdict.value for mt in matches]}")
 
         if case.expect_verdict is not None and verdict != case.expect_verdict:
             problems.append(f"verdict: expected {case.expect_verdict}, got {verdict}")
@@ -282,6 +345,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"passed              {m.passed}")
     print(f"failed              {len(m.failures)}")
     print(f"false verifications {m.false_verifications}")
+    print(f"false misattributions {m.false_misattributions}")
     print("verdict distribution:")
     for verdict, count in sorted(m.by_verdict.items()):
         print(f"  {verdict:<20} {count}")
@@ -292,6 +356,10 @@ def main(argv: list[str] | None = None) -> int:
     if m.false_verifications:
         print("\nGATE FAILED: a quotation verified that no case licensed.",
               file=sys.stderr)
+        return 1
+    if m.false_misattributions:
+        print("\nGATE FAILED: a quotation was called a misattribution that no "
+              "case licensed.", file=sys.stderr)
         return 1
     return 1 if m.failures else 0
 

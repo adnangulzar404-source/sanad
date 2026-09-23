@@ -22,6 +22,14 @@ def test_no_false_verifications():
     assert metrics.false_verifications == 0
 
 
+def test_no_false_misattributions():
+    # The second gated metric: a WRONG_REFERENCE no case licensed. Tracked
+    # here beside its sibling because CI reads both, and because the whole
+    # point of the addition is that the two are one severity class.
+    metrics = run_eval(db.connect("data/sanad-quran.db"), load_cases(CASES))
+    assert metrics.false_misattributions == 0
+
+
 def test_a_mutation_case_is_never_verified():
     conn = db.connect("data/sanad-quran.db")
     cases = [c for c in load_cases(CASES) if c.id.startswith("mutation-")]

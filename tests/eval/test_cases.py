@@ -19,7 +19,7 @@ import pytest
 from sanad.corpus import db
 from sanad.corpus.scope import CORPUS_SCOPE
 
-from eval.runner import VERIFIED, Case, load_cases, run_eval
+from eval.runner import MISATTRIBUTED, VERIFIED, Case, load_cases, run_eval
 
 CASES = Path("eval/cases")
 DB = "data/sanad-quran.db"
@@ -394,10 +394,11 @@ def test_a_nonsense_budget_is_rejected_at_load_time():
     would pass `isinstance(x, int)` and mean 1, a negative would silently
     mean 0, and "2" would blow up somewhere far from here.
     """
-    for bad in (-1, True, "2", 1.5):
-        with pytest.raises(ValueError, match="non-negative int"):
-            Case(id="x", text="y", rationale="z", expect_verified_spans=bad)
-    Case(id="x", text="y", rationale="z", expect_verified_spans=0)
+    for field in ("expect_verified_spans", "expect_misattributed_spans"):
+        for bad in (-1, True, "2", 1.5):
+            with pytest.raises(ValueError, match="non-negative int"):
+                Case(id="x", text="y", rationale="z", **{field: bad})
+        Case(id="x", text="y", rationale="z", **{field: 0})
 
 
 def test_only_the_one_case_that_needs_a_budget_declares_one(cases):
@@ -411,7 +412,94 @@ def test_only_the_one_case_that_needs_a_budget_declares_one(cases):
     assert declared == {"hadith-correct-citation-not-flagged-by-a-distant-one": 2}
 
 
+# --- the other half of the gate: false misattributions -------------------
+
+def test_misattributed_verdicts_are_the_one_that_accuses_the_reader():
+    # The mirror of `test_verified_verdicts_are_the_two_that_endorse_a
+    # _quotation`. If a verdict is ever dropped from this set, every case in
+    # the suite that merely avoids it stops being a gate against it.
+    assert MISATTRIBUTED == {"WRONG_REFERENCE"}
+
+
+def test_gate_catches_a_wrong_reference_no_case_licensed(conn):
+    """THE case the old gate could not see, in the other direction.
+
+    This is the shape of both Criticals the whole-branch review found: a
+    correctly quoted, correctly cited text answered WRONG_REFERENCE. Neither
+    was caught, because the only cover for a false accusation was
+    `forbid_verdict`, which a case has to declare -- and nobody declares a
+    prohibition against a defect nobody suspects.
+
+    Deliberately written WITHOUT `forbid_verdict`, so it fails only if the
+    structural budget is doing the work. Its second span really is a
+    misattribution (an ayah attributed to Sahih al-Bukhari), so the case is
+    not fabricating a failure to catch.
+    """
+    matn = db.get_record(conn, "hadith:bukhari:2866").text_ar
+    ayah = db.get_record(conn, "quran:112:1").text_ar
+    case = Case(
+        id="unlicensed-misattribution",
+        text=f"«{matn}» (Bukhari 2866) and «{ayah}» (Bukhari 1)",
+        rationale="the second span is a real misattribution and nothing declares it",
+        expect_verdict="EXACT",
+        expect_record="hadith:bukhari:2866",
+    )
+    assert case.forbid_verdict is None
+    assert case.misattributed_span_budget() == 0
+
+    metrics = run_eval(conn, [case])
+    assert metrics.false_misattributions == 1, metrics.failures
+    assert any("FALSE MISATTRIBUTION" in f and "licenses 0" in f
+               for f in metrics.failures), metrics.failures
+
+
+def test_a_case_may_declare_a_misattribution_budget_and_then_is_held_to_it(conn):
+    """Same escape hatch, same refusal to be a mute button: a declared budget
+    arms the gate at n+1 rather than switching it off.
+    """
+    matn = db.get_record(conn, "hadith:bukhari:2866").text_ar
+    ayah = db.get_record(conn, "quran:112:1").text_ar
+    one = f"«{ayah}» (Bukhari 1)"
+    two = f"{one} and «{matn}» (2:255)"
+    declared = Case(id="declared-wr", text=two, rationale="r",
+                    expect_verdict="WRONG_REFERENCE",
+                    expect_misattributed_spans=2)
+    assert run_eval(conn, [declared]).false_misattributions == 0
+
+    third = db.get_record(conn, "hadith:bukhari:1366").text_ar
+    grown = Case(id="grown-wr", text=f"{two} and «{third}» (2:255)", rationale="r",
+                 expect_verdict="WRONG_REFERENCE", expect_misattributed_spans=2)
+    metrics = run_eval(conn, [grown])
+    assert metrics.false_misattributions == 1, metrics.failures
+    assert any("3 span(s) reported WRONG_REFERENCE" in f
+               for f in metrics.failures), metrics.failures
+
+
+def test_the_default_misattribution_budget_is_the_tightest_reading_of_the_case():
+    assert Case(id="a", text="t", rationale="r").misattributed_span_budget() == 0
+    for verdict in ("EXACT", "EXACT_ORTHOGRAPHY", "NEAR_MATCH", "NOT_FOUND"):
+        assert Case(id="b", text="t", rationale="r",
+                    expect_verdict=verdict).misattributed_span_budget() == 0
+    assert Case(id="c", text="t", rationale="r",
+                expect_verdict="WRONG_REFERENCE").misattributed_span_budget() == 1
+    assert Case(id="d", text="t", rationale="r", expect_verdict="WRONG_REFERENCE",
+                expect_misattributed_spans=0).misattributed_span_budget() == 0
+
+
+def test_no_case_needs_a_misattribution_budget(cases):
+    """Measured when the gate was added: every one of the 54 cases then in the
+    suite already produced exactly the default number of WRONG_REFERENCE
+    spans, so the symmetric gate cost no declarations at all. If a case ever
+    earns one, this is where someone has to look at whether the text really
+    holds two separate misattributions or the engine has grown a new one.
+    """
+    declared = {c.id: c.expect_misattributed_spans for c in cases
+                if c.expect_misattributed_spans is not None}
+    assert declared == {}
+
+
 def test_whole_suite_still_has_zero_false_verifications(conn, cases):
     metrics = run_eval(conn, cases)
     assert metrics.false_verifications == 0
+    assert metrics.false_misattributions == 0
     assert metrics.failures == []

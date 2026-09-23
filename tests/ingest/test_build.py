@@ -577,7 +577,7 @@ def test_duplicate_reference_display_aborts_the_build():
 # --- fix round 1: secondary narrations are stored, not scored --------------
 
 def test_the_appended_narrations_are_stored_but_never_scored(real_corpus):
-    """393 records carry an addendum. It is in the row and out of THAT score.
+    """392 records carry an addendum. It is in the row and out of THAT score.
 
     hadith 22 is one of the three boundaries named in the fix brief: the
     primary matn ends at "...as the seed grows beside a stream", and a second
@@ -593,7 +593,7 @@ def test_the_appended_narrations_are_stored_but_never_scored(real_corpus):
     conn = db.connect(out)
     n = conn.execute(
         "SELECT count(*) FROM records WHERE addenda_ar IS NOT NULL").fetchone()[0]
-    assert n == 393
+    assert n == 392
     rec = db.get_record(conn, "hadith:bukhari:22")
     assert rec.addenda_ar and _HADDATHANA in rec.addenda_ar
     assert _HADDATHANA not in rec.text_ar
@@ -605,16 +605,16 @@ def test_the_appended_narrations_are_stored_but_never_scored(real_corpus):
 
 
 def test_no_addendum_reaches_the_primary_representation(real_corpus):
-    """Exhaustive over all 393, in both the stored and the indexed text.
+    """Exhaustive over all 392, in both the stored and the indexed text.
 
     The other half of the guarantee is
     test_fts_indexes_the_record_norms_and_nothing_else, which pins each index
     row to the column it claims to index. Together: the addendum is not in the
     primary's norms, and the primary index row is nothing but those norms.
 
-    392, not 393: hadith 237 both carries an addendum and is on the
+    391, not 392: hadith 237 both carries an addendum and is on the
     unscorable audit list (its matn is a "bayna" clause ending at the
-    chain-transfer mark), so it has no index row at all. The two counts are
+    chain-transfer mark), so its PRIMARY has no index row. The two counts are
     asserted separately rather than relaxed into one, so that a record
     silently falling out of the index cannot hide inside this total.
     """
@@ -628,7 +628,7 @@ def test_no_addendum_reaches_the_primary_representation(real_corpus):
         "       f.norm_aggressive FROM records r"
         " JOIN records_fts f ON f.record_id = r.id AND f.variant = 'primary'"
         " WHERE r.addenda_ar IS NOT NULL").fetchall()
-    assert len(rows) == 392
+    assert len(rows) == 391
     for row in rows:
         assert row["addenda_ar"] not in row["text_ar"], row["id"]
         for form in ("standard", "aggressive"):
@@ -654,7 +654,7 @@ def test_the_full_printed_text_is_scored_alongside_the_primary(real_corpus):
         "       v.norm_aggressive FROM records r"
         " LEFT JOIN record_variants v ON v.record_id = r.id"
         " WHERE r.addenda_ar IS NOT NULL").fetchall()
-    assert len(rows) == 393
+    assert len(rows) == 392
     checked = 0
     for row in rows:
         if row["unscorable_reason"]:
@@ -665,7 +665,7 @@ def test_the_full_printed_text_is_scored_alongside_the_primary(real_corpus):
         for form in ("light", "standard", "aggressive"):
             assert row[f"norm_{form}"] == normalize(row["whole"], form), row["id"]
         checked += 1
-    assert checked == 392
+    assert checked == 391
 
 
 def test_a_record_with_no_addendum_has_no_second_representation(real_corpus):
@@ -856,3 +856,147 @@ def test_a_missing_do_not_cut_record_aborts_the_build():
         content_sha256="0" * 64, modifications="none", expected_records=len(ids))
     with pytest.raises(BuildError, match="hadith:bukhari:632"):
         _hadith_records(parsed, locked)
+
+
+# --- C1: a hadith representation may not be wholly Qur'anic -----------------
+#
+# Record 4575's cut left a primary matn that was verbatim Qur'an 53:9-10, so
+# those two verses returned EXACT / Sahih al-Bukhari 4575, and the same verses
+# cited "(53:9)" returned WRONG_REFERENCE. `_NEVER_CUT` corrects that one
+# record; the build-time invariant is what closes the class.
+#
+# The unit tests below use Latin placeholder "verses" on purpose. What is
+# being tested is the containment rule -- token boundaries, one surah at a
+# time, primaries and variants alike -- and that rule is script-agnostic,
+# while an Arabic literal typed into a test file is the single most reliable
+# source of defects on this project. The Arabic half is tested where the
+# Arabic actually lives: over every scorable representation of the shipped
+# corpus, in tests/ingest/test_real_corpus.py.
+
+
+def _quran_db(tmp_path, verses):
+    """A database holding nothing but the given ayat."""
+    from sanad.corpus.models import Record
+    conn = db.connect(tmp_path / "q.db", read_only=False)
+    db.insert_records(conn, [
+        Record(id=f"quran:{s}:{a}", source_id="s", kind="ayah", surah=s, ayah=a,
+               text_ar=t, text_ar_sha256="0" * 64,
+               norm_light=normalize(t, "light"),
+               norm_standard=normalize(t, "standard"),
+               norm_aggressive=normalize(t, "aggressive"),
+               reference_display=f"S {s}:{a}")
+        for s, a, t in verses])
+    return conn
+
+
+def _hadith(text, *, record_id="hadith:bukhari:1", unscorable_reason=None):
+    from sanad.corpus.models import Record
+    return Record(id=record_id, source_id="s", kind="hadith", collection="bukhari",
+                  hadith_no="1", numbering_scheme="bugha-1987", text_ar=text,
+                  unscorable_reason=unscorable_reason, text_ar_sha256="0" * 64,
+                  norm_light=normalize(text, "light"),
+                  norm_standard=normalize(text, "standard"),
+                  norm_aggressive=normalize(text, "aggressive"),
+                  reference_display="Sahih al-Bukhari 1")
+
+
+def _variant(text, record_id="hadith:bukhari:1"):
+    from sanad.corpus.models import FULL_VARIANT, RecordVariant
+    return RecordVariant(record_id=record_id, variant=FULL_VARIANT, text_ar=text,
+                         norm_light=normalize(text, "light"),
+                         norm_standard=normalize(text, "standard"),
+                         norm_aggressive=normalize(text, "aggressive"))
+
+
+def _locked_hadith():
+    from sanad_ingest.lockfile import LockedSource
+    return LockedSource(
+        id="x", kind="hadith-arabic", format="openiti-markdown", title="X",
+        url="https://example.invalid/x", license_id="public-domain",
+        content_sha256="0" * 64, modifications="none", expected_records=1)
+
+
+def test_a_wholly_quranic_primary_aborts_the_build(tmp_path):
+    from sanad_ingest.build import BuildError, _reject_wholly_quranic_representations
+    conn = _quran_db(tmp_path, [(53, 9, "alpha beta gamma"), (53, 10, "delta epsilon")])
+    with pytest.raises(BuildError, match="wholly a quotation of the Qur'an"):
+        _reject_wholly_quranic_representations(
+            conn, _locked_hadith(), [_hadith("beta gamma delta")], [])
+
+
+def test_a_wholly_quranic_full_text_aborts_the_build_too(tmp_path):
+    """The variant is checked, not just the primary.
+
+    4575 was caught on its primary, but a cut can leave scripture on either
+    side of itself, and a check that read only `records` would ship the other
+    half. This is the same lesson as `_exact_at_tier`: the last false EXACT on
+    this branch came from a filter applied to one representation and not the
+    other.
+    """
+    from sanad_ingest.build import BuildError, _reject_wholly_quranic_representations
+    conn = _quran_db(tmp_path, [(53, 9, "alpha beta gamma")])
+    with pytest.raises(BuildError, match=r"\(full\)"):
+        _reject_wholly_quranic_representations(
+            conn, _locked_hadith(), [_hadith("a narration")], [_variant("alpha beta")])
+
+
+def test_a_hadith_that_merely_contains_an_ayah_is_not_rejected(tmp_path):
+    """The invariant is WHOLLY, and it has to be.
+
+    Hadith 4250 is one word of address followed by the supplication of Qur'an
+    2:201, and hundreds of narrations quote scripture. Rejecting those would
+    empty the corpus of some of its most quoted records; the defect is a matn
+    that is nothing BUT an ayah.
+    """
+    from sanad_ingest.build import _reject_wholly_quranic_representations
+    conn = _quran_db(tmp_path, [(2, 201, "alpha beta gamma")])
+    _reject_wholly_quranic_representations(
+        conn, _locked_hadith(), [_hadith("he said alpha beta gamma and departed")], [])
+
+
+def test_the_containment_check_falls_on_token_boundaries(tmp_path):
+    """"eta" inside "beta" is not a quotation of anything."""
+    from sanad_ingest.build import _reject_wholly_quranic_representations
+    conn = _quran_db(tmp_path, [(1, 1, "alpha beta gamma")])
+    _reject_wholly_quranic_representations(
+        conn, _locked_hadith(), [_hadith("eta gamm")], [])
+
+
+def test_text_spanning_two_surahs_is_not_a_quranic_quotation(tmp_path):
+    """A string that only appears by reading the end of one surah into the
+    start of the next is not a quotation the reader could have made. 4575's
+    matn was two ayat of ONE surah joined, which is why the per-surah blob is
+    the right unit -- and why the existing ayah-by-ayah sweep missed it.
+    """
+    from sanad_ingest.build import _reject_wholly_quranic_representations
+    conn = _quran_db(tmp_path, [(1, 1, "alpha beta"), (2, 1, "gamma delta")])
+    # within one surah: rejected
+    with pytest.raises(Exception, match="wholly a quotation"):
+        _reject_wholly_quranic_representations(
+            conn, _locked_hadith(), [_hadith("alpha beta")], [])
+    # across the join: allowed
+    _reject_wholly_quranic_representations(
+        conn, _locked_hadith(), [_hadith("beta gamma")], [])
+
+
+def test_an_unscorable_primary_is_not_subject_to_the_invariant(tmp_path):
+    """A record that cannot be matched cannot make a false claim. The check
+    follows scorability rather than existence, so it stays an assertion about
+    what the index can answer with."""
+    from sanad_ingest.build import _reject_wholly_quranic_representations
+    conn = _quran_db(tmp_path, [(1, 1, "alpha beta")])
+    _reject_wholly_quranic_representations(
+        conn, _locked_hadith(),
+        [_hadith("alpha beta", unscorable_reason="editorial pointer")], [])
+
+
+def test_the_invariant_refuses_to_pass_vacuously(tmp_path):
+    """With no Qur'an in the database yet there is nothing to compare against,
+    and a silent pass would be a check that never ran. Pass ordering in
+    `build_corpus` is what guarantees the ayat are there; this is what would
+    notice if that ever changed."""
+    from sanad_ingest.build import BuildError, _reject_wholly_quranic_representations
+    conn = _quran_db(tmp_path, [])
+    with pytest.raises(BuildError, match="pass vacuously"):
+        _reject_wholly_quranic_representations(
+            conn, _locked_hadith(), [_hadith("alpha beta")], [])

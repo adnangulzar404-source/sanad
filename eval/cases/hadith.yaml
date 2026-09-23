@@ -155,7 +155,7 @@
   rationale: >-
     The same hadith as printed, matn plus the secondary narration the edition appends
     after it. Those additions used to sit inside the scored text, so quoting the
-    Prophet's words alone returned NOT_FOUND for hundreds of records. 393 now carry
+    Prophet's words alone returned NOT_FOUND for hundreds of records. 392 now carry
     their appended material in `addenda_ar` instead, and 392 of those (all but the one
     that is unscorable anyway) are indexed under BOTH representations. Both must resolve
     to the same record: a reader who pastes the whole printed entry and a reader who
@@ -297,3 +297,46 @@
     hadith beside it was called a misattribution. The number is out of range and must
     resolve to nothing -- the same trade-off the module states for every other citation
     form, where a miss costs a downgrade and noise costs a false accusation.
+
+# --- a hadith record whose scored text was scripture ------------------------
+#
+# 4575's cut left a primary matn that was verbatim Qur'an 53:9-10, so Sanad
+# stamped "Sahih al-Bukhari 4575" on two verses of the Qur'an and told a
+# reader who cited them correctly that their reference was wrong. Both
+# directions are cased, because the fix has to hold in both.
+- id: quran-ayat-are-not-a-bukhari-hadith
+  text: '«فَكَانَ قَابَ قَوْسَيْنِ أَوْ أَدْنَىٰ فَأَوْحَىٰٓ إِلَىٰ عَبْدِهِۦ مَآ أَوْحَىٰ»'
+  expect_no_other_record: quran:53:9
+  forbid_verdict: WRONG_REFERENCE
+  rationale: >-
+    Qur'an 53:9 and 53:10, joined, exactly as this corpus stores them. This returned
+    EXACT 1.0 against Sahih al-Bukhari 4575 with an empty `also_at`, so the ayat were not
+    even disclosed as alternatives: a category error about scripture, and the gravest
+    misattribution this product can make.
+
+    The verdict is deliberately not pinned. Sanad matches one record at a time and two
+    joined ayat are two records, so the measured answer today is NOT_FOUND at 0.57 --
+    a known Stage A limitation, not the thing this case is about. What is pinned is what
+    survives any improvement to that: whatever this text does, it must not resolve to a
+    hadith, and with no `expect_verdict` the zero-false-verification gate holds every
+    span here to a budget of nothing.
+- id: quran-ayat-cited-correctly-are-not-a-wrong-reference
+  text: '«فَكَانَ قَابَ قَوْسَيْنِ أَوْ أَدْنَىٰ فَأَوْحَىٰٓ إِلَىٰ عَبْدِهِۦ مَآ أَوْحَىٰ» (53:9)'
+  expect_no_other_record: quran:53:9
+  forbid_verdict: WRONG_REFERENCE
+  rationale: >-
+    The same two verses, cited. This answered WRONG_REFERENCE against Sahih al-Bukhari
+    4575 -- a reader who quotes the Qur'an and cites it correctly, told they had
+    misattributed it. A false WRONG_REFERENCE is the same severity class as a false
+    EXACT, and this is the case the eval gate was extended to see: it fails on the
+    gate's own count, not only on the prohibition this case also declares.
+- id: hadith-quranic-primary-verifies-as-printed
+  text: '«فكان قاب قوسين أو أدنى فأوحى إلى عبده ما أوحى قال حدثنا بن مسعود أنه رأى جبريل له ستمائة جناح»'
+  expect_verdict: EXACT
+  expect_record: hadith:bukhari:4575
+  rationale: >-
+    The other half of the fix. 4575 is left uncut, so its one representation is the whole
+    printed hadith -- the ayah the chapter comments on, followed by Ibn Mas'ud's report
+    that the Prophet saw Gabriel with six hundred wings, which is what makes the unit a
+    narration. Removing a false claim must not remove a record, and this is the case that
+    would notice if the remedy had been an `unscorable_reason` instead.

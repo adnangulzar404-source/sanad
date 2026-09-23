@@ -165,7 +165,7 @@ def test_the_isra_miraj_verifies_both_as_matn_and_as_printed():
 
 
 def test_the_full_printed_text_of_every_cut_record_verifies():
-    """The corpus-wide form of the test above: all 392 of them.
+    """The corpus-wide form of the test above: all 391 of them.
 
     A sample cannot show this. The defect it guards against is one record
     somewhere in the corpus whose full text is unreachable, which is exactly
@@ -184,7 +184,7 @@ def test_the_full_printed_text_of_every_cut_record_verifies():
     rows = conn.execute(
         "SELECT id, text_ar, addenda_ar FROM records"
         " WHERE addenda_ar IS NOT NULL AND unscorable_reason IS NULL").fetchall()
-    assert len(rows) == 392
+    assert len(rows) == 391
     failures = []
     for row in rows:
         for quoted in (row["text_ar"], row["text_ar"] + " " + row["addenda_ar"]):
@@ -289,3 +289,110 @@ def test_the_index_holds_one_row_per_scorable_representation():
     variants = conn.execute("SELECT count(*) FROM record_variants").fetchone()[0]
     indexed = conn.execute("SELECT count(*) FROM records_fts").fetchone()[0]
     assert (scorable, variants, indexed) == (13348, 392, 13740)
+
+
+# --- C1: nothing scorable as a hadith is wholly a Qur'anic quotation --------
+
+
+def _quran_blobs(conn) -> list[str]:
+    """Each surah as one space-joined standard-tier string, space-padded.
+
+    Per surah, because that is what "a Qur'anic quotation" means: a reader
+    can quote consecutive ayat, and cannot quote across the end of one surah
+    into the start of another. Space-padded so a match falls on token
+    boundaries. This is deliberately written out again here rather than
+    imported from the ingest package, so the test and the build-time
+    invariant are two independent statements of the same rule -- a mistake in
+    one does not silently license the other.
+    """
+    by_surah: dict[int, list[str]] = {}
+    for row in conn.execute("SELECT surah, norm_standard FROM records"
+                            " WHERE kind = 'ayah' ORDER BY surah, ayah"):
+        by_surah.setdefault(row["surah"], []).append(row["norm_standard"])
+    return [f" {' '.join(v)} " for v in by_surah.values()]
+
+
+def test_no_scorable_hadith_representation_is_wholly_quranic():
+    """Every scorable representation, swept -- not the one record that failed.
+
+    `hadith:bukhari:4575`'s cut left a primary matn that was verbatim Qur'an
+    53:9-10, so those two verses returned EXACT / Sahih al-Bukhari 4575, and
+    the same verses cited "(53:9)" returned WRONG_REFERENCE: scripture
+    attributed to a hadith collection, and a correctly citing reader told they
+    had misattributed it.
+
+    The existing cross-kind sweep could not see it. It compared ayah rows
+    against hadith rows for an exact tie, and 4575's matn was two ayat JOINED,
+    which no single ayah row can equal. Asserting the one record would have
+    left the class exactly as open; the sweep is the assertion.
+
+    Measured here and independently by the reviewer: exactly one of the 7,504
+    scorable representations was wholly Qur'anic, and it is the record now on
+    the do-not-cut audit. The expected answer is zero.
+    """
+    conn = db.connect(DB_PATH)
+    blobs = _quran_blobs(conn)
+    assert len(blobs) == 114, "the Qur'an is not in this database"
+    reps = [(r["id"], "primary", r["norm_standard"]) for r in conn.execute(
+        "SELECT id, norm_standard FROM records"
+        " WHERE kind = 'hadith' AND unscorable_reason IS NULL")]
+    reps += [(r["record_id"], r["variant"], r["norm_standard"]) for r in conn.execute(
+        "SELECT v.record_id, v.variant, v.norm_standard FROM record_variants v"
+        " JOIN records r ON r.id = v.record_id")]
+    assert len(reps) == 7504, "the sweep stopped covering what it was written for"
+    offenders = [(rid, variant) for rid, variant, norm in reps
+                 if norm.strip() and any(f" {norm} " in b for b in blobs)]
+    assert offenders == []
+
+
+def test_the_sweep_can_actually_find_something():
+    """The sweep above asserts an empty list, which is the shape of assertion
+    that passes when its own machinery is broken. The same containment test,
+    pointed at a string that IS wholly Qur'anic -- Qur'an 53:9 and 53:10
+    joined, read out of the database rather than typed -- must find it.
+    """
+    conn = db.connect(DB_PATH)
+    blobs = _quran_blobs(conn)
+    joined = " ".join(
+        r["norm_standard"] for r in conn.execute(
+            "SELECT norm_standard FROM records WHERE id IN"
+            " ('quran:53:9', 'quran:53:10') ORDER BY ayah"))
+    assert any(f" {joined} " in b for b in blobs)
+
+
+def test_the_corrected_record_is_still_verifiable_as_printed():
+    """4575 is uncut, so its one representation is the whole printed hadith --
+    the ayah and the narration about it -- and that still verifies as the
+    hadith it is. The fix removes a false claim; it must not remove a record.
+    """
+    from sanad.verify.engine import Verdict, verify_spans
+    conn = db.connect(DB_PATH)
+    rec = db.get_record(conn, "hadith:bukhari:4575")
+    assert rec.addenda_ar is None
+    assert rec.unscorable_reason is None
+    m = verify_spans(conn, f"«{rec.text_ar}»")
+    assert len(m) == 1
+    assert m[0].verdict is Verdict.EXACT
+    assert m[0].record.id == "hadith:bukhari:4575"
+
+
+def test_the_ayat_that_were_answered_as_a_hadith_are_not():
+    """The reader's side of the same fact, at both tiers that can verify.
+
+    Qur'an 53:9-10 quoted as the corpus stores them (diacritics and all), and
+    the same two verses with their diacritics stripped -- which is exactly the
+    undiacritized form the edition printed and the form the false EXACT came
+    back on. Neither may resolve to a hadith, and neither may be called a
+    wrong reference when cited as the Qur'an.
+    """
+    from sanad.arabic.normalize import normalize
+    from sanad.verify.engine import Verdict, verify_spans
+    conn = db.connect(DB_PATH)
+    rows = [db.get_record(conn, f"quran:53:{a}") for a in (9, 10)]
+    verbatim = " ".join(r.text_ar for r in rows)
+    undiacritized = " ".join(normalize(r.text_ar, "standard") for r in rows)
+    for quoted in (verbatim, undiacritized):
+        for text in (f"«{quoted}»", f"«{quoted}» (53:9)"):
+            for m in verify_spans(conn, text):
+                assert m.record is None or m.record.kind != "hadith", text
+                assert m.verdict is not Verdict.WRONG_REFERENCE, text

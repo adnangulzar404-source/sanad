@@ -16,7 +16,7 @@ FULL = Path("/tmp/bukhari.txt")   # the real download; see Task 2 Step 1
 
 # sha256 of the sorted, comma-joined ids of every record the secondary-narration
 # rule cuts. Measured, not chosen; see test_exactly_the_measured_records_are_cut.
-_CUT_ID_DIGEST = "5716cbac7593d0b52c4dfbf98b72baf156cc7fe69e68db0bcf30bed81e09b809"
+_CUT_ID_DIGEST = "9ab1428bd9299eaa9b6354cbf6f650589a74a790b41071085c0f0c01e9fbaae3"
 
 
 @pytest.fixture(scope="module")
@@ -375,7 +375,11 @@ def test_nothing_is_lost_when_an_addendum_is_cut_away(full):
             continue
         assert full_text(u) == _raw_matn(raw, u.hadith_no), u.record_id
         checked += 1
-    assert checked == 392
+    # 391, not 392: 4575 left the cut set for the do-not-cut audit, so its
+    # whole printed matn is now the primary and there is nothing to rejoin.
+    # It is checked against the raw source by
+    # test_the_quranic_primary_is_never_cut instead.
+    assert checked == 391
     assert [u.record_id for u in suffixed] == ["hadith:bukhari:4537-2"]
     # The one repeat, against the SECOND printed occurrence of its number.
     second = raw[raw.index("\n# 4537 ") + 1:]
@@ -388,14 +392,14 @@ def test_full_text_of_an_uncut_unit_is_its_matn(full):
     second copy of anything on the 6,736 units the rule never touched."""
     from sanad_ingest.openiti import full_text
     uncut = [u for u in full.units if u.addenda_ar is None]
-    assert len(uncut) == 6736
+    assert len(uncut) == 6737   # 6736 + hadith 4575, newly on the audit list
     for u in uncut:
         assert full_text(u) == u.matn_ar, u.record_id
 
 
 @pytest.mark.skipif(not FULL.exists(), reason="full download not present")
 def test_exactly_the_measured_records_are_cut(full):
-    """393 cuts, pinned by count and by the exact set of record ids.
+    """392 cuts, pinned by count and by the exact set of record ids.
 
     The detection rule leans on a closed list of Arabic tokens that cannot be
     a narrator's name. A single mistyped codepoint in that list would silently
@@ -408,7 +412,10 @@ def test_exactly_the_measured_records_are_cut(full):
         if x.addenda_ar is not None)).encode()).hexdigest())"
     """
     cut = sorted(u.record_id for u in full.units if u.addenda_ar is not None)
-    assert len(cut) == 393
+    # 392, not the 393 of earlier rounds: 4575 joined the do-not-cut audit,
+    # because the cut left a primary matn that was verbatim Qur'an 53:9-10.
+    assert len(cut) == 392
+    assert "hadith:bukhari:4575" not in cut
     digest = hashlib.sha256(",".join(cut).encode("utf-8")).hexdigest()
     assert digest == _CUT_ID_DIGEST
 
@@ -876,3 +883,33 @@ def test_the_do_not_cut_list_only_binds_the_records_it_names():
     primary, addenda = _split_secondary(f"{body} {tail}", "hadith:bukhari:999999")
     assert primary == body
     assert addenda == tail
+
+
+@pytest.mark.skipif(not FULL.exists(), reason="full download not present")
+def test_the_quranic_primary_is_never_cut(full):
+    """4575 keeps all of its text, so its only representation is the whole
+    printed hadith.
+
+    The unit sits under the bab "fa-kana qaba qawsayni aw adna" and prints the
+    ayah the chapter comments on and then the narration about it. The cut
+    fires at the second chain -- a defensible boundary -- and left a primary
+    matn that was nothing but Qur'an 53:9-10, which Sanad then answered with
+    "Sahih al-Bukhari 4575" and, when the reader cited "(53:9)", with
+    "Wrong reference".
+
+    Uncut, and NOT marked unscorable: the printed hadith is perfectly
+    quotable, and an unscorable_reason would take it out of the corpus
+    entirely.
+
+    The assertion that the narration is present is made on the raw source
+    rather than on a typed Arabic literal: the addendum the old cut removed is
+    read out of the file, and must now be inside the matn.
+    """
+    by_id = {u.record_id: u for u in full.units}
+    u = by_id["hadith:bukhari:4575"]
+    assert u.addenda_ar is None
+    assert u.unscorable_reason is None
+    raw_matn = _raw_matn(FULL.read_text(encoding="utf-8"), "4575")
+    assert u.matn_ar == raw_matn, "the stored matn is the whole printed matn"
+    # and it is longer than the ayah alone -- the narration is what was at risk
+    assert len(u.matn_ar) > 60

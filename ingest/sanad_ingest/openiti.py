@@ -164,6 +164,25 @@ _STUB_OPENER = ("narrative opener: the primary matn names no act, ruling or "
                 "speech of its own, the narration itself beginning in the "
                 "appended second chain")
 
+# The second kind of bad cut, found by the whole-branch review rather than by
+# the round-5 scan, and invisible to it: unit 4575 sits under the bab
+# "fa-kana qaba qawsayni aw adna", and the edition prints the AYAH the chapter
+# comments on and then the narration about it. The cut fires at the second
+# chain, which is a defensible boundary, and leaves a primary matn that is
+# nothing but Qur'an 53:9-10 -- so Sanad stamped "Sahih al-Bukhari 4575" on
+# two verses of scripture, and told a reader who quoted them and cited
+# "(53:9)" that their reference was wrong.
+#
+# Round 5's scan ranked cut primaries by how many tokens they hold outside the
+# honorific frame, looking for stubs. A primary made of scripture is dense
+# with content words and ranks at the very bottom of that list: the metric was
+# built to find emptiness and cannot see this. The corpus-wide invariant in
+# `build._reject_wholly_quranic_representations` is what closes the class;
+# this entry corrects the one record.
+_QURANIC_PRIMARY = ("Qur'anic primary: the cut leaves a matn that is nothing "
+                    "but the ayah the chapter comments on, the narration that "
+                    "makes the unit a hadith beginning in the appended chain")
+
 _NEVER_CUT: dict[str, tuple[str, str]] = {
     # "The Prophet passed by a man." The man praying two rak'as after the
     # iqama, and the Prophet's "the dawn prayer in four?", are the addendum.
@@ -175,6 +194,13 @@ _NEVER_CUT: dict[str, tuple[str, str]] = {
     "hadith:bukhari:6136":
         ("50bdf6cc60a370e998897b39f17dc707af23d4022a52e45aa33a82998d54821f",
          _STUB_OPENER),
+    # "So he was at a distance of two bow-lengths or nearer, and revealed to
+    # His servant what He revealed" -- Qur'an 53:9-10, verbatim. Ibn Mas'ud's
+    # report that the Prophet saw Gabriel with six hundred wings is the
+    # addendum, and is the whole of what makes this unit a narration.
+    "hadith:bukhari:4575":
+        ("86e0300ecb069cd2cd368656cfe256e667974b1ca965e3a7cd61a4b3ea0eab03",
+         _QURANIC_PRIMARY),
 }
 
 # Tokens that cannot be part of a narrator's name. Closed word classes --

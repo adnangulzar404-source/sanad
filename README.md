@@ -110,7 +110,7 @@ Full reasoning, the pinned commit, and the content hash are in
 
 Each hadith stores its matn (`text_ar`, scored) separately from its isnad
 (`isnad_ar`, shown for context, never scored). The 1987 edition appends
-secondary narrations after the primary matn; 393 records were cut at a
+secondary narrations after the primary matn; 392 records were cut at a
 detected secondary-narration boundary, with the removed text preserved
 verbatim in `addenda_ar`. 392 of those are indexed under *two* scored
 representations — the primary matn and the full printed text — so that

@@ -452,3 +452,50 @@ def test_every_other_excluded_record_is_excluded_whole():
         " WHERE r.unscorable_reason IS NOT NULL GROUP BY r.id").fetchall()
     assert len(rows) == 17
     assert {r["id"]: r["n"] for r in rows if r["n"]} == {"hadith:bukhari:237": 1}
+
+
+def test_exactly_one_hadith_representation_sits_inside_an_ayah():
+    """The population of the R40 behaviour, swept rather than sampled.
+
+    `verify.engine._ayat_containing` withholds a hadith verdict when the
+    reader cites an ayah their words are inside of. How often that can happen
+    is a fact about this corpus, and the honest form of it is a number over
+    every scorable representation, not the one example that prompted the fix.
+
+    Today it is exactly one pair: Sahih al-Bukhari 3658's whole matn, "the
+    moon split", inside Qur'an 54:1, which ends with the same two words
+    carrying a prefixed waw. Both tiers agree on it -- the withholding tier
+    finds nothing the disclosure tier does not.
+
+    If this number ever moves, a new edition has brought in another short matn
+    that is also scripture, and someone has to read it in the source. That is
+    the same discipline as `build._reject_wholly_quranic_representations`,
+    asked at the other end of the pipeline: the build's question is "is this
+    representation wholly Qur'an" and the answer is 0, while this one is "is
+    it INSIDE an ayah" and the answer is 1. The gap between those two numbers
+    is the whole of finding F1.
+    """
+    from sanad.verify.engine import _ayat_containing, _contains_at
+    conn = db.connect(DB_PATH)
+    reps = conn.execute(
+        "SELECT r.id AS rid, 'primary' AS variant, r.text_ar AS text_ar"
+        " FROM records r WHERE r.kind = 'hadith' AND r.unscorable_reason IS NULL"
+        " UNION ALL "
+        "SELECT v.record_id, v.variant, v.text_ar FROM record_variants v"
+        " JOIN records r ON r.id = v.record_id WHERE r.kind = 'hadith'"
+    ).fetchall()
+    assert len(reps) == 7504, len(reps)
+
+    withheld, disclosed = [], []
+    for rep in reps:
+        hits = _ayat_containing(conn, rep["text_ar"], "aggressive")
+        if not hits:
+            continue
+        withheld.append((rep["rid"], rep["variant"], [h.id for h in hits]))
+        strict = [h.id for h in hits
+                  if _contains_at(h, rep["text_ar"], "standard")]
+        if strict:
+            disclosed.append((rep["rid"], rep["variant"], strict))
+
+    assert withheld == [("hadith:bukhari:3658", "primary", ["quran:54:1"])]
+    assert disclosed == withheld

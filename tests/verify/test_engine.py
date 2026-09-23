@@ -1,4 +1,5 @@
 import pytest
+from sanad.arabic.normalize import normalize
 from sanad.corpus import db
 from sanad.verify.engine import Verdict, verify_spans
 
@@ -1147,3 +1148,175 @@ def test_kind_decides_which_citation_family_may_address_a_record(
     assert m.record.id == "hadith:bukhari:1"
     # The hadith citation for the same record is right.
     assert _only(verify_spans(conn, f"«{text}» (Bukhari 1)")).verdict is Verdict.EXACT
+
+
+# --- a Qur'anic fragment cited as Qur'an is never answered with a hadith ------
+#
+# R40. `hadith:bukhari:3658`'s entire matn is "the moon split", and Qur'an 54:1
+# ends with those same two words carrying an attached conjunction. The record is
+# LEGITIMATE -- a Companion's report whose matn really is that short -- so the
+# build's wholly-Qur'anic invariant has nothing to say about it and must not be
+# stretched to cover it. The remedy is here, at verify time: when the reader
+# names an ayah and their words sit inside it, Sanad withholds the hadith.
+#
+# Every Arabic string below is read out of `data/sanad-quran.db`, never typed.
+
+
+def _tail_of(text: str, words: int) -> str:
+    """The last `words` whitespace-separated words of `text`, verbatim."""
+    return " ".join(text.split()[-words:])
+
+
+def test_a_quranic_fragment_cited_as_quran_is_never_answered_with_a_hadith(conn):
+    """The false WRONG_REFERENCE this fix exists for, and its NEAR_MATCH twin.
+
+    Both quotations below are contained in Qur'an 54:1 and are cited as 54:1.
+    The first is the hadith's own matn (the ayah's words without the attached
+    conjunction); the second is the ayah's own tail, Tanzil's spelling and
+    diacritics included. Before this fix they returned WRONG_REFERENCE and
+    NEAR_MATCH against Sahih al-Bukhari 3658 -- the first telling a reader who
+    cited scripture correctly that their reference was wrong.
+    """
+    matn = db.get_record(conn, "hadith:bukhari:3658").text_ar
+    ayah = db.get_record(conn, "quran:54:1").text_ar
+    for quoted in (matn, _tail_of(ayah, 2)):
+        m = _only(verify_spans(conn, f"«{quoted}» (54:1)"))
+        assert m.record is None, (quoted, m.record.id)
+        assert m.verdict is Verdict.NOT_FOUND, quoted
+        # Disclosure, not silence: a bare NOT_FOUND would read as "these words
+        # are in neither book", which is the opposite of true.
+        assert m.also_at == ["quran:54:1"], quoted
+
+
+def test_a_surah_named_without_a_verse_number_withholds_the_hadith_too(conn):
+    """A citation of the whole surah is still the reader naming the Qur'an.
+    `Reference.ayah` is None here, so the containment test has to consider
+    every ayah of the surah rather than one addressed row."""
+    matn = db.get_record(conn, "hadith:bukhari:3658").text_ar
+    m = _only(verify_spans(conn, f"«{matn}» (Al-Qamar)"))
+    assert m.record is None
+    assert m.verdict is Verdict.NOT_FOUND
+    assert m.also_at == ["quran:54:1"]
+
+
+def test_the_ayah_that_contains_a_hadiths_words_is_disclosed_beside_it(conn):
+    """Uncited, the hadith verdict stands -- it is a true statement about the
+    hadith -- but the Qur'anic co-occurrence is disclosed alongside it. Saying
+    only "Sahih al-Bukhari 3658" about words that are also scripture is true
+    and incomplete, and `also_at` is where this codebase already says "these
+    words are also at X"."""
+    matn = db.get_record(conn, "hadith:bukhari:3658").text_ar
+    m = _only(verify_spans(conn, f"«{matn}»"))
+    assert m.verdict is Verdict.EXACT
+    assert m.record.id == "hadith:bukhari:3658"
+    assert m.also_at == ["quran:54:1"]
+
+    # Cited as the hadith it is, the hadith answer is not withheld: this
+    # reader asked about Sahih al-Bukhari 3658 and is right. Withholding on
+    # "a containing ayah exists" rather than "the reader named it" would
+    # make the record unreachable by its own correct citation.
+    m = _only(verify_spans(conn, f"«{matn}» (Bukhari 3658)"))
+    assert m.verdict is Verdict.EXACT
+    assert m.record.id == "hadith:bukhari:3658"
+    assert m.also_at == ["quran:54:1"]
+
+    # And a Qur'anic citation that does NOT contain these words is still
+    # reported wrong, with the real location disclosed beside it.
+    m = _only(verify_spans(conn, f"«{matn}» (2:255)"))
+    assert m.verdict is Verdict.WRONG_REFERENCE
+    assert m.record.id == "hadith:bukhari:3658"
+    assert m.also_at == ["quran:54:1"]
+
+
+def test_a_hadith_cited_as_a_verse_it_is_not_inside_is_still_flagged(conn):
+    """The control. Withholding is triggered by CONTAINMENT, not by the mere
+    presence of a Qur'anic citation next to a hadith -- otherwise every wrong
+    verse citation on a hadith would go unreported, which is the accusation
+    this tool exists to make."""
+    matn = db.get_record(conn, "hadith:bukhari:2866").text_ar
+    m = _only(verify_spans(conn, f"«{matn}» (54:1)"))
+    assert m.verdict is Verdict.WRONG_REFERENCE
+    assert m.record.id == "hadith:bukhari:2866"
+    assert m.also_at == []
+
+
+# The one pair of letters that separates the aggressive tier from the standard
+# one: `arabic.normalize._LOSSY_FOLDS` maps U+0629 to U+0647 and nothing below
+# the aggressive tier does. Both are written as escapes, never as glyphs --
+# they are near-indistinguishable on screen, and eleven defects on this project
+# came from Arabic characters silently altered in transit, one of them inside
+# the test written to catch it. The filler letters below are alef (U+0627),
+# beh (U+0628) and jeem (U+062C), each unambiguous and each repeated so the
+# strings clear the extractor's minimum.
+_TEH_MARBUTA = "\u0629"
+_HEH = "\u0647"
+
+
+@pytest.fixture()
+def an_ayah_containing_a_hadith_only_after_a_lossy_fold(tmp_path):
+    """An ayah and a hadith whose containment exists at the aggressive tier
+    and not at the standard one.
+
+    Nothing in `data/sanad-quran.db` separates the two tiers here -- the one
+    real containment pair, 3658 inside 54:1, holds at both -- so on real data
+    the choice of tier is unobservable, and an unobservable constant is one no
+    test can watch fail. That is finding F2's shape exactly, and this fixture
+    exists so the two tiers are pinned by something rather than by nothing.
+    """
+    from sanad.corpus.models import Record, Source
+    alef, beh, jeem = "\u0627" * 4, "\u0628" * 4, "\u062C" * 4
+    ayah_text = f"{alef} {beh}{_TEH_MARBUTA} {jeem}"
+    matn = f"{beh}{_HEH} {jeem}"
+    conn = db.connect(tmp_path / "c.db", read_only=False)
+    db.insert_source(conn, Source(
+        id="s", kind="hadith-arabic", title="t", publisher=None, edition=None,
+        url="https://example.invalid/", license_id="public-domain",
+        license_url=None, attribution="a", retrieved_at="2026-09-23",
+        upstream_sha256="0" * 64, modifications="none"))
+
+    def norms(text):
+        return {f"norm_{t}": normalize(text, t) for t in ("light", "standard",
+                                                          "aggressive")}
+    db.insert_records(conn, [
+        Record(id="quran:2:1", source_id="s", kind="ayah", surah=2, ayah=1,
+               text_ar=ayah_text, text_ar_sha256="a" * 64,
+               reference_display="Al-Baqarah 2:1", **norms(ayah_text)),
+        Record(id="hadith:bukhari:7", source_id="s", kind="hadith",
+               collection="bukhari", hadith_no="7", numbering_scheme="x",
+               text_ar=matn, text_ar_sha256="b" * 64,
+               reference_display="Sahih al-Bukhari 7", **norms(matn)),
+    ])
+    db.rebuild_fts(conn)
+    # The fixture is only worth anything if the two tiers really do disagree.
+    assert normalize(matn, "standard") not in normalize(ayah_text, "standard")
+    assert normalize(matn, "aggressive") in normalize(ayah_text, "aggressive")
+    return conn, matn
+
+
+def test_a_fold_deep_containment_withholds_the_hadith_but_asserts_nothing(
+        an_ayah_containing_a_hadith_only_after_a_lossy_fold):
+    """The two tiers, and why they are not one.
+
+    WITHHOLDING is asked at the aggressive tier: the reader cited 2:1, their
+    words are inside it once teh marbuta and heh are folded together, and
+    telling them "wrong reference, this is Sahih al-Bukhari 7" on the strength
+    of one letter is the accusation R40 forbids. Withholding costs recall,
+    which is the direction this project pays in.
+
+    DISCLOSING is asked at the standard tier, so nothing is said about where
+    the words are: at the only tier that can carry a verified verdict, these
+    words are NOT in that ayah. An aggressive-tier fold may stop Sanad
+    speaking; it may never put words in its mouth.
+    """
+    conn, matn = an_ayah_containing_a_hadith_only_after_a_lossy_fold
+    m = _only(verify_spans(conn, f"«{matn}» (2:1)"))
+    assert m.verdict is Verdict.NOT_FOUND
+    assert m.record is None
+    assert m.also_at == []
+
+    # Uncited, the hadith answer stands -- and still discloses nothing, since
+    # the co-occurrence only exists under a fold that can invent one.
+    m = _only(verify_spans(conn, f"«{matn}»"))
+    assert m.verdict is Verdict.EXACT
+    assert m.record.id == "hadith:bukhari:7"
+    assert m.also_at == []

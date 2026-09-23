@@ -65,9 +65,14 @@ class QuotationOut(BaseModel):
     tier: str | None
     score: float
     record: RecordOut | None
-    # Other record ids carrying identical text at the matched tier (e.g.
-    # Ar-Rahman's refrain, repeated 31 times). Empty for the overwhelming
-    # majority of verses, which are unique. See `verify.engine.Match.also_at`.
+    # Where else in this corpus these words are, beyond `record`. Two things
+    # reach it: other records carrying identical text at the matched tier (e.g.
+    # Ar-Rahman's refrain, repeated 31 times), and -- when the quotation is
+    # answered with a hadith, or withheld from being -- any ayah whose own text
+    # CONTAINS the quotation. It is therefore populated even when `record` is
+    # null: a client that prints nothing in that case drops the only thing
+    # telling the reader their words are scripture. See
+    # `verify.engine.Match.also_at`.
     also_at: list[str] = Field(default_factory=list)
     given_reference: str | None
     diff: list[tuple[str, str]] | None

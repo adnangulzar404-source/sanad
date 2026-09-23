@@ -27,6 +27,27 @@ from .references import (
 NEAR_THRESHOLD = 0.86
 CANDIDATE_LIMIT = 50
 
+# "Is this quotation inside an ayah?" is asked at two tiers, because it is
+# asked for two purposes whose errors cost opposite things.
+#
+# WITHHOLDING a hadith verdict (R40) is asked at the AGGRESSIVE tier -- the
+# widest comparison this engine ever makes. Withholding needs no evidentiary
+# standard: being wrong here costs recall on a hadith, which R40 accepts
+# explicitly, while being wrong the other way tells a reader who cited
+# scripture correctly that their reference is wrong.
+#
+# DISCLOSING where the words are is asked at the STANDARD tier -- the coarser
+# of the two tiers that can carry a verified verdict, and the tier
+# `build._reject_wholly_quranic_representations` uses for the same judgement.
+# That is a statement made to the reader, and this module's founding rule is
+# that an aggressive-tier fold (alef maksura/yeh, teh marbuta/heh) can
+# manufacture an agreement that is not in the letters, so it may never be
+# reported as verified. An ayah that contains the quotation only after those
+# folds is enough to stay silent about the hadith and not enough to assert
+# where the words are.
+_WITHHOLDING_TIER: Tier = "aggressive"
+_DISCLOSURE_TIER: Tier = "standard"
+
 
 class Verdict(str, Enum):
     EXACT = "EXACT"
@@ -64,9 +85,19 @@ class Match:
     # WRONG_REFERENCE verdict. See `_reference_conflicts`.
     given_reference: AnyReference | None = None
     diff: list[tuple[str, str]] | None = None
-    # Other record ids carrying identical normalized text at the matched tier
-    # (e.g. Ar-Rahman's refrain, repeated 31 times). Empty for the
-    # overwhelming majority of verses, which are unique.
+    # Where else in this corpus these words are, beyond the record reported.
+    #
+    # Two things reach this list, and the shared meaning is "these words are
+    # also at X" rather than "X is an equally good answer":
+    #
+    # 1. Other records carrying IDENTICAL normalized text at the matched tier
+    #    (e.g. Ar-Rahman's refrain, repeated 31 times). Empty for the
+    #    overwhelming majority of verses, which are unique.
+    # 2. Any ayah whose own text CONTAINS this quotation, when the record
+    #    reported is a hadith -- see `_ayat_containing`. One pair in the
+    #    shipped corpus does this: Sahih al-Bukhari 3658's whole matn sits
+    #    inside Qur'an 54:1. Saying only "Sahih al-Bukhari 3658" about words
+    #    that are also scripture is true and incomplete.
     also_at: list[str] = field(default_factory=list)
 
 
@@ -440,6 +471,58 @@ def _accept_bismillah_retry(
     return verdict, selected, retry_tier, retry_score, diff, also_at
 
 
+def _ayat_containing(conn: sqlite3.Connection, text: str,
+                     tier: Tier) -> list[Record]:
+    """Every ayah whose own text contains this quotation, lowest surah:ayah first.
+
+    Substring containment, not equality and not token alignment. The attached
+    conjunction is the whole point: `hadith:bukhari:3658`'s entire matn is "the
+    moon split" and Qur'an 54:1 ends with the same two words carrying a
+    prefixed waw, so a token-aligned test -- which is what the build's
+    `_reject_wholly_quranic_representations` runs, and rightly -- sees nothing.
+
+    The record is legitimate. It is a Companion's report whose matn really is
+    that short, so there is nothing to reject at build time and a build that
+    refused it would be refusing an ordinary hadith. What the corpus needs is
+    for the VERIFIER to know that these words have two addresses.
+
+    A plain substring test could in principle fire mid-word, which would be a
+    false statement about where a reader's words are. That is measured rather
+    than assumed: swept over all 7,504 scorable hadith representations against
+    all 6,236 ayat, substring containment yields exactly ONE hit -- 3658 in
+    54:1 -- at the standard tier and the same one hit at the aggressive tier,
+    and it is a clitic boundary, not a mid-word accident. The same sweep under
+    a token-aligned test yields zero, which is the build invariant's own
+    measurement, and under a clitic-relaxed test yields the same one. So the
+    simplest rule and the carefully boundary-aware one agree on this corpus,
+    and the simple one has no knob to tune wrong.
+
+    The ayah rows are read whole rather than by id so the caller can re-ask
+    the same question at a stricter tier without a second query -- see
+    `_WITHHOLDING_TIER` and `_DISCLOSURE_TIER`.
+    """
+    needle = normalize(text, tier)
+    if not needle:
+        return []
+    rows = conn.execute(
+        "SELECT id FROM records WHERE kind = 'ayah'"
+        f" AND instr({_NORM_COLUMN[tier]}, ?) > 0", (needle,)).fetchall()
+    found = (db.get_record(conn, row["id"]) for row in rows)
+    ayat = [rec for rec in found if rec is not None]
+    ayat.sort(key=lambda r: (r.surah or 0, r.ayah or 0, r.id))
+    return ayat
+
+
+def _contains_at(ayah: Record, text: str, tier: Tier) -> bool:
+    """Does `ayah` still contain `text` under a stricter comparison?
+
+    Asked in Python, on the handful of rows the withholding-tier query already
+    returned, rather than as a second scan of the Qur'an.
+    """
+    needle = normalize(text, tier)
+    return bool(needle) and needle in getattr(ayah, _NORM_COLUMN[tier])
+
+
 def _classify(conn: sqlite3.Connection, span: Span,
               refs: list[AnyReference]) -> Match:
     given = _nearest_reference_to_span(refs, span)
@@ -461,6 +544,38 @@ def _classify(conn: sqlite3.Connection, span: Span,
     # 3. Last resort: fuzzy match on the text exactly as quoted.
     if verdict is Verdict.NOT_FOUND:
         verdict, record, tier, score, diff, also_at = _match_text(conn, span.text, given)
+
+    # 4. A hadith answer is withdrawn when the reader named an ayah their words
+    #    are inside of, and disclosed alongside otherwise. R40:
+    #
+    #      when a reader supplies a Qur'anic reference and the quoted text is
+    #      contained in that ayah, Sanad must not answer with a hadith verdict
+    #      of any kind.
+    #
+    #    "Of any kind" includes NEAR_MATCH and, above all, WRONG_REFERENCE:
+    #    telling someone who quoted two words of 54:1 and cited 54:1 that their
+    #    reference is wrong is the same error as answering scripture with a
+    #    hadith, said out loud. `_reference_conflicts` is reused rather than
+    #    re-implemented so "does this citation name that ayah" has one answer
+    #    in one place -- it compares kind first, so a HADITH citation next to a
+    #    quotation of the same words withholds nothing: that reader asked about
+    #    the hadith and gets it.
+    #
+    #    The withheld verdict is NOT_FOUND with no record. A fragment of an
+    #    ayah has never been verifiable here -- Sanad's unit is the whole ayah,
+    #    and C1's two-verse quotation is NOT_FOUND today for the same reason --
+    #    so this is the existing limitation, not a new verdict invented for one
+    #    record. What is new is that the fragment's address is disclosed, so
+    #    NOT_FOUND cannot be read as "these words are in neither book".
+    if record is not None and record.kind == "hadith":
+        containing = _ayat_containing(conn, span.text, _WITHHOLDING_TIER)
+        disclosed = [ayah.id for ayah in containing
+                     if _contains_at(ayah, span.text, _DISCLOSURE_TIER)]
+        if given is not None and any(not _reference_conflicts(given, ayah)
+                                     for ayah in containing):
+            return Match(span, Verdict.NOT_FOUND, None, None, 0.0, given, None,
+                         disclosed)
+        also_at = also_at + [i for i in disclosed if i not in also_at]
 
     return Match(span, verdict, record, tier, score, given, diff, also_at)
 

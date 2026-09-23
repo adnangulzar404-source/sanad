@@ -91,6 +91,16 @@ export function IsnadTrace({
               </span>
             )}
           </>
+        ) : alsoCount > 0 ? (
+          // No whole record matched, but the words are somewhere: this is the
+          // verifier withholding a hadith verdict because the reader cited an
+          // ayah their quotation sits inside of (see `engine._ayat_containing`
+          // and R40). Printing only "no match in this corpus" here would tell
+          // the reader the opposite of what the response carries.
+          <span className="data">
+            no whole record matches; these words appear inside {alsoCount}{" "}
+            {alsoCount === 1 ? "record" : "records"}
+          </span>
         ) : (
           <span style={{ color: "var(--ink-60)" }}>no match in this corpus</span>
         )}

@@ -56,6 +56,26 @@ describe("IsnadTrace", () => {
     expect(screen.getByTestId("link-matched")).toHaveTextContent(/also appears at 2 other/i);
   });
 
+  it("discloses where the words are even when no record was matched", () => {
+    // The verifier withholds a hadith verdict when the reader cited an ayah
+    // their words sit inside of (engine R40), and returns NOT_FOUND with the
+    // containing ayah in `also_at`. Rendering only "no match in this corpus"
+    // there tells the reader the opposite of what the response says.
+    render(<IsnadTrace quotation={q({
+      verdict: "NOT_FOUND", tier: null, score: 0, record: null,
+      also_at: ["quran:54:1"],
+    })} />);
+    expect(screen.getByTestId("link-matched")).toHaveTextContent(/1 record/i);
+    expect(screen.getByTestId("link-matched")).not.toHaveTextContent(/no match in this corpus/i);
+  });
+
+  it("still says nothing matched when nothing was found anywhere", () => {
+    render(<IsnadTrace quotation={q({
+      verdict: "NOT_FOUND", tier: null, score: 0, record: null, also_at: [],
+    })} />);
+    expect(screen.getByTestId("link-matched")).toHaveTextContent(/no match in this corpus/i);
+  });
+
   it("says nothing about other locations when the verse is unique", () => {
     render(<IsnadTrace quotation={base} />);
     expect(screen.getByTestId("link-matched")).not.toHaveTextContent(/also appears/i);

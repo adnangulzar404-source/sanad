@@ -1,4 +1,5 @@
-"""Find Qur'an references in prose: "2:255", "Al-Baqarah 2:255", "Al-Ikhlas"."""
+"""Find Qur'an and hadith references in prose: "2:255", "Al-Baqarah 2:255",
+"Al-Ikhlas", "Bukhari 619"."""
 from __future__ import annotations
 
 import re
@@ -114,17 +115,78 @@ class Reference:
     start: int
 
 
+@dataclass(frozen=True)
+class HadithReference:
+    collection: str
+    hadith_no: str
+    raw: str
+    start: int
+
+
+# A parsed citation like "Bukhari 619" only names a collection and a printed
+# hadith number -- it is NOT a foreign key to exactly one corpus record.
+# hadith_no is not unique in this edition (7,124 distinct numbers across
+# 7,129 records; the repeats get occurrence-ordinal suffixes in the record
+# id and reference_display, not in the printed number). Resolving a parsed
+# citation to the record(s) it names is a later step's job, not this one's.
+AnyReference = Reference | HadithReference
+
+
 def _valid(surah: int, ayah: int | None) -> bool:
     if surah not in AYAH_COUNTS:
         return False
     return ayah is None or 1 <= ayah <= AYAH_COUNTS[surah]
 
 
-def parse_references(text: str) -> list[Reference]:
-    refs: list[Reference] = []
+# Collection names that mark a following number as a hadith citation. Bare
+# names are rejected by requiring the number, mirroring the surah-name rule:
+# a spurious reference produces an actively wrong WRONG_REFERENCE, whereas a
+# missed one only downgrades to a correct plain match.
+_COLLECTIONS = {
+    "bukhari": "bukhari",
+    "albukhari": "bukhari",
+    "sahihbukhari": "bukhari",
+    "sahihalbukhari": "bukhari",
+}
+
+# The optional second numeric group is the hadith number of a "kitab:hadith"
+# pair (e.g. "Bukhari 1:1"). Same separator as `_NUMERIC` above -- the ASCII
+# colon plus the fullwidth colon (U+FF1A) written as an explicit backslash-u
+# escape, never as a literal glyph, per this module's character-safety rule.
+_HADITH_CITE = re.compile(
+    r"\b(?P<name>(?:sahih\s+)?(?:al[-\s]?)?bukhari)\b"
+    r"(?:\s*,)?\s*"
+    r"(?:(?:book|kitab)\s*\d{1,3}\s*,?\s*)?"
+    r"(?:(?:hadith|hadeeth|no\.?|number|#)\s*)?"
+    r"(\d{1,4})"
+    r"(?:\s*[:\uFF1A]\s*(\d{1,4}))?",
+    re.IGNORECASE,
+)
+MAX_HADITH_NO = 7124
+
+
+def parse_references(text: str) -> list[AnyReference]:
+    refs: list[AnyReference] = []
     claimed: list[tuple[int, int]] = []
 
+    # Hadith citations run FIRST and claim their span so the verse-numeric
+    # pass below skips text they've already consumed -- that is what makes
+    # "Bukhari 1:1" resolve as kitab 1, hadith 1, and never as surah 1, ayah 1.
+    for m in _HADITH_CITE.finditer(text):
+        claimed.append((m.start(), m.end()))
+        collection = _COLLECTIONS.get(_slug(m.group("name")))
+        if collection is None:
+            continue  # defensive: the regex only ever matches known spellings
+        # A kitab:hadith pair's SECOND number is the hadith number; the first
+        # is the book/kitab number and is discarded (Task 5 parses only).
+        number = m.group(3) if m.group(3) is not None else m.group(2)
+        if int(number) > MAX_HADITH_NO:
+            continue  # out of range -- never falls back to a verse reading
+        refs.append(HadithReference(collection, number, m.group(0), m.start()))
+
     for m in _NUMERIC.finditer(text):
+        if any(m.start() < e and s < m.end() for s, e in claimed):
+            continue  # already consumed by a hadith citation above
         surah, ayah = int(m.group(1)), int(m.group(2))
         if _valid(surah, ayah):
             refs.append(Reference(surah, ayah, m.group(0), m.start()))
@@ -153,8 +215,8 @@ def parse_references(text: str) -> list[Reference]:
 
 
 def nearest_reference(
-    refs: list[Reference], position: int, window: int = 180
-) -> Reference | None:
+    refs: list[AnyReference], position: int, window: int = 180
+) -> AnyReference | None:
     candidates = [r for r in refs if abs(r.start - position) <= window]
     if not candidates:
         return None

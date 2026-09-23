@@ -692,3 +692,24 @@ def test_whole_suite_still_has_zero_false_verifications(conn, cases):
     assert metrics.false_verifications == 0
     assert metrics.false_misattributions == 0
     assert metrics.failures == []
+
+
+def test_the_licensing_table_never_names_openiti_out_of_sight_of_what_it_ships():
+    """F7. `index.html`'s Hadith row said Sahih al-Bukhari ships via OpenITI's
+    transcription while the OpenITI row directly beneath it still read
+    "Discovery, not a uniform redistribution license | Not included". Each
+    cell was defensible alone -- the repository licence really is not a
+    redistribution grant, and the page really carries no corpus text -- and
+    the pair read as the page contradicting itself about its own corpus, on
+    the most public surface this project has.
+
+    The rule, the same shape as the denial scan above and applied to the
+    other party: wherever this page names OpenITI, it names what Sanad
+    actually takes from them in the same breath, so nobody meets one half of
+    the answer without the other.
+    """
+    rows = [line for line in Path("index.html").read_text(encoding="utf-8").splitlines()
+            if "OpenITI" in line]
+    assert len(rows) == 2, f"expected the Hadith row and the OpenITI row, got {len(rows)}"
+    for row in rows:
+        assert _THE_FACT.search(row), row

@@ -139,3 +139,84 @@ def test_colon_pair_takes_the_second_number_as_the_hadith_number():
     refs = [r for r in parse_references("Bukhari 3:42") if isinstance(r, HadithReference)]
     assert len(refs) == 1
     assert refs[0].hadith_no == "42"
+
+
+# --- Arabic-script hadith citations -----------------------------------------
+#
+# The Qur'an path already accepts Arabic-Indic (U+0660-0669) and Eastern
+# Arabic (U+06F0-06F9) digits alongside ASCII, for free, because Python's
+# `re` module's `\d` and the builtin `int()` both already understand them
+# (see test_arabic_indic_digits_parse_correctly above). The hadith path
+# below reuses that instead of writing a second digit-normalizing routine.
+
+_BUKHARI_342_FORMS = [
+    ("صحيح البخاري ٣٤٢",  # صحيح البخاري ٣٤٢
+     "342"),
+    ("البخاري ٣٤٢",  # البخاري ٣٤٢
+     "342"),
+    ("رواه البخاري ٣٤٢",  # رواه البخاري ٣٤٢
+     "342"),
+    ("البخاري ۳۴۲",  # البخاري ۳۴۲ (Eastern Arabic digits)
+     "342"),
+    ("البخاري 342",  # البخاري 342 (ASCII digits after an Arabic name)
+     "342"),
+    ("البخاري حديث ٣٤٢",  # البخاري حديث ٣٤٢ ("hadith" connector word)
+     "342"),
+    ("البخاري رقم ٣٤٢",  # البخاري رقم ٣٤٢ ("number" connector word)
+     "342"),
+    ("بخاري ٣٤٢",  # بخاري ٣٤٢ (bare, without the definite article)
+     "342"),
+]
+
+
+@pytest.mark.parametrize("text,number", _BUKHARI_342_FORMS)
+def test_parses_arabic_hadith_citations(text, number):
+    refs = [r for r in parse_references(text) if isinstance(r, HadithReference)]
+    assert len(refs) == 1
+    assert refs[0].collection == "bukhari"
+    assert refs[0].hadith_no == number
+
+
+def test_bare_arabic_collection_name_is_not_a_reference():
+    """'رواه البخاري' (narrated by al-Bukhari) with no
+    number attached names a collection, not a text -- same rule as the
+    Latin bare-name case above."""
+    text = "رواه البخاري"  # رواه البخاري
+    assert not [r for r in parse_references(text) if isinstance(r, HadithReference)]
+
+
+def test_arabic_verse_citation_is_unaffected_by_hadith_parsing():
+    """'الإخلاص ١١٢:١' (Al-Ikhlas 112:1, written with the
+    Arabic surah name and Arabic-Indic digits) already resolves as a verse
+    on the Qur'an path; adding hadith parsing must not disturb that or
+    spuriously add a HadithReference alongside it."""
+    text = "الإخلاص ١١٢:١"  # الإخلاص ١١٢:١
+    refs = parse_references(text)
+    assert any(isinstance(r, Reference) and r.surah == 112 and r.ayah == 1 for r in refs)
+    assert not any(isinstance(r, HadithReference) for r in refs)
+
+
+def test_arabic_out_of_range_number_is_not_a_hadith_reference():
+    text = "البخاري ٩٩٩٩٩"  # البخاري ٩٩٩٩٩
+    refs = parse_references(text)
+    assert not any(isinstance(r, HadithReference) for r in refs)
+    assert not any(isinstance(r, Reference) for r in refs)
+
+
+def test_other_arabic_collection_name_is_not_parsed():
+    """Only Bukhari exists in the corpus so far (see _COLLECTIONS/_COLLECTIONS_AR);
+    a citation naming a different collection must not be mistaken for it."""
+    text = "مسلم ١٢"  # مسلم ١٢ (Muslim 12)
+    assert parse_references(text) == []
+
+
+def test_arabic_colon_pair_takes_the_second_number():
+    """'البخاري ١:٢' (kitab 1, hadith 2) must never also read as
+    surah 1 ayah 2 (a real, valid verse address) -- same claimed-span rule
+    as the Latin 'Bukhari 1:1' case above."""
+    text = "البخاري ١:٢"  # البخاري ١:٢
+    refs = parse_references(text)
+    assert not any(isinstance(r, Reference) for r in refs)
+    hadith_refs = [r for r in refs if isinstance(r, HadithReference)]
+    assert len(hadith_refs) == 1
+    assert hadith_refs[0].hadith_no == "2"

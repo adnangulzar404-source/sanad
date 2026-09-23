@@ -162,7 +162,89 @@ _HADITH_CITE = re.compile(
     r"(?:\s*[:\uFF1A]\s*(\d{1,4}))?",
     re.IGNORECASE,
 )
+
+# Arabic-script equivalent of `_HADITH_CITE` above, for citations written in
+# Arabic rather than transliterated into Latin script: "sahih al-bukhari
+# <n>", "al-bukhari <n>", "rawahu al-bukhari <n>" (Arabic for "Sahih
+# al-Bukhari", "al-Bukhari", and "narrated by al-Bukhari", each followed by
+# a hadith number). Every Arabic string below is written as an explicit backslash-u
+# escape, never as a literal glyph, per this module's character-safety rule
+# (see the note by `_NUMERIC` above): this is new code added on a project
+# that has already shipped eleven defects from Arabic characters silently
+# altered in transit, so these literals are generated from verified
+# codepoints rather than typed by hand. In order: sahih (U+0635 U+062D
+# U+064A U+062D), rawahu (U+0631 U+0648 U+0627 U+0647), the definite
+# article al- (U+0627 U+0644), bukhari (U+0628 U+062E U+0627 U+0631
+# U+064A), hadith (U+062D U+062F U+064A U+062B), raqam/"number" (U+0631
+# U+0642 U+0645). The Arabic definite article is written attached to the
+# noun (unlike English "al-", which needs a hyphen/space/absence
+# alternation), so it is just an optional one-token prefix on the name
+# itself rather than a separate alternation.
+#
+# The digit group is the exact same `\d{1,4}` character class as
+# `_HADITH_CITE` and `_NUMERIC` above -- Python's `re` already treats
+# Arabic-Indic (U+0660-0669) and Eastern Arabic (U+06F0-06F9) digits as
+# `\d`, and `int()` already parses them (see
+# `test_arabic_indic_digits_parse_correctly`, which exercises this on the
+# Qur'an path) -- so no separate digit-normalizing routine is written here.
+_COLLECTIONS_AR = {
+    "\u0627\u0644\u0628\u062E\u0627\u0631\u064A": "bukhari",  # al-bukhari
+    "\u0628\u062E\u0627\u0631\u064A": "bukhari",  # bukhari, no article
+}
+_HADITH_CITE_AR = re.compile(
+    r"\b(?:\u0635\u062D\u064A\u062D\s+|\u0631\u0648\u0627\u0647\s+)?"
+    r"(?P<name>(?:\u0627\u0644)?\u0628\u062E\u0627\u0631\u064A)\b"
+    r"\s*"
+    r"(?:(?:\u062D\u062F\u064A\u062B|\u0631\u0642\u0645)\s*)?"
+    r"(\d{1,4})"
+    r"(?:\s*[:\uFF1A]\s*(\d{1,4}))?"
+)
+
 MAX_HADITH_NO = 7124
+
+
+def _resolve_collection(name: str) -> str | None:
+    """Collection lookup shared by the Latin and Arabic hadith-citation
+    passes below. The Arabic name is looked up as a literal, exact string --
+    never normalized or re-spelled. The Latin name is looked up via the same
+    case/spelling-folding slug already used for surah names elsewhere in
+    this module; slugging an Arabic string yields "" (ASCII-only filter),
+    which simply misses `_COLLECTIONS`, so the two lookups cannot collide.
+    """
+    return _COLLECTIONS_AR.get(name) or _COLLECTIONS.get(_slug(name))
+
+
+def _collect_hadith_citations(
+    pattern: re.Pattern[str],
+    text: str,
+    refs: list[AnyReference],
+    claimed: list[tuple[int, int]],
+) -> None:
+    """Run one hadith-citation pattern (Latin or Arabic) over `text`,
+    appending any `HadithReference` it finds to `refs` and claiming its span
+    in `claimed` regardless of whether it resolved -- so the verse-numeric
+    pass below never re-reads text a hadith citation already consumed, valid
+    or not (see `parse_references`).
+    """
+    for m in pattern.finditer(text):
+        claimed.append((m.start(), m.end()))
+        collection = _resolve_collection(m.group("name"))
+        if collection is None:
+            continue  # defensive: the regex only ever matches known spellings
+        # A kitab:hadith pair's SECOND number is the hadith number; the first
+        # is the book/kitab number and is discarded (Task 5 parses only).
+        printed = m.group(3) if m.group(3) is not None else m.group(2)
+        # `int()` already understands Arabic-Indic and Eastern Arabic digits
+        # (same as `_NUMERIC`'s surah/ayah conversion below), so a citation
+        # written with Arabic-Indic digits and one written with ASCII digits
+        # resolve to the same `hadith_no` -- the numeral SCRIPT a citation
+        # happens to use is not part of the text being verified, unlike the
+        # matn/ayah wording itself, which this module never re-spells. `raw`
+        # still preserves the untouched matched text for display/audit.
+        value = int(printed)
+        if value > MAX_HADITH_NO:
+            continue  # out of range -- never falls back to a verse reading
+        refs.append(HadithReference(collection, str(value), m.group(0), m.start()))
 
 
 def parse_references(text: str) -> list[AnyReference]:
@@ -172,17 +254,8 @@ def parse_references(text: str) -> list[AnyReference]:
     # Hadith citations run FIRST and claim their span so the verse-numeric
     # pass below skips text they've already consumed -- that is what makes
     # "Bukhari 1:1" resolve as kitab 1, hadith 1, and never as surah 1, ayah 1.
-    for m in _HADITH_CITE.finditer(text):
-        claimed.append((m.start(), m.end()))
-        collection = _COLLECTIONS.get(_slug(m.group("name")))
-        if collection is None:
-            continue  # defensive: the regex only ever matches known spellings
-        # A kitab:hadith pair's SECOND number is the hadith number; the first
-        # is the book/kitab number and is discarded (Task 5 parses only).
-        number = m.group(3) if m.group(3) is not None else m.group(2)
-        if int(number) > MAX_HADITH_NO:
-            continue  # out of range -- never falls back to a verse reading
-        refs.append(HadithReference(collection, number, m.group(0), m.start()))
+    _collect_hadith_citations(_HADITH_CITE, text, refs, claimed)
+    _collect_hadith_citations(_HADITH_CITE_AR, text, refs, claimed)
 
     for m in _NUMERIC.finditer(text):
         if any(m.start() < e and s < m.end() for s, e in claimed):

@@ -289,47 +289,34 @@ def parse_references(text: str) -> list[AnyReference]:
         # verdict downstream, so require the article or an explicit qualifier.
         if not (_carries_article(slug) or _preceded_by_qualifier(text, m.start())):
             continue
+        # Deliberately NOT added to `claimed`: that list is consulted by the
+        # dedup two lines above on every later iteration, so adding to it would
+        # let one surah name suppress another within the 24-character window.
         refs.append(Reference(num, None, m.group(0), m.start()))
 
     return sorted(refs, key=lambda r: r.start)
 
 
-# Which record kind each family of citation can speak about. A `Reference`
-# addresses an ayah; a `HadithReference` addresses a hadith. Nothing addresses
-# anything else, and a kind absent from this table resolves to no citation
-# rather than to "any citation" -- see `nearest_reference`.
-_CITES_KIND: dict[str, type] = {"ayah": Reference, "hadith": HadithReference}
-
-
 def nearest_reference(
-    refs: list[AnyReference], position: int, *, kind: str, window: int = 180
+    refs: list[AnyReference], position: int, window: int = 180
 ) -> AnyReference | None:
-    """The nearest citation to `position` that can address a record of `kind`.
+    """The nearest citation to `position`, of WHATEVER kind of record it names.
 
-    `kind` is required and keyword-only, and the filter by class happens
-    BEFORE the distance filter, so there is no argument list that asks this
-    function for "the nearest reference of any kind". That is the point.
+    Proximity decides attachment, and only proximity. This function must never
+    filter by kind, and the temptation to make it do so is real enough to be
+    worth writing down: filtering here fixes the Task 6 findings' D1 (a distant
+    verse citation being attached to a hadith quotation) and opens a strictly
+    worse hole behind it, because "«qul huwa llahu ahad» (Bukhari 12)" then
+    draws no citation at all and reports EXACT. Attributing a Qur'anic verse to
+    Sahih al-Bukhari would pass in silence -- a category error about scripture,
+    and a graver misattribution than any wrong hadith number.
 
-    A Qur'anic citation sitting next to a hadith quotation used to be handed
-    back here and then compared, field by field, against a hadith record --
-    reporting WRONG_REFERENCE for a hadith the user had cited perfectly (the
-    Task 6 findings, D1). Telling someone their correct citation is wrong is
-    a false accusation of misattribution, so the rule is not "prefer the
-    reference of the right kind" but "a reference of the wrong kind is not a
-    candidate at all". Where no citation of the right kind is in range the
-    answer is `None`, and the verdict is then decided on the text alone --
-    the correct answer for a quotation nobody cited.
-
-    Enforcing this here rather than at each call site is deliberate: a guard
-    that has to be remembered three times is a guard that gets forgotten
-    once. `window` is unchanged at 180 characters and is NOT what keeps the
-    kinds apart; a citation of the wrong kind is rejected at zero distance.
+    A citation of the wrong kind is not absent. It is wrong, and it has to
+    reach the engine to be called wrong: see `engine._reference_conflicts`.
+    D1 is a proximity bug and is fixed by proximity -- the adjacent
+    "(Bukhari 2866)" beats the distant "(112:1)" on distance alone.
     """
-    wanted = _CITES_KIND.get(kind)
-    if wanted is None:
-        return None
-    candidates = [r for r in refs
-                  if isinstance(r, wanted) and abs(r.start - position) <= window]
+    candidates = [r for r in refs if abs(r.start - position) <= window]
     if not candidates:
         return None
     return min(candidates, key=lambda r: abs(r.start - position))

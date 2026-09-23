@@ -49,16 +49,16 @@ def test_no_reference_returns_empty():
 
 def test_nearest_reference_picks_closest():
     refs = [Reference(2, 255, "2:255", 0), Reference(112, 1, "112:1", 500)]
-    assert nearest_reference(refs, 480, kind="ayah").surah == 112
+    assert nearest_reference(refs, 480).surah == 112
 
 
 def test_nearest_reference_respects_window():
     refs = [Reference(2, 255, "2:255", 0)]
-    assert nearest_reference(refs, 5000, kind="ayah", window=180) is None
+    assert nearest_reference(refs, 5000, window=180) is None
 
 
 def test_nearest_reference_on_empty_list():
-    assert nearest_reference([], 0, kind="ayah") is None
+    assert nearest_reference([], 0) is None
 
 
 @pytest.mark.parametrize("text", [
@@ -262,37 +262,35 @@ def test_the_first_real_hadith_number_still_parses():
     assert refs[0].hadith_no == "1"
 
 
-# --- Task 6, D1: a citation is only ever offered for its own kind of record --
+# --- Task 6, D1: attachment is by PROXIMITY, across kinds ---------------------
+#
+# The rule is two-part and the halves live in different modules. Here:
+# a citation attaches to the quotation it is nearest to, whatever kind of
+# record that citation addresses -- `nearest_reference` does not filter by
+# kind, and must not, or an ayah attributed to Sahih al-Bukhari would draw no
+# citation at all and be reported Verified without complaint. The second half
+# -- that a kind mismatch between the attached citation and the record the
+# text was found in is a WRONG_REFERENCE -- is the engine's, and is tested
+# there.
 
 
 def _mixed_refs():
-    """A hadith citation at 0 and a verse citation at 10, both in window."""
+    """A hadith citation at 0 and a verse citation at 500."""
     return [HadithReference("bukhari", "2866", "Bukhari 2866", 0),
-            Reference(112, 1, "112:1", 10)]
+            Reference(112, 1, "112:1", 500)]
 
 
-def test_nearest_reference_of_kind_ayah_never_returns_a_hadith_citation():
-    """Even when the hadith citation is strictly the nearer of the two."""
-    got = nearest_reference(_mixed_refs(), 0, kind="ayah")
-    assert isinstance(got, Reference)
-    assert got.surah == 112
+def test_nearest_reference_crosses_kinds_on_proximity():
+    """Whichever is nearer wins, full stop. A kind filter here would silently
+    discard the citation that makes a misattribution detectable."""
+    assert nearest_reference(_mixed_refs(), 10).hadith_no == "2866"
+    assert nearest_reference(_mixed_refs(), 490).surah == 112
 
 
-def test_nearest_reference_of_kind_hadith_never_returns_a_verse_citation():
-    got = nearest_reference(_mixed_refs(), 10, kind="hadith")
-    assert isinstance(got, HadithReference)
-    assert got.hadith_no == "2866"
+def test_a_hadith_citation_is_returned_for_a_position_with_no_verse_near():
+    assert nearest_reference(_mixed_refs(), 0).hadith_no == "2866"
 
 
-def test_nearest_reference_returns_none_when_only_the_other_kind_is_present():
-    """The D1 shape reduced to one call: a hadith quotation with nothing but a
-    Qur'anic citation beside it has NO given reference -- not a wrong one."""
-    only_verse = [Reference(112, 1, "112:1", 0)]
-    assert nearest_reference(only_verse, 0, kind="hadith") is None
-    only_hadith = [HadithReference("bukhari", "1", "Bukhari 1", 0)]
-    assert nearest_reference(only_hadith, 0, kind="ayah") is None
-
-
-def test_nearest_reference_rejects_an_unknown_kind():
-    """A kind nothing cites must yield nothing, never fall through to "any"."""
-    assert nearest_reference(_mixed_refs(), 0, kind="tafsir") is None
+def test_the_window_still_applies_across_kinds():
+    """Kind does not affect reach; distance still does."""
+    assert nearest_reference(_mixed_refs(), 5000, window=180) is None

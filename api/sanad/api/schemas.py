@@ -40,6 +40,21 @@ class RecordOut(BaseModel):
     # will not verify a quotation of it; the explanation used to stop at the
     # database. None for all but 17 records.
     unscorable_reason: str | None = None
+    # The narrator chain, for hadith records. Display-only, exactly like
+    # `addenda_ar` above -- see `corpus.models.Record.isnad_ar` for why it is
+    # stored but never scored. None for every Qur'anic record. Note what this
+    # is NOT: an isnad names who transmitted a text, not whether anyone has
+    # graded that transmission sound. Sanad ships no gradings, so a client
+    # rendering this field must not present it as an authenticity verdict.
+    isnad_ar: str | None = None
+    # "bukhari" for every hadith record, None for every ayah. Lets a client
+    # distinguish the two kinds of match without parsing `id` or
+    # `reference_display` -- a fragile substitute for a field the record
+    # already carries.
+    collection: str | None = None
+    # The edition's own hadith number, e.g. "1". None for ayat, which are
+    # addressed by surah:ayah instead -- see `surah`/`ayah` above.
+    hadith_no: str | None = None
 
 
 class QuotationOut(BaseModel):
@@ -70,10 +85,11 @@ class VerifyResponse(BaseModel):
     risk: str
     requires_handoff: bool
     overall: str
-    # This corpus contains the Qur'an only. Carried on every response so a
-    # NOT_FOUND verdict is never read as "this quotation is fabricated" --
-    # absence from a Qur'an-only corpus proves nothing about a quotation that
-    # might be genuine Hadith, tafsir, or scholarly text Stage A does not hold.
+    # This corpus contains the Qur'an and Sahih al-Bukhari, and nothing else.
+    # Carried on every response so a NOT_FOUND verdict is never read as "this
+    # quotation is fabricated" -- absence from this corpus proves nothing
+    # about a quotation that might be genuine Sahih Muslim, one of the four
+    # Sunan, tafsir, or scholarly text this corpus does not hold.
     corpus_scope: str
 
 
@@ -138,4 +154,7 @@ class RecordDetailOut(BaseModel):
     # quietly diverging" failure this project keeps hitting.
     addenda_ar: str | None = None
     unscorable_reason: str | None = None
+    isnad_ar: str | None = None
+    collection: str | None = None
+    hadith_no: str | None = None
     source: CorpusSourceOut | None = None

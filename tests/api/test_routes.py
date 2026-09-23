@@ -135,11 +135,91 @@ def test_verify_english_only_prose_returns_empty_quotations(client):
     assert r.json()["quotations"] == []
 
 
+
+# The corpus now holds two collections, not one -- Task 7. The old scope
+# string ("the Qur'an only") became false the moment Bukhari was ingested;
+# these tests pin the exact replacement wording rather than a loose
+# substring match, since the phrasing itself was chosen deliberately (naming
+# the ABSENT collections is what stops a reader from assuming completeness)
+# and a substring check could pass on a rewritten sentence that lost that
+# property.
+CORPUS_SCOPE = (
+    "This corpus contains the Qur'an and Sahih al-Bukhari. It does not "
+    "contain Sahih Muslim, the four Sunan, or any other collection, so "
+    "absence from this corpus does not establish that a quotation is "
+    "fabricated."
+)
+
+
 def test_verify_response_carries_corpus_scope_disclaimer(client):
     r = client.post("/api/verify", json={"text": "This is plain English prose."})
-    scope = r.json()["corpus_scope"]
-    assert "Qur'an only" in scope
-    assert "does not establish" in scope
+    assert r.json()["corpus_scope"] == CORPUS_SCOPE
+
+
+def test_corpus_endpoint_scope_matches_verify_endpoint_scope(client):
+    # Two separate routes build this string independently (`verify` and
+    # `corpus`); a copy-paste drift between them would tell a client two
+    # different things about what the corpus covers depending which endpoint
+    # it asked.
+    verify_scope = client.post(
+        "/api/verify", json={"text": "This is plain English prose."}).json()["corpus_scope"]
+    corpus_scope = client.get("/api/corpus").json()["scope"]
+    assert verify_scope == corpus_scope == CORPUS_SCOPE
+
+
+def test_a_verified_hadith_exposes_its_isnad_and_bukhari_identity(client):
+    """A client displaying a verified hadith needs its narrator chain and its
+    collection identity -- `isnad_ar` is stored and never scored (Stage A2
+    spec sec 7) but was previously invisible to any API caller."""
+    from sanad.corpus import db as corpus_db
+    conn = corpus_db.connect("data/sanad-quran.db")
+    rec = corpus_db.get_record(conn, "hadith:bukhari:1")
+    body = client.post("/api/verify", json={"text": f"«{rec.text_ar}»"}).json()
+    out = body["quotations"][0]["record"]
+    assert out["isnad_ar"] == rec.isnad_ar
+    assert out["collection"] == "bukhari"
+    assert out["hadith_no"] == "1"
+
+
+def test_an_ayah_carries_no_isnad_or_collection(client):
+    """The three new fields are None for every Qur'anic record, exactly like
+    `addenda_ar` and `unscorable_reason` before them -- a client keys on
+    presence, not on parsing the id."""
+    body = client.post("/api/verify", json={"text": f"«{IKHLAS_1}»"}).json()
+    out = body["quotations"][0]["record"]
+    assert out["isnad_ar"] is None
+    assert out["collection"] is None
+    assert out["hadith_no"] is None
+
+
+def test_record_detail_also_exposes_isnad_and_bukhari_identity(client):
+    """`RecordDetailOut` is documented as a superset of `RecordOut` -- a field
+    present on one and missing from the other is the exact "two things meant
+    to agree, quietly diverging" failure this project keeps hitting."""
+    body = client.get("/api/records/hadith:bukhari:1").json()
+    assert body["isnad_ar"]
+    assert body["collection"] == "bukhari"
+    assert body["hadith_no"] == "1"
+
+
+def test_no_grading_or_authenticity_claim_is_ever_returned(client):
+    """Sanad may say a text IS in Sahih al-Bukhari; it must never say or
+    imply a hadith IS sahih -- modern gradings are copyrighted and
+    authenticity is not Sanad's to assert. Checked against the raw response
+    bytes, not a specific field, so a grading smuggled in anywhere in the
+    payload (a new field, a note, a claim label) is still caught."""
+    from sanad.corpus import db as corpus_db
+    conn = corpus_db.connect("data/sanad-quran.db")
+    rec = corpus_db.get_record(conn, "hadith:bukhari:1")
+    body = client.post("/api/verify", json={"text": f"«{rec.text_ar}»"}).text.lower()
+    for word in ("da'if", "daif", "hasan", "grading", "authentic", "graded"):
+        assert word not in body, f"{word!r} leaked into a verify response"
+    # "sahih" itself is unavoidable -- it is literally the collection's name,
+    # e.g. "Sahih al-Bukhari" -- so it is checked only in combination with
+    # words that would turn the collection's title into a verdict about THIS
+    # hadith's soundness.
+    for phrase in ('"sahih"', "is sahih", "grade: sahih", "authenticity"):
+        assert phrase not in body, f"{phrase!r} leaked into a verify response"
 
 
 def test_get_record_returns_provenance(client):

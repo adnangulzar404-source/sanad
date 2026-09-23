@@ -288,27 +288,30 @@ def test_an_excluded_records_second_representation_is_not_indexed_either(tmp_pat
     assert len(db.get_record_variants(conn, "hadith:bukhari:1")) == 1
 
 
-def test_no_scoring_or_serving_code_reads_the_display_only_columns():
+def test_no_scoring_code_reads_the_display_only_columns():
     """Structural guard, in the spirit of the isnad_ar rule Task 3 set.
 
     A data test can only show that today's corpus happens not to leak; this
-    shows that no code path in the verify engine or the HTTP routes can reach
-    the chain at all.
+    shows that no code path in the verify engine can reach either column at
+    all -- scoring is the one place a display-only column must never surface,
+    because scoring it changes verdicts.
 
-    `addenda_ar` is checked only against the engine. Round 5 put the addenda
-    on purpose into `RecordOut` -- they were stored and unreachable, which
-    made "nothing is discarded" true of the database and false of the product
-    -- so routes and schemas now name the column deliberately. The engine
-    still must not: it scores `record_variants`, where the build has already
-    rejoined the text, and an engine that concatenated the columns itself
-    would be a second, divergent definition of what the full text is.
+    Both `isnad_ar` and `addenda_ar` are checked only against the engine, not
+    against the HTTP routes or schemas: Round 5 put `addenda_ar` on purpose
+    into `RecordOut`, and Task 7 did the same for `isnad_ar` -- both were
+    stored and unreachable, which made "nothing is discarded" true of the
+    database and false of the product -- so routes and schemas now name both
+    columns deliberately. The engine still must not read either: it scores
+    `record_variants`, where the build has already rejoined `text_ar` and
+    `addenda_ar`, and an engine that concatenated the columns itself would be
+    a second, divergent definition of what the full text is; scoring
+    `isnad_ar` at all is the Stage A2 spec sec 7 defect this guard exists to
+    keep fixed -- a short, famous matn plus its narrator chain drops well
+    under the 0.86 threshold.
     """
     from pathlib import Path
-    for module in ("api/sanad/verify/engine.py", "api/sanad/api/routes.py",
-                   "api/sanad/api/schemas.py"):
-        source = Path(module).read_text(encoding="utf-8")
-        assert "isnad_ar" not in source, f"{module} must not read isnad_ar"
     engine = Path("api/sanad/verify/engine.py").read_text(encoding="utf-8")
+    assert "isnad_ar" not in engine, "the engine must not score the narrator chain"
     assert "addenda_ar" not in engine, "the engine must not assemble the full text"
 
 

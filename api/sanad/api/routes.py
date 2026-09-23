@@ -28,8 +28,10 @@ from .schemas import (
 router = APIRouter(prefix="/api")
 
 CORPUS_SCOPE = (
-    "This corpus contains the Qur'an only. Absence of a quotation from this "
-    "corpus does not establish that it is fabricated."
+    "This corpus contains the Qur'an and Sahih al-Bukhari. It does not "
+    "contain Sahih Muslim, the four Sunan, or any other collection, so "
+    "absence from this corpus does not establish that a quotation is "
+    "fabricated."
 )
 
 # Tanzil's own accuracy disclaimer for en.pickthall, per the spec sec 5.2 item 4:
@@ -107,6 +109,7 @@ def _record_out(conn: sqlite3.Connection, rec: Record) -> RecordOut:
         text_ar_sha256=rec.text_ar_sha256, surah=rec.surah, ayah=rec.ayah,
         translation_en=translation_en, translation_disclaimer=disclaimer,
         addenda_ar=rec.addenda_ar, unscorable_reason=rec.unscorable_reason,
+        isnad_ar=rec.isnad_ar, collection=rec.collection, hadith_no=rec.hadith_no,
     )
 
 
@@ -193,6 +196,7 @@ def get_record(record_id: str, request: Request) -> RecordDetailOut:
         surah_name_ar=rec.surah_name_ar, surah_name_en=rec.surah_name_en,
         translation_en=translation_en, translation_disclaimer=disclaimer,
         addenda_ar=rec.addenda_ar, unscorable_reason=rec.unscorable_reason,
+        isnad_ar=rec.isnad_ar, collection=rec.collection, hadith_no=rec.hadith_no,
         source=CorpusSourceOut(**dict(src)) if src else None,
     )
 

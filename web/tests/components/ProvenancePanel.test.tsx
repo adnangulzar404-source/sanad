@@ -8,7 +8,7 @@ const corpus = {
   db_sha256: "8774f3883d2547401c423e682f148af3012623872b33797b27207a141b3b2d79",
   db_path: "data/sanad-quran.db",
   stats: { records: 6236, sources: 2, translations: 6236 },
-  scope: "This corpus contains the Qur'an only.",
+  scope: "This corpus contains the Qur'an and Sahih al-Bukhari. It does not contain Sahih Muslim, the four Sunan, or any other collection, so absence from this corpus does not establish that a quotation is fabricated.",
   sources: [
     { id: "tanzil-uthmani-1.1", kind: "quran-arabic", title: "Tanzil Qur'an Text (Uthmani)",
       publisher: "Tanzil Project", edition: "1.1", url: "https://tanzil.net/",

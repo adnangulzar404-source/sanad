@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { EvidenceCard } from "../../src/components/EvidenceCard";
 import type { QuotationOut } from "../../src/api/client";
 
-const SCOPE = "This corpus contains the Qur'an only. Absence of a quotation from this corpus does not establish that it is fabricated.";
+const SCOPE = "This corpus contains the Qur'an and Sahih al-Bukhari. It does not contain Sahih Muslim, the four Sunan, or any other collection, so absence from this corpus does not establish that a quotation is fabricated.";
 
 const base = {
   quoted_text: "قُلْ هُوَ ٱللَّهُ أَحَدٌ", start: 0, end: 20,
@@ -20,7 +20,7 @@ const q = (over: Partial<QuotationOut>) => ({ ...base, ...over }) as QuotationOu
 describe("EvidenceCard", () => {
   it("attaches the corpus-scope caveat to a NOT_FOUND verdict", () => {
     render(<EvidenceCard quotation={q({ verdict: "NOT_FOUND", record: null })} corpusScope={SCOPE} />);
-    expect(screen.getByTestId("scope-caveat")).toHaveTextContent(/does not establish that it is fabricated/i);
+    expect(screen.getByTestId("scope-caveat")).toHaveTextContent(/does not establish that a quotation is fabricated/i);
   });
 
   it("does not attach the caveat to a verified verdict", () => {

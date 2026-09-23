@@ -228,6 +228,12 @@ export interface components {
             addenda_ar?: string | null;
             /** Unscorable Reason */
             unscorable_reason?: string | null;
+            /** Isnad Ar */
+            isnad_ar?: string | null;
+            /** Collection */
+            collection?: string | null;
+            /** Hadith No */
+            hadith_no?: string | null;
             source?: components["schemas"]["CorpusSourceOut"] | null;
         };
         /** RecordOut */
@@ -252,6 +258,12 @@ export interface components {
             addenda_ar?: string | null;
             /** Unscorable Reason */
             unscorable_reason?: string | null;
+            /** Isnad Ar */
+            isnad_ar?: string | null;
+            /** Collection */
+            collection?: string | null;
+            /** Hadith No */
+            hadith_no?: string | null;
         };
         /** ValidationError */
         ValidationError: {

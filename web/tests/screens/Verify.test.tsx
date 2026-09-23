@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi, afterEach } from "vitest";
 import { Verify } from "../../src/screens/Verify";
 
-const SCOPE = "This corpus contains the Qur'an only. Absence of a quotation from this corpus does not establish that it is fabricated.";
+const SCOPE = "This corpus contains the Qur'an and Sahih al-Bukhari. It does not contain Sahih Muslim, the four Sunan, or any other collection, so absence from this corpus does not establish that a quotation is fabricated.";
 
 function reply(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });

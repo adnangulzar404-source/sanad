@@ -254,7 +254,39 @@ def _collect_hadith_citations(
         refs.append(HadithReference(collection, str(value), m.group(0), m.start()))
 
 
+@dataclass(frozen=True)
+class ParsedCitations:
+    """What a piece of prose says about where its quotations come from.
+
+    Two different questions, which used to have one answer between them:
+
+    `references` -- the citations that RESOLVED to something addressable. This
+    is what `parse_references` returns and what the engine compares records
+    against.
+
+    `spans` -- every character range that READS as a citation, resolved or
+    not. A citation whose number is out of range ("sahih al-bukhari 99999")
+    resolves to nothing, but it is still unmistakably a citation, and the
+    difference matters downstream: an Arabic-script citation is itself a run
+    of Arabic script, so anything not recognised here is handed to the
+    verifier as a quotation to look up, and the reader is told their citation
+    is not in the corpus. Keying that filter off `references` alone left
+    exactly the out-of-range case still doing it.
+
+    Ranges are half-open and may overlap; callers should treat them as a set
+    of covered positions rather than as a partition.
+    """
+
+    references: list[AnyReference]
+    spans: list[tuple[int, int]]
+
+
 def parse_references(text: str) -> list[AnyReference]:
+    """Just the citations that resolved. See `parse_citations` for the rest."""
+    return parse_citations(text).references
+
+
+def parse_citations(text: str) -> ParsedCitations:
     refs: list[AnyReference] = []
     claimed: list[tuple[int, int]] = []
 
@@ -289,12 +321,15 @@ def parse_references(text: str) -> list[AnyReference]:
         # verdict downstream, so require the article or an explicit qualifier.
         if not (_carries_article(slug) or _preceded_by_qualifier(text, m.start())):
             continue
-        # Deliberately NOT added to `claimed`: that list is consulted by the
-        # dedup two lines above on every later iteration, so adding to it would
-        # let one surah name suppress another within the 24-character window.
+        # Deliberately NOT added to `claimed`, in either role. That list is
+        # consulted by the dedup two lines above on every later iteration, so
+        # adding to it would let one surah name suppress another within the
+        # 24-character window; and a bare surah name is ASCII, so it can never
+        # overlap a run of Arabic script and has nothing to contribute to
+        # `spans` -- which exists to stop citations being read as quotations.
         refs.append(Reference(num, None, m.group(0), m.start()))
 
-    return sorted(refs, key=lambda r: r.start)
+    return ParsedCitations(sorted(refs, key=lambda r: r.start), sorted(set(claimed)))
 
 
 def nearest_reference(

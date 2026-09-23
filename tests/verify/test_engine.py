@@ -763,6 +763,35 @@ def test_a_citation_standing_entirely_alone_yields_no_quotation(conn):
             assert verify_spans(conn, text) == [], text
 
 
+def test_a_citation_whose_number_is_out_of_range_is_still_not_a_quotation(conn):
+    """Concern 1 from the first round of this task, now fixed.
+
+    "sahih al-bukhari 99999" resolves to no reference -- 99999 is past the end
+    of the collection -- but it is still unmistakably a citation. While the
+    filter keyed off the RESOLVED references, this survived as an Arabic run
+    and the reader was told their citation was not in the corpus, which is the
+    whole of D2 all over again in the one case D2's fix missed.
+    """
+    for n in (0, 9999, 99999):
+        for form in (_SAHIH_AL_BUKHARI_AR, _AL_BUKHARI_AR, _RAWAHU_AL_BUKHARI_AR):
+            text = f"{form} {_arabic_indic(n)}"
+            assert verify_spans(conn, text) == [], text
+
+
+def test_an_out_of_range_citation_beside_a_real_quotation(conn):
+    """The same, in the shape it actually occurs: the quotation must still be
+    verified on its own text, and the bad citation must not become a second,
+    spurious NOT_FOUND beside it."""
+    matn = db.get_record(conn, "hadith:bukhari:2866").text_ar
+    citation = f"{_SAHIH_AL_BUKHARI_AR} {_arabic_indic(99999)}"
+    out = verify_spans(conn, f"«{matn}» ({citation})")
+    assert [m.span.text for m in out] == [matn]
+    assert out[0].verdict is Verdict.EXACT
+    assert out[0].record.id == "hadith:bukhari:2866"
+    # No reference resolved, so nothing is claimed about the citation.
+    assert out[0].given_reference is None
+
+
 def test_a_quotation_is_not_dropped_merely_for_sitting_next_to_a_citation(conn):
     """The D2 filter removes spans a citation CONSUMES, not spans it neighbours.
     An over-broad filter would silently delete real quotations, which is worse

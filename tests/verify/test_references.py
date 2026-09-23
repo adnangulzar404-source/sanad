@@ -4,6 +4,7 @@ from sanad.verify.references import (
     HadithReference,
     Reference,
     nearest_reference,
+    parse_citations,
     parse_references,
 )
 
@@ -294,3 +295,51 @@ def test_a_hadith_citation_is_returned_for_a_position_with_no_verse_near():
 def test_the_window_still_applies_across_kinds():
     """Kind does not affect reach; distance still does."""
     assert nearest_reference(_mixed_refs(), 5000, window=180) is None
+
+
+# --- Task 6, concern 1: spans that READ as a citation, resolved or not -------
+
+
+def test_parse_citations_reports_the_references_parse_references_does():
+    text = "«x» (Bukhari 1) and (2:255)"
+    assert parse_citations(text).references == parse_references(text)
+
+
+def test_parse_citations_spans_cover_a_resolved_citation():
+    text = "see Bukhari 342 here"
+    spans = parse_citations(text).spans
+    start = text.index("Bukhari 342")
+    assert (start, start + len("Bukhari 342")) in spans
+
+
+@pytest.mark.parametrize("text", [
+    "\u0635\u062d\u064a\u062d \u0627\u0644\u0628\u062e\u0627\u0631\u064a \u0669\u0669\u0669\u0669\u0669",
+    "Bukhari 99999",
+    "\u0635\u062d\u064a\u062d \u0627\u0644\u0628\u062e\u0627\u0631\u064a \u0660",
+    "Bukhari 0",
+])
+def test_an_unresolvable_citation_still_reports_its_span(text):
+    """The point of `spans` being separate from `references`.
+
+    A citation whose number is out of range resolves to nothing, but the text
+    is still unmistakably a citation and must not be offered to the verifier
+    as a quotation to look up -- which is what used to happen, and left the
+    reader told that "sahih al-bukhari 99999" is not in this corpus.
+    """
+    parsed = parse_citations(text)
+    assert parsed.references == []
+    assert parsed.spans, "an unresolved citation must still claim its span"
+    covered = set()
+    for start, end in parsed.spans:
+        covered.update(range(start, end))
+    # What is left uncovered must be too slight to read as a quotation. (It is
+    # not always empty: `\\d{1,4}` stops after four digits, so the fifth digit
+    # of "99999" is outside the claim. That leftover is one character, which
+    # is the point -- no run of it can survive extraction.)
+    assert len(set(range(len(text))) - covered) <= 1
+
+
+def test_prose_with_no_citation_claims_no_spans():
+    """The filter downstream keys off these spans; if everything claimed a
+    span, every quotation would be discarded as a citation."""
+    assert parse_citations("There is no citation in this sentence.").spans == []

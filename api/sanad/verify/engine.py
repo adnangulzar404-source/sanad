@@ -21,7 +21,7 @@ from .references import (
     AnyReference,
     HadithReference,
     nearest_reference,
-    parse_references,
+    parse_citations,
 )
 
 NEAR_THRESHOLD = 0.86
@@ -460,7 +460,7 @@ def _classify(conn: sqlite3.Connection, span: Span,
     return Match(span, verdict, record, tier, score, given, diff, also_at)
 
 
-def _is_only_a_citation(span: Span, refs: list[AnyReference]) -> bool:
+def _is_only_a_citation(span: Span, citation_spans: list[tuple[int, int]]) -> bool:
     """Is this "quotation" nothing but a citation the reader wrote?
 
     The Task 6 findings, D2: an Arabic-script citation is itself a run of
@@ -477,13 +477,19 @@ def _is_only_a_citation(span: Span, refs: list[AnyReference]) -> bool:
     filter here would silently delete real quotations, which is worse than the
     defect it fixes.
 
+    The ranges come from `ParsedCitations.spans`, not from the resolved
+    references, so a citation whose number is out of range ("sahih al-bukhari
+    99999") is covered too. It resolves to nothing and is still obviously a
+    citation; keying this off the resolved list left exactly that case being
+    reported NOT_FOUND.
+
     Nothing is trimmed, re-spelled or handed on: the remainder is measured and
     discarded. Spans that survive are verified as the reader wrote them, byte
     for byte. On today's corpus no record's own text contains anything
     `parse_citations` reads as a citation (swept in the tests), so this can
     only ever remove a citation, never a quotation of a real record.
     """
-    covered = [(r.start, r.start + len(r.raw)) for r in refs]
+    covered = citation_spans
     if not covered:
         return False
     remainder = "".join(
@@ -495,7 +501,7 @@ def _is_only_a_citation(span: Span, refs: list[AnyReference]) -> bool:
 
 
 def verify_spans(conn: sqlite3.Connection, text: str) -> list[Match]:
-    # `parse_references` yields both families -- `Reference` (surah:ayah) and
+    # `parse_citations` yields both families -- `Reference` (surah:ayah) and
     # `HadithReference` (Task 5 of the hadith corpus plan) -- and both are
     # passed through, unfiltered. The Task 5 stopgap that dropped every
     # `HadithReference` here is gone rather than layered under this: it existed
@@ -507,6 +513,6 @@ def verify_spans(conn: sqlite3.Connection, text: str) -> list[Match]:
     # Nothing here selects which citations a span may see. Attachment is by
     # distance alone (`_nearest_reference_to_span`) and a citation of the wrong
     # kind is a verdict, not an omission.
-    refs = parse_references(text)
-    return [_classify(conn, span, refs) for span in extract_spans(text)
-            if not _is_only_a_citation(span, refs)]
+    parsed = parse_citations(text)
+    return [_classify(conn, span, parsed.references) for span in extract_spans(text)
+            if not _is_only_a_citation(span, parsed.spans)]

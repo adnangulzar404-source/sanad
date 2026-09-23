@@ -13,6 +13,8 @@ meant to DIFFER from corpus text is checked to still differ -- a mutation case
 whose mutation was quietly normalised away by an editor, a copy-paste, or a
 YAML round-trip is a case that passes while testing nothing.
 """
+import ast
+import re
 from pathlib import Path
 
 import pytest
@@ -289,6 +291,193 @@ def test_no_claim_note_denies_that_a_hadith_corpus_is_bundled(conn):
         assert denial not in notes.lower(), (
             f"a claim note still tells the reader {denial!r} while the corpus "
             f"contains 7,129 hadith")
+
+
+# --- the same denial, one surface further out ------------------------------
+#
+# The test above was written to stop R25(a) recurring and reads claim notes
+# and nothing else. So `index.html` -- GitHub Pages, the most public thing
+# this project has -- went on telling readers "No Hadith edition is bundled
+# anywhere" and "Adapter only, no edition shipped" for the whole of Stage A2,
+# and the suite stayed green. A guard that covers one surface of a
+# multi-surface claim is a guard against being caught, not against the
+# defect.
+#
+# The rule enforced here: a public surface may say what it does not carry,
+# but not out of sight of what the project does carry. Wherever a reader
+# meets a denial, "al-Bukhari" has to be in the same breath -- the same
+# element on a page, the same paragraph in prose, the same string in code --
+# so meeting the absence means also meeting the corpus.
+#
+# Scope is deliberately not "the whole repository". `docs/superpowers/**`
+# holds dated plans, specs and research that were true when they were
+# written; editing those to match today would be falsifying the record, not
+# fixing copy.
+_PUBLIC_SURFACES = ("index.html", "README.md", "CONTRIBUTING.md",
+                    "REPO_STATUS.md", "docs/SOURCES.md", "web/index.html")
+_PUBLIC_TREES = (("web/src", ("*.ts", "*.tsx", "*.html")),
+                 ("api/sanad", ("*.py",)))
+
+# A negation standing within a short reach of a word about carrying a text.
+# Bounded by the sentence it sits in -- "." ends the reach -- so a negation
+# in one sentence cannot be paired with a noun from the next.
+_DENIAL = re.compile(
+    r"\b(no|not|never|none|neither|without)\b[^.]{0,60}?"
+    r"\b(bundl\w*|ship(?:s|ped|ping)?|includ\w*|import\w*|available|"
+    r"present|edition|corpus)\b",
+    re.IGNORECASE)
+_MENTIONS_HADITH = re.compile(r"hadith|bukhari", re.IGNORECASE)
+_THE_FACT = re.compile(r"al[-\s]?Bukhari", re.IGNORECASE)
+# DDL is not copy. `schema.py`'s CREATE TABLE names a `hadith_no` column and
+# a NOT NULL constraint three lines from the word "edition", which reads as a
+# denial to any regex and to no reader.
+_SQL = re.compile(r"\b(CREATE\s+(TABLE|VIRTUAL|INDEX)|SELECT\s|INSERT\s+INTO)",
+                  re.IGNORECASE)
+
+
+def _segments(path: Path) -> list[str]:
+    """The unit a reader takes in at once, which differs by surface.
+
+    A character window was tried first and is wrong in both directions: it
+    pairs a denial in one table row with a noun from the row below, and it
+    reads Python comments and identifiers as prose (`x: str | None = None`
+    followed by a comment about "the edition" scans as a denial). Structure
+    is the honest unit.
+    """
+    text = path.read_text(encoding="utf-8")
+    if path.suffix in (".html", ".htm", ".ts", ".tsx"):
+        # Markup and JSX here are written one element per line, so a line is
+        # an element -- and a table row is one line, cells and all.
+        return text.splitlines()
+    if path.suffix == ".md":
+        return re.split(r"\n\s*\n", text)
+    if path.suffix == ".py":
+        # String literals only. A comment is not a public surface, and the
+        # comment in `claims.py` that quotes the old denial in order to
+        # explain why it was wrong must not be read as making it.
+        return [n.value for n in ast.walk(ast.parse(text))
+                if isinstance(n, ast.Constant) and isinstance(n.value, str)]
+    raise AssertionError(f"no segmentation rule for {path}")
+
+
+def _denials_out_of_sight(segment: str) -> list[str]:
+    """Denials about hadith in `segment` that never name al-Bukhari."""
+    if not _MENTIONS_HADITH.search(segment) or _THE_FACT.search(segment):
+        return []
+    if _SQL.search(segment):
+        return []
+    return [m.group(0) for m in _DENIAL.finditer(segment)]
+
+
+def _public_surface_paths() -> list[Path]:
+    paths = [Path(p) for p in _PUBLIC_SURFACES]
+    for root, patterns in _PUBLIC_TREES:
+        for pattern in patterns:
+            paths += sorted(Path(root).rglob(pattern))
+    found = [p for p in paths if p.is_file()]
+    assert len(found) > 20, (
+        "the surface list has stopped resolving to files; a scan of nothing "
+        "passes for the wrong reason")
+    return found
+
+
+def test_no_public_surface_denies_that_a_hadith_corpus_exists():
+    offenders = {}
+    for path in _public_surface_paths():
+        found = [d for seg in _segments(path) for d in _denials_out_of_sight(seg)]
+        if found:
+            offenders[str(path)] = found
+    assert not offenders, (
+        f"a public surface denies the hadith corpus out of sight of it: "
+        f"{offenders}. This corpus contains all 7,129 hadith of Sahih "
+        f"al-Bukhari; say what is absent if you must, but say it beside what "
+        f"is present.")
+
+
+# The scan above asks whether the fact is within sight of the denial, which
+# is the right question for a NEW phrasing and the wrong one for a flat
+# contradiction: moving "Sahih al-Bukhari" onto the same line as "No Hadith
+# edition is bundled anywhere" satisfies it and makes the page worse. These
+# are statements that are simply false about this project, wherever they
+# stand and whatever stands beside them. Every one of them was live text on
+# GitHub Pages or in a claim note during Stage A2.
+_FALSE_ON_ANY_SURFACE = (
+    "no hadith edition is bundled",
+    "no licensed hadith edition",
+    "no hadith corpus is bundled",
+    "no hadith edition is shipped",
+    "bundled anywhere",
+    "no edition shipped",
+    "no edition is shipped",
+    "adapter only",
+    "hadith adapter present",
+    "licensed texts not bundled",
+    "treat as unverified until an edition is imported",
+)
+
+
+def test_no_public_surface_states_one_of_the_falsehoods_outright():
+    offenders = {}
+    for path in _public_surface_paths():
+        # Segments, not raw file text, for the same reason as the scan above:
+        # `claims.py` quotes the old denial in a comment in order to explain
+        # why it was wrong, and a comment is not something a reader is told.
+        lowered = " \n ".join(_segments(path)).lower()
+        said = [p for p in _FALSE_ON_ANY_SURFACE if p in lowered]
+        if said:
+            offenders[str(path)] = said
+    assert not offenders, (
+        f"a public surface states as fact something that is not: {offenders}. "
+        f"Sahih al-Bukhari has been in this corpus since Stage A2; no wording "
+        f"beside it makes these true.")
+
+
+@pytest.mark.parametrize("phrase", _FALSE_ON_ANY_SURFACE)
+def test_each_falsehood_is_a_phrase_that_would_be_recognised(phrase):
+    """Mutation guard for the list above.
+
+    A blocklist of phrases nobody would write is a blocklist that can never
+    fire. Each entry has to be lowercase (it is matched against lowercased
+    text), non-trivial, and actually about hadith or about bundling -- not a
+    fragment so generic it would match anything, nor so specific it only
+    matches a string that no longer exists anywhere.
+    """
+    assert phrase == phrase.lower() and len(phrase) >= 12
+    assert re.search(r"hadith|bundl|edition|adapter|imported", phrase)
+
+
+@pytest.mark.parametrize("historical", [
+    ("No Hadith edition is bundled anywhere, so “not found” here "
+     "means “not in this corpus”, never “fabricated”."),
+    ("Loaded: Al-Fatiha, Ayat al-Kursi. Hadith adapter present; licensed "
+     "texts not bundled."),
+    ("<tr><td>Hadith editions</td><td>Written permission or a clearly "
+     "licensed subset</td><td>Adapter only — no edition shipped</td></tr>"),
+    ("No licensed Hadith edition is bundled. Treat as unverified until an "
+     "edition is imported."),
+])
+def test_the_surface_scan_catches_the_four_denials_that_shipped(historical):
+    """The scan has to fail on the text it was written for.
+
+    These four strings are what `index.html` actually said while the suite
+    was green -- pasted here so the scan is proved capable of failing without
+    depending on the current contents of any file. A scan that reports
+    nothing looks identical whether it is working or broken.
+    """
+    assert _denials_out_of_sight(historical), (
+        "the scan no longer sees a denial that shipped to GitHub Pages")
+
+
+def test_a_denial_beside_the_fact_is_not_an_offence():
+    """The rule is sight of the truth, not silence about absence.
+
+    Saying a surface carries no hadith is honest and sometimes necessary --
+    the Phase 0 page really does carry none. What made the old copy a defect
+    was that a reader met the absence and never met the corpus.
+    """
+    assert not _denials_out_of_sight(
+        "This page carries no hadith edition; the Stage A engine holds "
+        "Sahih al-Bukhari.")
 
 
 # --- the gate itself -----------------------------------------------------

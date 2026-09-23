@@ -198,17 +198,17 @@ ul.plain { margin: .4rem 0 0; padding-left: 1.1rem; }
   </div>
 </header>
 <main class="wrap">
-  <div class="banner">You are looking at the <b style="color:var(--ink)">Phase&nbsp;0 prototype</b>, which carries 15 hardcoded verses and runs entirely in this page. It is not the verification engine. The real Stage&nbsp;A engine holds the full Tanzil Uthmani Qur’an — 6,236 verses verified against a committed content hash — plus Pickthall’s English, and it needs a server, which GitHub Pages cannot provide. Run it with <code>docker build -t sanad . &amp;&amp; docker run -p 8000:8000 sanad</code> and open <code>localhost:8000/docs</code>. Source: <a href="https://github.com/adnangulzar404-source/sanad" style="color:var(--ink)">github.com/adnangulzar404-source/sanad</a>. No Hadith edition is bundled anywhere, so “not found” here means “not in this corpus”, never “fabricated”.</div>
+  <div class="banner">You are looking at the <b style="color:var(--ink)">Phase&nbsp;0 prototype</b>, which carries 15 hardcoded verses and runs entirely in this page. It is not the verification engine. The real Stage&nbsp;A engine holds the full Tanzil Uthmani Qur’an — 6,236 verses verified against a committed content hash — plus Pickthall’s English and Sahih al-Bukhari, all 7,129 hadith of the al-Bugha printed edition, and it needs a server, which GitHub Pages cannot provide. Run it with <code>docker build -t sanad . &amp;&amp; docker run -p 8000:8000 sanad</code> and open <code>localhost:8000/docs</code>. Source: <a href="https://github.com/adnangulzar404-source/sanad" style="color:var(--ink)">github.com/adnangulzar404-source/sanad</a>. This page itself carries no hadith text, so “not found” here means “not among these 15 verses”, never “fabricated”. Neither here nor in the engine does Sanad grade a hadith: it reports whether wording matches a printed edition, and says nothing about authenticity.</div>
 
   <section id="panel-verify" class="tabpanel">
     <div class="hero-note">
       <div>
         <h1>Do not publish what you cannot prove.</h1>
-        <p class="lede">Paste an AI-generated answer. Sanad checks quotations against a closed corpus, grades each claim, and stops when a specialist is required.</p>
+        <p class="lede">Paste an AI-generated answer. Sanad checks quotations against a closed corpus, classifies each claim, and stops when a specialist is required.</p>
       </div>
       <div class="panel">
         <div class="status warn">Demo corpus</div>
-        <p style="margin:.55rem 0 0; color:var(--muted); font-size:.9rem;">Loaded: Al-Fatiha, Ayat al-Kursi, Al-Kawthar, Al-Ikhlas. Hadith adapter present; licensed texts not bundled.</p>
+        <p style="margin:.55rem 0 0; color:var(--muted); font-size:.9rem;">Loaded: Al-Fatiha, Ayat al-Kursi, Al-Kawthar, Al-Ikhlas. No hadith on this page; the Stage&nbsp;A engine holds Sahih al-Bukhari.</p>
       </div>
     </div>
     <div class="panel">
@@ -280,7 +280,7 @@ ul.plain { margin: .4rem 0 0; padding-left: 1.1rem; }
         <h2>Not shipped here</h2>
         <ul class="plain">
           <li>Full Tanzil import (download + checksum yourself)</li>
-          <li>A licensed Hadith edition</li>
+          <li>Sahih al-Bukhari — in the Stage A engine, not on this page</li>
           <li>A hosted API or GitHub repository</li>
           <li>A two-minute video or slide deck</li>
           <li>A live large language model</li>
@@ -303,7 +303,7 @@ ul.plain { margin: .4rem 0 0; padding-left: 1.1rem; }
           <tr><td>Tanzil Qur’an text</td><td>Import verbatim, CC BY 3.0, attribute Tanzil, link tanzil.net, do not change the text</td><td>Small demo encoding for matcher tests only</td></tr>
           <tr><td>Quranic Arabic Corpus</td><td>Optional morphology; review GNU + FAQ before bundling</td><td>Not included</td></tr>
           <tr><td>Quran.com</td><td>Link as a reference; do not scrape or bundle</td><td>Not included</td></tr>
-          <tr><td>Hadith editions</td><td>Written permission or a clearly licensed subset; record collection, number, edition, grader</td><td>Adapter only — no edition shipped</td></tr>
+          <tr><td>Hadith editions</td><td>Record the basis, not just the source. Sahih al-Bukhari ships in the Stage A engine on the work’s own public-domain status (al-Bukhari d. 870 CE), via OpenITI’s mechanical transcription of the al-Bugha 1407/1987 printing; collection, number and edition are recorded with every record. No authenticity grading is shipped or asserted — modern gradings are copyrighted scholarly work, and authenticity is not Sanad’s to state.</td><td>Not included — this page carries no hadith text</td></tr>
           <tr><td>OpenITI</td><td>Discovery, not a uniform redistribution license</td><td>Not included</td></tr>
           <tr><td>English glosses in this file</td><td>Replace with a licensed translation</td><td>Original demo glosses, not a published tarjama</td></tr>
         </tbody>
@@ -487,7 +487,7 @@ ul.plain { margin: .4rem 0 0; padding-left: 1.1rem; }
       claims.push({ text: 'Legal conclusion beyond the quoted text', status: 'interpretation', note: 'A valid quotation does not automatically license a modern legal conclusion. Marked as interpretation.' });
     }
     if (/bukhari\s*\d+|muslim\s*\d+|hadith/i.test(text)) {
-      claims.push({ text: 'Hadith citation', status: 'no_edition', note: 'No licensed Hadith edition is bundled. Treat as unverified until an edition is imported.' });
+      claims.push({ text: 'Hadith citation', status: 'no_edition', note: 'This prototype page carries no hadith text, so a citation cannot be checked here; the Stage A engine holds Sahih al-Bukhari and no other collection. Sanad compares wording against a printed edition; it does not grade authenticity.' });
     }
     if (/invents new worship|best among you is the one who invents/i.test(text)) {
       claims.push({ text: 'Fabricated-looking report', status: 'not_found', note: 'This wording is not in the store and should not be published as Hadith.' });

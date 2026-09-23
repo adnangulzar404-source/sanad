@@ -10,9 +10,7 @@ Use the Tanzil text as the leading candidate for the production Arabic Qur’an 
 
 ### Hadith
 
-Do not ship scraped Hadith from a public website merely because it is accessible. The production corpus needs written permission or a clearly applicable redistribution license for the exact text, translation, edition, and metadata. Each record should carry collection, book, number, edition, grading source, and provenance.
-
-**Status: shipped.** Sahih al-Bukhari (7,129 records, matn + isnad, no gradings) was added to the corpus under the basis recorded in full below (see **Sahih al-Bukhari: the licensing basis**). See `docs/superpowers/specs/2026-09-22-hadith-corpus-design.md` §4 for the complete source and parsing rationale.
+Do not ship scraped Hadith from a public website merely because it is accessible; accessibility is not a licence. What the production corpus needs for the exact text, edition and metadata is a recorded *basis* — either the work's own public-domain status or a redistribution grant that can actually be pointed at. **Status: shipped.** Sahih al-Bukhari (7,129 records, matn + isnad) is in the corpus on the first of those; the basis is recorded in full below (see **Sahih al-Bukhari: the licensing basis**), and `docs/superpowers/specs/2026-09-22-hadith-corpus-design.md` §4 has the complete source and parsing rationale. Each record carries collection, book, number, edition and provenance, and no grading: modern authenticity gradings are copyrighted scholarly work, and authenticity is not Sanad's to assert.
 
 ### Translations and tafsir
 

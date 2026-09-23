@@ -30,10 +30,39 @@ export function EvidenceCard({
 
       <CharDiff diff={(quotation.diff as DiffOp[] | null) ?? null} />
 
+      {rec?.text_ar && (
+        // A record's matn and its addendum are one printed text -- the split
+        // is an indexing artefact (see Task 4's addenda_ar ruling), and in at
+        // least two records the boundary falls mid-narration. Never label the
+        // addendum, never head it, never drop it: join with the single space
+        // the edition's own text uses (verified in test_build.py).
+        <p
+          data-testid="matn"
+          className="arabic"
+          dir="rtl"
+          lang="ar"
+          style={{ margin: "0.9rem 0 0" }}
+        >
+          {rec.addenda_ar ? `${rec.text_ar} ${rec.addenda_ar}` : rec.text_ar}
+        </p>
+      )}
+
       {rec?.translation_en && (
         <div style={{ marginBlockStart: "0.9rem", paddingBlockStart: "0.6rem", borderBlockStart: "var(--rule)" }}>
           <p data-testid="translation" style={{ margin: 0 }}>{rec.translation_en}</p>
         </div>
+      )}
+
+      {rec?.isnad_ar && (
+        <p
+          data-testid="isnad"
+          className="data"
+          style={{ margin: "0.5rem 0 0", lineHeight: 1.7 }}
+          dir="rtl"
+          lang="ar"
+        >
+          {rec.isnad_ar}
+        </p>
       )}
 
       {verdict === "NOT_FOUND" && (

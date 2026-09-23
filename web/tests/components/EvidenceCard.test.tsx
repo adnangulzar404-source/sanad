@@ -54,4 +54,56 @@ describe("EvidenceCard", () => {
     expect(caveat.className).not.toContain("data");
     expect(caveat).toHaveStyle({ fontFamily: "var(--serif)" });
   });
+
+  const hadithRecord = {
+    id: "hadith:bukhari:1", reference_display: "Sahih al-Bukhari 1",
+    text_ar: "MATN", text_ar_sha256: "abc", isnad_ar: "CHAIN OF NARRATORS",
+    collection: "bukhari", hadith_no: "1",
+    translation_en: null, translation_disclaimer: null,
+  };
+  const hadith = q({ record: hadithRecord });
+
+  it("shows the isnad for a hadith, in the apparatus register", () => {
+    render(<EvidenceCard quotation={hadith} corpusScope={SCOPE} />);
+    const el = screen.getByTestId("isnad");
+    expect(el).toHaveTextContent("CHAIN OF NARRATORS");
+    expect(el.className).toContain("data");
+  });
+
+  it("shows no isnad block for an ayah", () => {
+    render(<EvidenceCard quotation={base} corpusScope={SCOPE} />);
+    expect(screen.queryByTestId("isnad")).toBeNull();
+  });
+
+  it("renders a hadith's matn and addendum as one continuous text, joined by a space", () => {
+    const cut = q({
+      record: { ...hadithRecord, text_ar: "PRIMARY MATN", addenda_ar: "SECONDARY MATN" },
+    });
+    render(<EvidenceCard quotation={cut} corpusScope={SCOPE} />);
+    expect(screen.getByTestId("matn").textContent).toBe("PRIMARY MATN SECONDARY MATN");
+  });
+
+  it("does not label the addendum separately or split it into its own element", () => {
+    const cut = q({
+      record: { ...hadithRecord, text_ar: "PRIMARY MATN", addenda_ar: "SECONDARY MATN" },
+    });
+    render(<EvidenceCard quotation={cut} corpusScope={SCOPE} />);
+    expect(screen.queryByTestId("addenda")).toBeNull();
+    expect(screen.queryByText(/addend/i)).toBeNull();
+  });
+
+  it("renders just the primary matn, with no trailing space, when there is no addendum", () => {
+    render(<EvidenceCard quotation={hadith} corpusScope={SCOPE} />);
+    expect(screen.getByTestId("matn").textContent).toBe("MATN");
+  });
+
+  it("does not render an unscorable hadith as an error", () => {
+    const pointer = q({
+      record: { ...hadithRecord, text_ar: "بهذا", unscorable_reason: "pointer" },
+    });
+    render(<EvidenceCard quotation={pointer} corpusScope={SCOPE} />);
+    expect(screen.queryByTestId("scope-caveat")).toBeNull();
+    expect(screen.getByTestId("matn")).toHaveTextContent("بهذا");
+    expect(screen.getByTestId("isnad")).toHaveTextContent("CHAIN OF NARRATORS");
+  });
 });

@@ -85,6 +85,12 @@ export function Verify() {
                   {result.quotations.find((q) => q.record?.translation_en)?.record?.translation_disclaimer}
                 </p>
               )}
+              {result.quotations.some((q) => q.record?.collection) && (
+                <p data-testid="no-grading" className="data" style={{ marginBlockStart: "0.5rem" }}>
+                  Sanad confirms wording against this printed edition. It does not grade
+                  authenticity (ṣaḥīḥ/ḍaʿīf); that requires a scholarly source.
+                </p>
+              )}
             </section>
           )}
 

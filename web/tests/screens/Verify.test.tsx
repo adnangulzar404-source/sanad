@@ -139,6 +139,58 @@ describe("Verify screen", () => {
     expect(screen.queryByTestId("translation-disclaimer")).toBeNull();
   });
 
+  it("states once that it does not grade authenticity, when a hadith is shown", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(reply({
+      ...verified,
+      quotations: [
+        { ...verified.quotations[0], record: { id: "hadith:bukhari:1",
+          reference_display: "Sahih al-Bukhari 1", text_ar: "M1", text_ar_sha256: "a",
+          isnad_ar: "C1", collection: "bukhari", hadith_no: "1",
+          translation_en: null, translation_disclaimer: null } },
+        { ...verified.quotations[0], record: { id: "hadith:bukhari:2",
+          reference_display: "Sahih al-Bukhari 2", text_ar: "M2", text_ar_sha256: "b",
+          isnad_ar: "C2", collection: "bukhari", hadith_no: "2",
+          translation_en: null, translation_disclaimer: null } },
+      ],
+    })));
+    const user = userEvent.setup();
+    render(<Verify />);
+    await user.type(screen.getByRole("textbox"), "two hadith");
+    await user.click(screen.getByRole("button", { name: /verify/i }));
+    await waitFor(() => expect(screen.getAllByTestId("isnad")).toHaveLength(2));
+    expect(screen.getAllByTestId("no-grading")).toHaveLength(1);
+    expect(screen.getByTestId("no-grading")).toHaveTextContent(/does not grade authenticity/i);
+  });
+
+  it("shows no gradings line when only ayat are shown", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(reply(verified)));
+    const user = userEvent.setup();
+    render(<Verify />);
+    await user.type(screen.getByRole("textbox"), "an ayah");
+    await user.click(screen.getByRole("button", { name: /verify/i }));
+    await waitFor(() => expect(screen.getByText(/^Verified$/)).toBeInTheDocument());
+    expect(screen.queryByTestId("no-grading")).toBeNull();
+  });
+
+  it("still shows the gradings line exactly once when an ayah and a hadith are both shown", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(reply({
+      ...verified,
+      quotations: [
+        verified.quotations[0],
+        { ...verified.quotations[0], record: { id: "hadith:bukhari:1",
+          reference_display: "Sahih al-Bukhari 1", text_ar: "M1", text_ar_sha256: "a",
+          isnad_ar: "C1", collection: "bukhari", hadith_no: "1",
+          translation_en: null, translation_disclaimer: null } },
+      ],
+    })));
+    const user = userEvent.setup();
+    render(<Verify />);
+    await user.type(screen.getByRole("textbox"), "ayah and hadith");
+    await user.click(screen.getByRole("button", { name: /verify/i }));
+    await waitFor(() => expect(screen.getAllByTestId("isnad")).toHaveLength(1));
+    expect(screen.getAllByTestId("no-grading")).toHaveLength(1);
+  });
+
   it("loads an example that exercises several verdicts", async () => {
     const user = userEvent.setup();
     render(<Verify />);

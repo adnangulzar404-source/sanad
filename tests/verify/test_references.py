@@ -49,16 +49,16 @@ def test_no_reference_returns_empty():
 
 def test_nearest_reference_picks_closest():
     refs = [Reference(2, 255, "2:255", 0), Reference(112, 1, "112:1", 500)]
-    assert nearest_reference(refs, 480).surah == 112
+    assert nearest_reference(refs, 480, kind="ayah").surah == 112
 
 
 def test_nearest_reference_respects_window():
     refs = [Reference(2, 255, "2:255", 0)]
-    assert nearest_reference(refs, 5000, window=180) is None
+    assert nearest_reference(refs, 5000, kind="ayah", window=180) is None
 
 
 def test_nearest_reference_on_empty_list():
-    assert nearest_reference([], 0) is None
+    assert nearest_reference([], 0, kind="ayah") is None
 
 
 @pytest.mark.parametrize("text", [
@@ -220,3 +220,79 @@ def test_arabic_colon_pair_takes_the_second_number():
     hadith_refs = [r for r in refs if isinstance(r, HadithReference)]
     assert len(hadith_refs) == 1
     assert hadith_refs[0].hadith_no == "2"
+
+
+# --- Task 6, D3: the hadith-number lower bound ------------------------------
+#
+# The upper bound (MAX_HADITH_NO) was enforced from the start; the lower bound
+# was not, so "Bukhari 0" parsed to hadith_no='0'. There is no hadith 0, and a
+# reference to a record that cannot exist can only ever produce a spurious
+# WRONG_REFERENCE downstream -- the same "a miss costs less than noise" rule
+# that governs bare surah names in this module.
+
+
+@pytest.mark.parametrize("text", [
+    "Bukhari 0",
+    "Sahih al-Bukhari, no. 0",
+    "Bukhari 000",
+    "Bukhari 1:0",          # kitab 1, hadith 0 -- the second number is the one
+    "صحيح البخاري ٠",
+    "البخاري ٠",
+])
+def test_hadith_zero_is_not_a_reference(text):
+    assert not [r for r in parse_references(text) if isinstance(r, HadithReference)]
+
+
+# A "and it does not fall back to a verse reading" companion was written here
+# and then DELETED, because mutation testing showed it could not fail: with
+# both the range check and the span claim stripped out, "Bukhari 0" and
+# "Bukhari 1:0" still yield no `Reference`, since ayah 0 is not a valid verse
+# address under any surah. A rejected hadith number is structurally incapable
+# of reading as a verse. (The same holds for the pre-existing
+# `test_out_of_range_number_does_not_fall_back_to_a_verse_reading` above,
+# which is left as found -- it is not this task's to change.)
+
+
+def test_the_first_real_hadith_number_still_parses():
+    """The bound is `< 1`, not `<= 1`: hadith 1 is the most-quoted hadith in
+    the collection. A test for the rejection of 0 that did not also pin 1
+    would pass just as happily against an off-by-one."""
+    refs = [r for r in parse_references("Bukhari 1") if isinstance(r, HadithReference)]
+    assert len(refs) == 1
+    assert refs[0].hadith_no == "1"
+
+
+# --- Task 6, D1: a citation is only ever offered for its own kind of record --
+
+
+def _mixed_refs():
+    """A hadith citation at 0 and a verse citation at 10, both in window."""
+    return [HadithReference("bukhari", "2866", "Bukhari 2866", 0),
+            Reference(112, 1, "112:1", 10)]
+
+
+def test_nearest_reference_of_kind_ayah_never_returns_a_hadith_citation():
+    """Even when the hadith citation is strictly the nearer of the two."""
+    got = nearest_reference(_mixed_refs(), 0, kind="ayah")
+    assert isinstance(got, Reference)
+    assert got.surah == 112
+
+
+def test_nearest_reference_of_kind_hadith_never_returns_a_verse_citation():
+    got = nearest_reference(_mixed_refs(), 10, kind="hadith")
+    assert isinstance(got, HadithReference)
+    assert got.hadith_no == "2866"
+
+
+def test_nearest_reference_returns_none_when_only_the_other_kind_is_present():
+    """The D1 shape reduced to one call: a hadith quotation with nothing but a
+    Qur'anic citation beside it has NO given reference -- not a wrong one."""
+    only_verse = [Reference(112, 1, "112:1", 0)]
+    assert nearest_reference(only_verse, 0, kind="hadith") is None
+    only_hadith = [HadithReference("bukhari", "1", "Bukhari 1", 0)]
+    assert nearest_reference(only_hadith, 0, kind="ayah") is None
+
+
+def test_nearest_reference_rejects_an_unknown_kind():
+    """A kind nothing cites must yield nothing, never fall through to "any"."""
+    assert nearest_reference(_mixed_refs(), 0, kind="tafsir") is None

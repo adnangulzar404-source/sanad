@@ -201,6 +201,13 @@ _HADITH_CITE_AR = re.compile(
 )
 
 MAX_HADITH_NO = 7124
+# There is no hadith 0. The upper bound was enforced from the start and the
+# lower one was not, so "Bukhari 0" parsed to hadith_no='0' -- a reference to
+# a record that cannot exist, which downstream can only ever produce a
+# spurious WRONG_REFERENCE. Same trade-off as bare surah names above: a missed
+# citation costs a downgrade to a correct plain match, a spurious one costs a
+# false accusation of misattribution.
+MIN_HADITH_NO = 1
 
 
 def _resolve_collection(name: str) -> str | None:
@@ -242,7 +249,7 @@ def _collect_hadith_citations(
         # matn/ayah wording itself, which this module never re-spells. `raw`
         # still preserves the untouched matched text for display/audit.
         value = int(printed)
-        if value > MAX_HADITH_NO:
+        if not MIN_HADITH_NO <= value <= MAX_HADITH_NO:
             continue  # out of range -- never falls back to a verse reading
         refs.append(HadithReference(collection, str(value), m.group(0), m.start()))
 
@@ -287,10 +294,42 @@ def parse_references(text: str) -> list[AnyReference]:
     return sorted(refs, key=lambda r: r.start)
 
 
+# Which record kind each family of citation can speak about. A `Reference`
+# addresses an ayah; a `HadithReference` addresses a hadith. Nothing addresses
+# anything else, and a kind absent from this table resolves to no citation
+# rather than to "any citation" -- see `nearest_reference`.
+_CITES_KIND: dict[str, type] = {"ayah": Reference, "hadith": HadithReference}
+
+
 def nearest_reference(
-    refs: list[AnyReference], position: int, window: int = 180
+    refs: list[AnyReference], position: int, *, kind: str, window: int = 180
 ) -> AnyReference | None:
-    candidates = [r for r in refs if abs(r.start - position) <= window]
+    """The nearest citation to `position` that can address a record of `kind`.
+
+    `kind` is required and keyword-only, and the filter by class happens
+    BEFORE the distance filter, so there is no argument list that asks this
+    function for "the nearest reference of any kind". That is the point.
+
+    A Qur'anic citation sitting next to a hadith quotation used to be handed
+    back here and then compared, field by field, against a hadith record --
+    reporting WRONG_REFERENCE for a hadith the user had cited perfectly (the
+    Task 6 findings, D1). Telling someone their correct citation is wrong is
+    a false accusation of misattribution, so the rule is not "prefer the
+    reference of the right kind" but "a reference of the wrong kind is not a
+    candidate at all". Where no citation of the right kind is in range the
+    answer is `None`, and the verdict is then decided on the text alone --
+    the correct answer for a quotation nobody cited.
+
+    Enforcing this here rather than at each call site is deliberate: a guard
+    that has to be remembered three times is a guard that gets forgotten
+    once. `window` is unchanged at 180 characters and is NOT what keeps the
+    kinds apart; a citation of the wrong kind is rejected at zero distance.
+    """
+    wanted = _CITES_KIND.get(kind)
+    if wanted is None:
+        return None
+    candidates = [r for r in refs
+                  if isinstance(r, wanted) and abs(r.start - position) <= window]
     if not candidates:
         return None
     return min(candidates, key=lambda r: abs(r.start - position))

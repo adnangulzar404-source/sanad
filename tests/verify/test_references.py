@@ -90,7 +90,6 @@ def test_arabic_indic_digits_parse_correctly():
 @pytest.mark.parametrize("text,number", [
     ("Bukhari 1", "1"),
     ("Sahih al-Bukhari, no. 1", "1"),
-    ("al-Bukhari, Book 1, Hadith 1", "1"),
     ("Sahih Bukhari 7124", "7124"),
 ])
 def test_parses_hadith_citations(text, number):
@@ -107,10 +106,14 @@ def test_bare_collection_name_is_not_a_reference():
 
 
 def test_collection_name_governs_a_colon_pair():
-    """'Bukhari 1:1' is kitab 1 hadith 1, never surah 1 ayah 1."""
+    """'Bukhari 1:1' is a hadith citation, never surah 1 ayah 1.
+
+    It resolves to nothing -- see the book-relative tests below -- but the
+    span is still a citation and still governed by the collection name, so no
+    verse reading may be salvaged out of it.
+    """
     refs = parse_references("Bukhari 1:1")
     assert not any(isinstance(r, Reference) for r in refs)
-    assert any(isinstance(r, HadithReference) for r in refs)
 
 
 def test_a_plain_verse_citation_is_still_a_verse():
@@ -133,13 +136,79 @@ def test_out_of_range_number_is_also_not_a_hadith_reference():
     assert not any(isinstance(r, HadithReference) for r in refs)
 
 
-def test_colon_pair_takes_the_second_number_as_the_hadith_number():
-    """'Bukhari, Book 3, Hadith 42' and a bare 'Bukhari 3:42' must both read
-    as hadith 42 -- the kitab/book number is discarded, never mistaken for
-    the hadith number just because it happens to come first."""
-    refs = [r for r in parse_references("Bukhari 3:42") if isinstance(r, HadithReference)]
-    assert len(refs) == 1
-    assert refs[0].hadith_no == "42"
+# --- book-relative citations resolve to nothing -----------------------------
+#
+# This block replaces two tests that asserted the opposite and agreed with the
+# code and its docstrings while all three were wrong together. "Bukhari 3:42"
+# was read as hadith 42 and "al-Bukhari, Book 1, Hadith 1" as hadith 1, and
+# the second passed only by coincidence -- book 1 happens to start at hadith
+# 1. The corpus is `bugha-1987`, one sequential 1..7124 series; a number that
+# is relative to a book is not a number in that series, and reading it as one
+# told correctly-citing readers they had misattributed their own quotation.
+
+
+@pytest.mark.parametrize("text", [
+    "al-Bukhari, Book 1, Hadith 1",
+    "Sahih al-Bukhari, Book 52, Hadith 268",
+    "Bukhari, Book 2, Hadith 1",
+    "Bukhari kitab 3 hadith 42",
+    "Bukhari 3:42",
+    "Bukhari 1:1",
+    "Bukhari 1:2:13",
+])
+def test_a_book_relative_citation_resolves_to_no_reference(text):
+    """No reference of EITHER family. A book-relative citation that resolved
+    to a hadith would be a false accusation; one that fell through to the
+    verse pass would be a stranger one.
+    """
+    assert parse_references(text) == []
+
+
+@pytest.mark.parametrize("text", [
+    "Sahih al-Bukhari, Book 52, Hadith 268",
+    "Bukhari 3:42",
+])
+def test_a_book_relative_citation_still_claims_its_span(text):
+    """Refused, not unseen. The span has to stay claimed or the numbers in it
+    get re-read by the verse pass, and an Arabic-script citation of this shape
+    would be handed to the verifier as a quotation to look up.
+    """
+    spans = parse_citations(text).spans
+    assert spans, "a refused citation must still claim its span"
+    covered = set()
+    for start, end in spans:
+        covered.update(range(start, end))
+    assert covered >= set(range(text.index("B"), len(text)))
+
+
+def test_the_second_number_is_not_salvaged_when_the_first_would_resolve():
+    """The trap in deleting the colon branch instead of refusing it.
+
+    Drop `second` from the pattern and "Bukhari 1:2:13" no longer matches the
+    pair -- it matches the "Bukhari 1" in front of it, and resolves to hadith
+    1. That is a different wrong reference, not the absence of one, so the
+    pair is matched on purpose and thrown away on purpose.
+    """
+    assert parse_references("Bukhari 1:2:13") == []
+    assert parse_references("Bukhari 1:1") == []
+
+
+def test_a_plain_number_still_resolves_beside_the_refusal():
+    """The refusal must be narrow. "Bukhari 2866" is the citation form this
+    corpus can answer, and a fix that silenced it too would trade a false
+    accusation for a lost feature.
+    """
+    refs = [r for r in parse_references("Bukhari 2866") if isinstance(r, HadithReference)]
+    assert len(refs) == 1 and refs[0].hadith_no == "2866"
+
+
+def test_a_volume_prefixed_citation_is_not_parsed():
+    """"Vol. 4, Book 52, Hadith 268" is the same USC-MSA scheme with a volume
+    in front. The pattern does not reach across the "Vol. 4," and must not
+    learn to: pinned here so a later widening of the pattern has to come past
+    this test rather than quietly re-opening the class.
+    """
+    assert parse_references("Sahih al-Bukhari, Vol. 4, Book 52, Hadith 268") == []
 
 
 # --- Arabic-script hadith citations -----------------------------------------
@@ -211,16 +280,21 @@ def test_other_arabic_collection_name_is_not_parsed():
     assert parse_references(text) == []
 
 
-def test_arabic_colon_pair_takes_the_second_number():
-    """'البخاري ١:٢' (kitab 1, hadith 2) must never also read as
-    surah 1 ayah 2 (a real, valid verse address) -- same claimed-span rule
-    as the Latin 'Bukhari 1:1' case above."""
+def test_arabic_colon_pair_resolves_to_nothing_and_is_not_a_verse():
+    """'البخاري ١:٢' is the same book-relative form written in
+    Arabic script, and gets the same answer: no hadith reference, because the
+    second number is relative to a book this corpus cannot map -- and no
+    verse reference either, because the span is claimed, even though 1:2 is a
+    real, valid verse address.
+
+    Previously this read as hadith 2. Readers who cite in Arabic are the ones
+    most likely to cite precisely, and they must not be the ones told they
+    misattributed their own quotation.
+    """
     text = "البخاري ١:٢"  # البخاري ١:٢
-    refs = parse_references(text)
-    assert not any(isinstance(r, Reference) for r in refs)
-    hadith_refs = [r for r in refs if isinstance(r, HadithReference)]
-    assert len(hadith_refs) == 1
-    assert hadith_refs[0].hadith_no == "2"
+    parsed = parse_citations(text)
+    assert parsed.references == []
+    assert parsed.spans
 
 
 # --- Task 6, D3: the hadith-number lower bound ------------------------------

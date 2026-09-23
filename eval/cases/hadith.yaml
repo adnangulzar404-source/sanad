@@ -256,3 +256,33 @@
     `expect_no_quotation` exists for this case: with no spans there is no verdict, so
     every verdict-shaped expectation would pass vacuously and the case would be
     incapable of failing.
+
+# --- citations written in a numbering scheme this corpus does not ship ------
+#
+# The three cases below are one defect class: a citation Sanad cannot resolve
+# must produce no reference at all, never a wrong one. Telling a reader that
+# their correct citation is a misattribution is a false claim about scripture
+# in exactly the way a false EXACT is, and it is the accusation that lands on
+# the reader rather than on the text.
+- id: hadith-book-relative-citation-is-not-a-misattribution
+  text: 'The Prophet said «الحرب خدعة» (Sahih al-Bukhari, Book 52, Hadith 268).'
+  expect_verdict: EXACT
+  expect_record: hadith:bukhari:2866
+  forbid_verdict: WRONG_REFERENCE
+  rationale: >-
+    "Book 52, Hadith 268" is USC-MSA / sunnah.com numbering -- the form most people
+    copy-paste -- and it names the same hadith as "(Bukhari 2866)", which verifies EXACT.
+    The parser used to discard the book number and read 268 as an al-Bugha sequential
+    number, so the reader was told their correct citation was wrong. This corpus ships
+    one numbering scheme and has no USC-MSA mapping, so the honest answer is no
+    reference: the quotation is verified and nothing is said about the citation.
+- id: hadith-colon-pair-citation-is-not-a-misattribution
+  text: '«الحرب خدعة» (Bukhari 1:2:13)'
+  expect_verdict: EXACT
+  expect_record: hadith:bukhari:2866
+  forbid_verdict: WRONG_REFERENCE
+  rationale: >-
+    The same scheme written as numbers: volume, book, hadith. It used to be read as
+    "Bukhari 1:2", hadith 2, and answered WRONG_REFERENCE. Cased separately from the
+    spelt-out form because the two are different branches of the pattern and a fix to
+    one would not touch the other.

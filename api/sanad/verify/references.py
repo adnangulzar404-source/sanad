@@ -149,17 +149,45 @@ _COLLECTIONS = {
     "sahihalbukhari": "bukhari",
 }
 
-# The optional second numeric group is the hadith number of a "kitab:hadith"
-# pair (e.g. "Bukhari 1:1"). Same separator as `_NUMERIC` above -- the ASCII
-# colon plus the fullwidth colon (U+FF1A) written as an explicit backslash-u
-# escape, never as a literal glyph, per this module's character-safety rule.
+# BOOK-RELATIVE CITATIONS ARE RECOGNISED AND DELIBERATELY NOT RESOLVED.
+#
+# `book`/`second` are matched so the citation is SEEN -- its span is claimed,
+# so nothing downstream re-reads it as a verse address or offers it to the
+# verifier as a quotation -- and then refused in `_collect_hadith_citations`,
+# so it yields no reference at all.
+#
+# The reason is that the number after "Book 52," is book-relative. This corpus
+# ships one numbering scheme, `bugha-1987`, a single sequential 1..7124
+# series; "Book 52, Hadith 268" and "1:2:13" are USC-MSA / sunnah.com
+# numbering, the form most people copy-paste. Discarding the book number does
+# not convert between the schemes, it silently reinterprets a book-relative
+# number as a global one -- so "\u00ABal-harb khud'a\u00BB (Sahih al-Bukhari, Book 52,
+# Hadith 268)" was answered WRONG_REFERENCE against hadith 2866, which is the
+# very hadith the reader cited, correctly, in their own scheme. We have no
+# USC-MSA-to-al-Bugha mapping and will not invent one.
+#
+# This is the module's own stated trade-off, four lines above `_COLLECTIONS`,
+# applied where it had not been: a spurious reference produces an actively
+# wrong WRONG_REFERENCE, a missed one only downgrades to a correct plain
+# match. Silence about a citation we cannot resolve is the cheaper error, and
+# it is the honest one.
+#
+# Matching them rather than simply deleting the branches is load-bearing in
+# both directions. Delete the colon pair and "Bukhari 1:2:13" would match its
+# "Bukhari 1" prefix instead and resolve to hadith 1 -- a wrong reference from
+# a citation that had previously produced a different wrong reference, which
+# is no improvement at all.
+#
+# Separator as in `_NUMERIC` above -- the ASCII colon plus the fullwidth colon
+# (U+FF1A) written as an explicit backslash-u escape, never as a literal
+# glyph, per this module's character-safety rule.
 _HADITH_CITE = re.compile(
     r"\b(?P<name>(?:sahih\s+)?(?:al[-\s]?)?bukhari)\b"
     r"(?:\s*,)?\s*"
-    r"(?:(?:book|kitab)\s*\d{1,3}\s*,?\s*)?"
+    r"(?P<book>(?:book|kitab)\s*\d+\s*,?\s*)?"
     r"(?:(?:hadith|hadeeth|no\.?|number|#)\s*)?"
-    r"(\d{1,4})"
-    r"(?:\s*[:\uFF1A]\s*(\d{1,4}))?",
+    r"(?P<number>\d{1,4})"
+    r"(?:\s*[:\uFF1A]\s*(?P<second>\d{1,4}))?",
     re.IGNORECASE,
 )
 
@@ -196,8 +224,8 @@ _HADITH_CITE_AR = re.compile(
     r"(?P<name>(?:\u0627\u0644)?\u0628\u062E\u0627\u0631\u064A)\b"
     r"\s*"
     r"(?:(?:\u062D\u062F\u064A\u062B|\u0631\u0642\u0645)\s*)?"
-    r"(\d{1,4})"
-    r"(?:\s*[:\uFF1A]\s*(\d{1,4}))?"
+    r"(?P<number>\d{1,4})"
+    r"(?:\s*[:\uFF1A]\s*(?P<second>\d{1,4}))?"
 )
 
 MAX_HADITH_NO = 7124
@@ -238,9 +266,16 @@ def _collect_hadith_citations(
         collection = _resolve_collection(m.group("name"))
         if collection is None:
             continue  # defensive: the regex only ever matches known spellings
-        # A kitab:hadith pair's SECOND number is the hadith number; the first
-        # is the book/kitab number and is discarded (Task 5 parses only).
-        printed = m.group(3) if m.group(3) is not None else m.group(2)
+        # A citation that names a BOOK is written in a numbering scheme this
+        # corpus does not ship, and is refused rather than reinterpreted --
+        # see the note above `_HADITH_CITE`. Its span is already claimed, so
+        # it is still recognised as a citation everywhere that matters; it
+        # simply resolves to nothing, and the reader is told nothing about it
+        # rather than told something false.
+        groups = m.groupdict()
+        if groups.get("book") or groups.get("second"):
+            continue
+        printed = m.group("number")
         # `int()` already understands Arabic-Indic and Eastern Arabic digits
         # (same as `_NUMERIC`'s surah/ayah conversion below), so a citation
         # written with Arabic-Indic digits and one written with ASCII digits

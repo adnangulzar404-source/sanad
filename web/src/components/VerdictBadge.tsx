@@ -16,8 +16,8 @@ export const VERDICT_META: Record<
 > = {
   EXACT:             { glyph: "۝", label: "Verified",                tone: "verified" },
   EXACT_ORTHOGRAPHY: { glyph: "۞", label: "Verified, spelling differs", tone: "verified" },
-  NEAR_MATCH:        { glyph: "†", label: "Near match",              tone: "broken" },
-  WRONG_REFERENCE:   { glyph: "‡", label: "Wrong reference",         tone: "broken" },
+  NEAR_MATCH:        { glyph: "٭", label: "Near match",              tone: "broken" },
+  WRONG_REFERENCE:   { glyph: "؞", label: "Wrong reference",         tone: "broken" },
   NOT_FOUND:         { glyph: "○", label: "Not in this corpus",      tone: "absent" },
 };
 

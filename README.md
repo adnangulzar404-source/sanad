@@ -125,7 +125,7 @@ indexed and scorable while its primary is not.
 
 **Corpus totals.** 13,365 records: 6,236 ayat + 7,129 hadith. The committed
 `data/sanad-quran.db` currently hashes to
-`d1b035afa4d324907e56a50351bb0ed8cb90d73f212784942d29f58069096338`
+`ab96d484370fe8a4555a691192886504b95ed07bc1fcf10fabbf0a34ca530083`
 (whole-file SHA-256, printed by `sanad-ingest build` and re-checked by
 rebuilding from the pinned, cached sources — see **Run locally** above).
 This hash changes whenever the corpus is rebuilt with different inputs;

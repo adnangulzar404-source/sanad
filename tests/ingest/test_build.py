@@ -1016,3 +1016,36 @@ def test_the_invariant_refuses_to_pass_vacuously(tmp_path):
     with pytest.raises(BuildError, match="pass vacuously"):
         _reject_wholly_quranic_representations(
             conn, _locked_hadith(), [_hadith("alpha beta")], [])
+
+
+def test_the_build_itself_runs_the_invariant(tmp_path, monkeypatch, real_corpus):
+    """The wiring, not the rule.
+
+    Every test above calls `_reject_wholly_quranic_representations` directly,
+    so all of them still passed when the call was deleted from `build_corpus`
+    -- a surviving mutant, found by mutation-testing this commit. An
+    invariant nothing invokes is decoration.
+
+    The poison is a real ayah, read out of the corpus the Qur'an pass has
+    already built, so no Arabic is typed here and the two sides of the
+    comparison are the same bytes by construction. It is appended AFTER
+    `_hadith_records` returns, which is what makes it a test of pass 2's body
+    rather than of the audit checks inside that function.
+    """
+    from sanad_ingest import build as build_mod
+    from sanad_ingest.build import BuildError
+
+    real_out, _, _ = real_corpus
+    ayah = db.connect(real_out).execute(
+        "SELECT text_ar FROM records WHERE id = 'quran:53:9'").fetchone()["text_ar"]
+    assert ayah, "the poison has to be real scripture or this proves nothing"
+
+    unpoisoned = build_mod._hadith_records
+
+    def poisoned(parsed, locked):
+        records, variants = unpoisoned(parsed, locked)
+        return [*records, _hadith(ayah, record_id="hadith:bukhari:99999")], variants
+
+    monkeypatch.setattr(build_mod, "_hadith_records", poisoned)
+    with pytest.raises(BuildError, match="wholly a quotation of the Qur'an"):
+        build_corpus(REAL_LOCKFILE, tmp_path / "poisoned.db", REAL_CACHE)

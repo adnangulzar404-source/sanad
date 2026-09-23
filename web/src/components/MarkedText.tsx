@@ -52,6 +52,11 @@ export function MarkedText({
         data-testid={`span-${i}`}
         data-verdict={verdict}
         title={VERDICT_META[verdict].label}
+        // The title attribute alone is invisible to most screen readers on a
+        // non-interactive element -- an aria-label carries the same verdict
+        // label without adding a single character to this component's
+        // exact-text contract (aria-label is not part of textContent).
+        aria-label={VERDICT_META[verdict].label}
         style={{
           background: "transparent",
           color: "inherit",

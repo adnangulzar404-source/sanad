@@ -59,6 +59,17 @@ describe("MarkedText", () => {
     expect(screen.getByTestId("span-0")).toHaveAttribute("title", expect.stringMatching(/wrong reference/i));
   });
 
+  it("does not rely on the title attribute alone -- an aria-label carries the verdict for screen readers", () => {
+    render(<MarkedText text="aaaa" quotations={[span(0, 4, "WRONG_REFERENCE")]} />);
+    expect(screen.getByTestId("span-0")).toHaveAttribute("aria-label", expect.stringMatching(/wrong reference/i));
+  });
+
+  it("keeps the aria-label out of the rendered text, so the exact-text contract still holds", () => {
+    const text = "aaaa";
+    render(<MarkedText text={text} quotations={[span(0, 4, "WRONG_REFERENCE")]} />);
+    expect(screen.getByTestId("marked").textContent).toBe(text);
+  });
+
   it("emits no character twice when spans overlap", () => {
     const text = "abcdefghij";
     render(<MarkedText text={text} quotations={[span(0, 6, "EXACT"), span(4, 10, "NOT_FOUND")]} />);

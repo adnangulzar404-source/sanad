@@ -16,7 +16,7 @@ FULL = Path("/tmp/bukhari.txt")   # the real download; see Task 2 Step 1
 
 # sha256 of the sorted, comma-joined ids of every record the secondary-narration
 # rule cuts. Measured, not chosen; see test_exactly_the_measured_records_are_cut.
-_CUT_ID_DIGEST = "64800b05668f46547ccf6311534bf1d69f6bf3c638ab3f4c17ac122866ff64cf"
+_CUT_ID_DIGEST = "5716cbac7593d0b52c4dfbf98b72baf156cc7fe69e68db0bcf30bed81e09b809"
 
 
 @pytest.fixture(scope="module")
@@ -375,7 +375,7 @@ def test_nothing_is_lost_when_an_addendum_is_cut_away(full):
             continue
         assert full_text(u) == _raw_matn(raw, u.hadith_no), u.record_id
         checked += 1
-    assert checked == 383
+    assert checked == 392
     assert [u.record_id for u in suffixed] == ["hadith:bukhari:4537-2"]
     # The one repeat, against the SECOND printed occurrence of its number.
     second = raw[raw.index("\n# 4537 ") + 1:]
@@ -385,17 +385,17 @@ def test_nothing_is_lost_when_an_addendum_is_cut_away(full):
 @pytest.mark.skipif(not FULL.exists(), reason="full download not present")
 def test_full_text_of_an_uncut_unit_is_its_matn(full):
     """No cut, no join: `full_text` must not invent a trailing space or a
-    second copy of anything on the 6,745 units the rule never touched."""
+    second copy of anything on the 6,736 units the rule never touched."""
     from sanad_ingest.openiti import full_text
     uncut = [u for u in full.units if u.addenda_ar is None]
-    assert len(uncut) == 6745
+    assert len(uncut) == 6736
     for u in uncut:
         assert full_text(u) == u.matn_ar, u.record_id
 
 
 @pytest.mark.skipif(not FULL.exists(), reason="full download not present")
 def test_exactly_the_measured_records_are_cut(full):
-    """384 cuts, pinned by count and by the exact set of record ids.
+    """393 cuts, pinned by count and by the exact set of record ids.
 
     The detection rule leans on a closed list of Arabic tokens that cannot be
     a narrator's name. A single mistyped codepoint in that list would silently
@@ -408,7 +408,7 @@ def test_exactly_the_measured_records_are_cut(full):
         if x.addenda_ar is not None)).encode()).hexdigest())"
     """
     cut = sorted(u.record_id for u in full.units if u.addenda_ar is not None)
-    assert len(cut) == 384
+    assert len(cut) == 393
     digest = hashlib.sha256(",".join(cut).encode("utf-8")).hexdigest()
     assert digest == _CUT_ID_DIGEST
 
@@ -593,10 +593,9 @@ def test_an_object_pronoun_directly_after_the_verb_is_not_a_chain():
     """"akhbirni 'an al-islam" is "tell me ABOUT islam", not "X told me from
     Y". A chain always names its narrator first, so "'an" flush against the
     verb is the one position where it cannot be a chain link."""
-    from sanad_ingest.openiti import _MIN_PRIMARY, _split_secondary
+    from sanad_ingest.openiti import _split_secondary
     baa = chr(0x0628)
     body = f"{baa * 20} {baa * 20}"
-    assert len(body) >= _MIN_PRIMARY, "the primary must clear the stub floor"
     said = f"{body} {_AKHBARANI} {_AN} {body}"
     assert _split_secondary(said, "hadith:bukhari:synthetic") == (said, None)
     chain = f"{body} {_AKHBARANI} {baa * 6} {_AN} {baa * 6}"
@@ -682,12 +681,11 @@ def test_an_attribution_reported_by_a_speech_verb_is_not_a_boundary():
     and so would be held back by the size cap alone. A guard whose only real
     example is covered twice is a guard no test can see fail.
     """
-    from sanad_ingest.openiti import _MIN_PRIMARY, _split_secondary
+    from sanad_ingest.openiti import _split_secondary
     baa = chr(0x0628)
     lii = "".join(chr(c) for c in (0x0644, 0x064A))           # "li" -- to me
     fa_qal = chr(0x0641) + _QAL                               # "fa-qala"
     body = f"{baa * 20} {baa * 20}"
-    assert len(body) >= _MIN_PRIMARY, "the primary must clear the stub floor"
     said = (f"{body} {fa_qal} {lii} {_QAL} {baa * 6} "
             f"{_HADDATHANA} {baa * 6} {_AN} {baa * 6}")
     assert _split_secondary(said, "hadith:bukhari:synthetic") == (said, None)
@@ -725,9 +723,9 @@ def test_a_one_token_primary_is_not_a_boundary():
     """
     from sanad_ingest.openiti import _split_secondary
     baa = chr(0x0628)
-    # 40 characters, so the stub floor is not what rejects this: the one-token
-    # guard is. Two guards covering one input is two guards neither test can
-    # see fail.
+    # One token before the chain: the length of that token is irrelevant
+    # (40 characters here), because what makes this unsafe to cut is that
+    # nothing but a single word would be left standing for the hadith.
     stub = f"{baa * 40} {_HADDATHANA} {baa * 6} {_AN} {baa * 6}"
     assert _split_secondary(stub, "hadith:bukhari:synthetic") == (stub, None)
 
@@ -780,65 +778,56 @@ def test_the_audited_list_is_checked_against_the_text_it_audited():
         parse_openiti(_one_unit("1379", baa * 4))
 
 
-# --- fix round 5: a cut may not leave a stub primary -----------------------
-
-
-def test_a_cut_that_would_leave_a_stub_primary_is_refused():
-    """Below the measured floor the record keeps all of its text, uncut.
-
-    The two inputs differ only in the length of the primary, so the floor is
-    the only thing that can decide between them: one character below it the
-    cut is refused, at it the cut is made.
-    """
-    from sanad_ingest.openiti import _MIN_PRIMARY, _split_secondary
-    baa = chr(0x0628)
-    tail = f"{_QAL} {baa * 6} {_HADDATHANA} {baa * 6} {_AN} {baa * 6}"
-    # Two tokens either way, so the one-token guard is not what decides this.
-    half = (_MIN_PRIMARY - 1) // 2
-    short = f"{baa * half} {baa * (_MIN_PRIMARY - 2 - half)}"
-    assert len(short) == _MIN_PRIMARY - 1
-    assert _split_secondary(f"{short} {tail}", "hadith:bukhari:x") == (
-        f"{short} {tail}", None)
-    exact = f"{baa * half} {baa * (_MIN_PRIMARY - 1 - half)}"
-    assert len(exact) == _MIN_PRIMARY
-    assert _split_secondary(f"{exact} {tail}", "hadith:bukhari:x") == (exact, tail)
+# --- fix round 5: short primaries are cut, and verify on their own ---------
 
 
 @pytest.mark.skipif(not FULL.exists(), reason="full download not present")
-def test_the_stub_floor_un_cuts_exactly_the_measured_nine(full):
-    """Every record the floor changes, named.
+def test_a_short_primary_is_still_cut_from_a_fresh_chain(full):
+    """The nine records a length floor would have refused, all cut.
 
-    Measured from the length distribution of the primaries the rule leaves
-    behind: sorted, its lower quartile runs 18 19 20 20 21 21 22 25 25 | 32
-    32 33 34 ..., and 25 -> 32 is the only gap in it wider than three. These
-    nine are the records below that gap. Two of them (2390, 6949) are the
-    fragments that answered a generic phrase with EXACT 1.0; the rest are
-    genuine short matns whose standalone quotation this costs, which is
-    recorded here so the trade is visible rather than implied.
+    Round 5 briefly carried a 32-character minimum primary, measured from the
+    only gap in the lower quartile of the cut distribution. It was removed
+    the same round: all nine records below the gap were read in the raw
+    source and every one is a genuine matn followed by a fresh full chain
+    (`haddathana Musaddad ...`, `wa-haddathani bn Sallam ...`). Refusing
+    those cuts left each short matn unverifiable on its own -- the Critical
+    this round exists to fix, reappearing in nine records.
+
+    Their lengths, 18 to 25 characters, are the point: "la tuki fa-yuka
+    'alayki" is a complete saying of the Prophet and is shorter than any of
+    the openers that are NOT quotable. Length is not the signal; meaning is,
+    and meaning is judged by hand in `_NEVER_CUT`.
     """
-    from sanad_ingest.openiti import _MIN_PRIMARY
     by_id = {u.record_id: u for u in full.units}
     for hadith_no in ("1366", "2301", "2390", "2405", "3179",
                       "5526", "5600", "6205", "6949"):
         u = by_id[f"hadith:bukhari:{hadith_no}"]
-        assert u.addenda_ar is None, f"{hadith_no} must not be cut"
-    # ... and nothing that IS cut sits below the floor.
-    below = [u.record_id for u in full.units
-             if u.addenda_ar is not None and len(u.matn_ar) < _MIN_PRIMARY]
-    assert below == []
+        assert u.addenda_ar is not None, f"{hadith_no} must be cut"
+        assert len(u.matn_ar) <= 25, hadith_no
+        # What makes each of these cuts correct, asserted rather than
+        # asserted-in-a-docstring: the addendum opens a NEW chain of
+        # transmission -- a "haddathana"/"haddathani"/"akhbarana" within its
+        # first five tokens -- so the text behind the cut is a second
+        # narration, not the same narration continuing.
+        akhbarana = "".join(chr(c) for c in
+                            (0x0623, 0x062E, 0x0628, 0x0631, 0x0646, 0x0627))
+        head = u.addenda_ar.split()[:5]
+        assert any(t in (_HADDATHANA, _HADDATHANI, akhbarana) for t in head), \
+            (hadith_no, head)
 
 
-@pytest.mark.skipif(not FULL.exists(), reason="full download not present")
-def test_a_genuine_short_matn_above_the_floor_is_still_cut(full):
-    """The floor is a floor, not a general refusal to cut short records.
+def test_a_two_token_primary_is_cut_however_short_it_is():
+    """No minimum length, asserted on the parser rather than on the corpus.
 
-    5381 ("truffles are from the manna, and their water is a cure for the
-    eye") is 32 characters -- the first length above the gap -- and is still
-    split from the second chain the edition appends to it.
+    Two tokens of three characters each: everything a length floor would
+    have rejected, and the cut is still made, because the boundary the
+    edition marks is the only thing that decides.
     """
-    u = {x.record_id: x for x in full.units}["hadith:bukhari:5381"]
-    assert u.addenda_ar is not None
-    assert len(u.matn_ar) == 32
+    from sanad_ingest.openiti import _split_secondary
+    baa = chr(0x0628)
+    tail = f"{_QAL} {baa * 6} {_HADDATHANA} {baa * 6} {_AN} {baa * 6}"
+    tiny = f"{baa * 3} {baa * 3}"
+    assert _split_secondary(f"{tiny} {tail}", "hadith:bukhari:x") == (tiny, tail)
 
 
 # --- fix round 5: the audited do-not-cut list ------------------------------

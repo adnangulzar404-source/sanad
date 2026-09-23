@@ -165,7 +165,7 @@ def test_the_isra_miraj_verifies_both_as_matn_and_as_printed():
 
 
 def test_the_full_printed_text_of_every_cut_record_verifies():
-    """The corpus-wide form of the test above: all 383 of them.
+    """The corpus-wide form of the test above: all 392 of them.
 
     A sample cannot show this. The defect it guards against is one record
     somewhere in the corpus whose full text is unreachable, which is exactly
@@ -184,7 +184,7 @@ def test_the_full_printed_text_of_every_cut_record_verifies():
     rows = conn.execute(
         "SELECT id, text_ar, addenda_ar FROM records"
         " WHERE addenda_ar IS NOT NULL AND unscorable_reason IS NULL").fetchall()
-    assert len(rows) == 383
+    assert len(rows) == 392
     failures = []
     for row in rows:
         for quoted in (row["text_ar"], row["text_ar"] + " " + row["addenda_ar"]):
@@ -199,21 +199,24 @@ def test_the_full_printed_text_of_every_cut_record_verifies():
 
 
 def test_a_narrative_opener_is_no_longer_a_verifiable_quotation():
-    """The four stubs the cut left behind, all of which returned EXACT 1.0.
+    """The two openers the cut left behind, both of which returned EXACT 1.0.
 
-    "The Prophet passed by a man" and "The Prophet had a she-camel" name
-    nothing; "whoever frees a share of a slave" is a protasis with no
-    apodosis and "it does not cease to be thrown into the Fire" has no
-    subject. Each is read out of the pre-round-5 cut point rather than typed:
-    the assertion is that the prefix of the record's text ending there no
-    longer matches anything.
+    "The Prophet passed by a man" (632) and "The Prophet had a she-camel"
+    (6136) name no act, ruling or speech; the narration each introduces is
+    entirely in the appended second chain. They are everyday sentences of
+    hadith literature, and answering one with a confident Bukhari citation
+    fabricates a reference out of a commonplace.
+
+    Each stub is read out of the pre-round-5 cut point rather than typed:
+    the assertion is that the prefix of the record's own text ending there
+    no longer matches anything. These two are judged by hand, by meaning, on
+    the `_NEVER_CUT` audit list -- no length rule reaches them, and round 5's
+    attempt at one is gone (see the test below).
     """
     from sanad.verify.engine import Verdict, verify_spans
     conn = db.connect(DB_PATH)
     for record_id, cut_at in (("hadith:bukhari:632", 32),
-                              ("hadith:bukhari:6136", 33),
-                              ("hadith:bukhari:2390", 20),
-                              ("hadith:bukhari:6949", 21)):
+                              ("hadith:bukhari:6136", 33)):
         rec = db.get_record(conn, record_id)
         stub = rec.text_ar[:cut_at]
         assert rec.addenda_ar is None, f"{record_id} must no longer be cut"
@@ -225,6 +228,37 @@ def test_a_narrative_opener_is_no_longer_a_verifiable_quotation():
         whole = verify_spans(conn, f"«{rec.text_ar}»")
         assert whole[0].verdict is Verdict.EXACT, record_id
         assert whole[0].record.id == record_id, record_id
+
+
+def test_a_short_matn_verifies_on_its_own_and_as_printed():
+    """The nine records a length floor would have refused to cut.
+
+    Round 5 briefly carried a 32-character minimum primary. It made these
+    nine unverifiable as standalone quotations -- "la tuki fa-yuka 'alayki"
+    (1366) is eighteen characters and a complete saying of the Prophet, and
+    it is exactly the kind of short, memorable wording a person quotes. That
+    is the Critical this round exists to fix, so the floor was removed and
+    the trade this test documents is the one that replaced it: BOTH
+    directions verify for all nine.
+
+    The two records the floor called hazards (2390, 6949) are here too. Both
+    were read in the raw source: each is an abridged matn the edition itself
+    prints -- 2390's own addendum ends "Shu'ba abridged it" -- followed by a
+    fresh full chain. A quotation of one is a real quotation of Bukhari.
+    """
+    from sanad.verify.engine import Verdict, verify_spans
+    conn = db.connect(DB_PATH)
+    for hadith_no in ("1366", "2301", "2390", "2405", "3179",
+                      "5526", "5600", "6205", "6949"):
+        rec = db.get_record(conn, f"hadith:bukhari:{hadith_no}")
+        assert rec.addenda_ar, f"{hadith_no} must be cut"
+        assert len(rec.text_ar) <= 25, hadith_no
+        for quoted in (rec.text_ar, rec.text_ar + " " + rec.addenda_ar):
+            m = verify_spans(conn, f"«{quoted}»")
+            assert len(m) == 1, (hadith_no, len(quoted))
+            assert m[0].verdict is Verdict.EXACT, (hadith_no, len(quoted))
+            assert rec.id in [m[0].record.id] + list(m[0].also_at), \
+                (hadith_no, len(quoted))
 
 
 def test_no_record_appears_twice_in_its_own_match():
@@ -243,7 +277,7 @@ def test_no_record_appears_twice_in_its_own_match():
 
 
 def test_the_index_holds_one_row_per_scorable_representation():
-    """13,731 = 13,348 scorable records + 383 full-text representations.
+    """13,740 = 13,348 scorable records + 392 full-text representations.
 
     Asserted as three numbers that have to add up, not as one total: a record
     dropping out of the index while a variant row appears would keep the
@@ -254,4 +288,4 @@ def test_the_index_holds_one_row_per_scorable_representation():
         "SELECT count(*) FROM records WHERE unscorable_reason IS NULL").fetchone()[0]
     variants = conn.execute("SELECT count(*) FROM record_variants").fetchone()[0]
     indexed = conn.execute("SELECT count(*) FROM records_fts").fetchone()[0]
-    assert (scorable, variants, indexed) == (13348, 383, 13731)
+    assert (scorable, variants, indexed) == (13348, 392, 13740)

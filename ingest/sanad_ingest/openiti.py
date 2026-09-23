@@ -120,29 +120,23 @@ _MAX_NAME_TOKENS = 3
 # this constant.
 _MAX_ADDENDUM = 1000
 
-# A cut that would leave a primary shorter than this is refused: the record
-# keeps all of its text and is simply not cut. A primary of twenty-odd
-# characters standing in for a four-hundred-character hadith misrepresents the
-# narration, and it makes a bare narrative opener into a scorable record that
-# answers an everyday phrase with a confident citation -- "whoever frees a
-# share of a slave" (2390, a protasis with no apodosis) and "it does not cease
-# to be thrown into the Fire" (6949, no subject) both returned EXACT 1.0.
+# THERE IS DELIBERATELY NO MINIMUM PRIMARY LENGTH HERE.
 #
-# MEASURED, from the length distribution of the 395 primaries the rule leaves
-# behind. Sorted, the bottom of that distribution runs
-#   18 19 20 20 21 21 22 25 25 | 32 32 33 34 34 35 36 38 40 40 42 44 ...
-# and 25 -> 32 is the only gap wider than three in the whole lower quartile.
-# 32 is the first length on the far side of it. Nine records sit below it and
-# are no longer cut: 1366, 2301, 2390, 2405, 3179, 5526, 5600, 6205, 6949.
+# Round 5 tried one -- 32 characters, measured from the only gap in the lower
+# quartile of the cut-primary distribution (18 19 20 20 21 21 22 25 25 | 32 32
+# 33 34 ...) -- and it was removed the same round, because the measurement
+# that justified the gap also showed the rule cannot work. Length does not
+# separate a stub from a short hadith in EITHER direction: "la tuki fa-yuka
+# 'alayki" (1366) is eighteen characters and a complete saying of the Prophet,
+# while 632's "the Prophet passed by a man" is thirty-two and names nothing.
+# A floor at 32 refused nine correct cuts -- every one of them read in the raw
+# source, every one a genuine matn followed by a fresh full chain -- and still
+# did not reach the two records it was introduced for.
 #
-# This is a blast-radius guard over cuts nobody has read, NOT a classifier:
-# length cannot tell a stub from a genuine short hadith, and this file already
-# says so about `_UNSCORABLE` for the same reason. Two of the nine it un-cuts
-# are stubs; five are genuine complete short matns whose standalone quotation
-# it costs (measured and listed in the round-5 report). The judgement calls it
-# cannot make are made by hand, one record at a time, in `_NEVER_CUT`.
-_MIN_PRIMARY = 32
-
+# The same question was settled for the pointer records in R13 and has the
+# same answer here: what is quotable is a judgement about meaning, so it is
+# made by hand, one record at a time, and recorded in `_NEVER_CUT` below.
+#
 # Records where the cut is textually correct -- the edition really does print
 # a short primary and then a second chain -- but the primary it leaves is a
 # content-free narrative opener: it names no act, no ruling and no speech, so
@@ -328,11 +322,9 @@ def _split_secondary(matn: str, record_id: str) -> tuple[str, str | None]:
             return matn, None
         if len(matn) - cut > _MAX_ADDENDUM:
             return matn, None
-        primary = matn[:cut].rstrip()
-        if len(primary) < _MIN_PRIMARY:
-            # A stub primary is evidence the cut is not worth making here.
-            return matn, None
-        return primary, matn[cut:]
+        # No length floor on what is left behind -- see the note above
+        # `_NEVER_CUT`. A short primary is not evidence of a bad cut.
+        return matn[:cut].rstrip(), matn[cut:]
     return matn, None
 
 

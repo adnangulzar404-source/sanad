@@ -577,7 +577,7 @@ def test_duplicate_reference_display_aborts_the_build():
 # --- fix round 1: secondary narrations are stored, not scored --------------
 
 def test_the_appended_narrations_are_stored_but_never_scored(real_corpus):
-    """384 records carry an addendum. It is in the row and out of THAT score.
+    """393 records carry an addendum. It is in the row and out of THAT score.
 
     hadith 22 is one of the three boundaries named in the fix brief: the
     primary matn ends at "...as the seed grows beside a stream", and a second
@@ -593,7 +593,7 @@ def test_the_appended_narrations_are_stored_but_never_scored(real_corpus):
     conn = db.connect(out)
     n = conn.execute(
         "SELECT count(*) FROM records WHERE addenda_ar IS NOT NULL").fetchone()[0]
-    assert n == 384
+    assert n == 393
     rec = db.get_record(conn, "hadith:bukhari:22")
     assert rec.addenda_ar and _HADDATHANA in rec.addenda_ar
     assert _HADDATHANA not in rec.text_ar
@@ -605,14 +605,14 @@ def test_the_appended_narrations_are_stored_but_never_scored(real_corpus):
 
 
 def test_no_addendum_reaches_the_primary_representation(real_corpus):
-    """Exhaustive over all 384, in both the stored and the indexed text.
+    """Exhaustive over all 393, in both the stored and the indexed text.
 
     The other half of the guarantee is
     test_fts_indexes_the_record_norms_and_nothing_else, which pins each index
     row to the column it claims to index. Together: the addendum is not in the
     primary's norms, and the primary index row is nothing but those norms.
 
-    383, not 384: hadith 237 both carries an addendum and is on the
+    392, not 393: hadith 237 both carries an addendum and is on the
     unscorable audit list (its matn is a "bayna" clause ending at the
     chain-transfer mark), so it has no index row at all. The two counts are
     asserted separately rather than relaxed into one, so that a record
@@ -628,7 +628,7 @@ def test_no_addendum_reaches_the_primary_representation(real_corpus):
         "       f.norm_aggressive FROM records r"
         " JOIN records_fts f ON f.record_id = r.id AND f.variant = 'primary'"
         " WHERE r.addenda_ar IS NOT NULL").fetchall()
-    assert len(rows) == 383
+    assert len(rows) == 392
     for row in rows:
         assert row["addenda_ar"] not in row["text_ar"], row["id"]
         for form in ("standard", "aggressive"):
@@ -654,7 +654,7 @@ def test_the_full_printed_text_is_scored_alongside_the_primary(real_corpus):
         "       v.norm_aggressive FROM records r"
         " LEFT JOIN record_variants v ON v.record_id = r.id"
         " WHERE r.addenda_ar IS NOT NULL").fetchall()
-    assert len(rows) == 384
+    assert len(rows) == 393
     checked = 0
     for row in rows:
         if row["unscorable_reason"]:
@@ -665,7 +665,7 @@ def test_the_full_printed_text_is_scored_alongside_the_primary(real_corpus):
         for form in ("light", "standard", "aggressive"):
             assert row[f"norm_{form}"] == normalize(row["whole"], form), row["id"]
         checked += 1
-    assert checked == 383
+    assert checked == 392
 
 
 def test_a_record_with_no_addendum_has_no_second_representation(real_corpus):

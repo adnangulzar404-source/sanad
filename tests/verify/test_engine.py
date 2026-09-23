@@ -429,14 +429,13 @@ def test_a_tied_record_is_reported_once_end_to_end(a_record_indexed_twice_under_
 
 @pytest.fixture()
 def an_unscorable_record_with_a_variant(tmp_path):
-    """An excluded record that nonetheless HAS a second representation row.
+    """An excluded record with a second representation -- 237's shape.
 
-    `build._hadith_records` refuses to emit this, so on today's corpus the
-    filters downstream of it are unobservable -- and an unobservable filter is
-    one no test can see fail. The exclusion is deliberately enforced in three
-    independent places (build, `rebuild_fts`, `_exact_at_tier`) precisely so
-    that no single mistake can put editorial apparatus behind a verdict, and
-    that design is only real if each place is checked on its own.
+    `build._hadith_records` emits exactly this for hadith 237: an
+    `unscorable_reason` on a record that also carries an addendum. The reason
+    is a judgement about the primary matn and says nothing about the full
+    printed text, so the two representations must be answered differently,
+    and that is what the tests below check on this fixture.
     """
     from sanad.corpus.models import Record, RecordVariant, Source
     primary, whole = "اااا بببب", "اااا بببب جججج دددد"
@@ -460,22 +459,34 @@ def an_unscorable_record_with_a_variant(tmp_path):
     return conn, primary, whole
 
 
-def test_the_exact_tier_excludes_every_representation_of_an_excluded_record(
+def test_the_exact_tier_excludes_the_excluded_primary_and_not_the_full_text(
         an_unscorable_record_with_a_variant):
+    """Both halves of the UNION, and they must disagree.
+
+    This asserted that BOTH representations were excluded until the
+    whole-branch review. Applying a judgement made about a 40-character
+    fragment to the 869-character narration printed behind it took the
+    longest addendum in Sahih al-Bukhari out of the corpus; quoting the
+    printed hadith returned NOT_FOUND 0.37.
+    """
     from sanad.verify.engine import _exact_at_tier
     conn, primary, whole = an_unscorable_record_with_a_variant
     for tier in ("light", "standard", "aggressive"):
         assert _exact_at_tier(conn, primary, tier) == [], tier
-        assert _exact_at_tier(conn, whole, tier) == [], tier
+        assert [r.id for r in _exact_at_tier(conn, whole, tier)] == \
+            ["hadith:bukhari:1"], tier
 
 
-def test_an_excluded_record_never_verifies_under_either_representation(
+def test_an_excluded_primary_never_verifies_and_its_full_text_does(
         an_unscorable_record_with_a_variant):
     conn, primary, whole = an_unscorable_record_with_a_variant
-    for quote in (primary, whole):
-        m = _only(verify_spans(conn, f"«{quote}»"))
-        assert m.verdict is Verdict.NOT_FOUND, quote
-        assert m.record is None
+    m = _only(verify_spans(conn, f"«{primary}»"))
+    assert m.verdict is Verdict.NOT_FOUND
+    assert m.record is None
+
+    m = _only(verify_spans(conn, f"«{whole}»"))
+    assert m.verdict is Verdict.EXACT
+    assert m.record.id == "hadith:bukhari:1"
 
 
 # =========================================================================

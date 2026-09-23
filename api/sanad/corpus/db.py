@@ -105,11 +105,18 @@ def rebuild_fts(conn: sqlite3.Connection) -> None:
     have to be searchable -- and `records_fts.variant` says which is which so
     a hit can be scored against the text that was actually indexed.
 
-    `unscorable_reason IS NULL` is the whole of the filter, and it is applied
-    on BOTH inserts: a record whose stored text is the edition's editorial
-    apparatus rather than a narration (see `Record.unscorable_reason`) must
-    not be a match candidate in any of its representations. It is still in
-    `records`, still fetched by `get_record`, still displayed.
+    `unscorable_reason IS NULL` filters the FIRST insert only, and that
+    asymmetry is the point. The reason is a judgement about one string -- the
+    primary matn, pinned by its sha256 in the ingest audit -- so it excludes
+    the primary and says nothing about the full printed text, which is a
+    different string. Record 237 is the case: its primary is a "bayna" clause
+    ending at the chain-transfer mark and is rightly unscorable, while its
+    869-character full narration is the longest in the edition and is an
+    ordinary, quotable hadith. Excluding both put that narration out of reach
+    of every tier.
+
+    An excluded primary is still in `records`, still fetched by `get_record`,
+    still displayed.
     """
     conn.execute("DELETE FROM records_fts")
     conn.execute(
@@ -123,8 +130,7 @@ def rebuild_fts(conn: sqlite3.Connection) -> None:
         "INSERT INTO records_fts (record_id, variant, norm_standard,"
         "                         norm_aggressive, translation) "
         "SELECT v.record_id, v.variant, v.norm_standard, v.norm_aggressive, ''"
-        " FROM record_variants v JOIN records r ON r.id = v.record_id"
-        " WHERE r.unscorable_reason IS NULL")
+        " FROM record_variants v")
     conn.commit()
 
 

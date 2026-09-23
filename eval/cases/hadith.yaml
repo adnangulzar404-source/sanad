@@ -340,3 +340,16 @@
     that the Prophet saw Gabriel with six hundred wings, which is what makes the unit a
     narration. Removing a false claim must not remove a record, and this is the case that
     would notice if the remedy had been an `unscorable_reason` instead.
+
+- id: hadith-printed-text-of-an-excluded-primary
+  text: '«بينا رسول الله صلى الله عليه وسلم ساجد ح قال وحدثني أحمد بن عثمان قال حدثنا شريح بن مسلمة قال حدثنا إبراهيم بن يوسف عن أبيه عن أبي إسحاق قال حدثني عمرو بن ميمون أن عبد الله بن مسعود حدثه أن النبي صلى الله عليه وسلم كان يصلي عند البيت وأبو جهل وأصحاب له جلوس إذ قال بعضهم لبعض أيكم يجيء بسلى جزور بني فلان فيضعه على ظهر محمد إذا سجد فانبعث أشقى القوم فجاء به فنظر حتى سجد النبي صلى الله عليه وسلم وضعه على ظهره بين كتفيه وأنا أنظر لا أغير شيئا لو كان لي منعة قال فجعلوا يضحكون ويحيل بعضهم على بعض ورسول الله صلى الله عليه وسلم ساجد لا يرفع رأسه حتى جاءته فاطمة فطرحت عن ظهره فرفع رأسه ثم قال اللهم عليك بقريش ثلاث مرات فشق عليهم إذ دعا عليهم قال وكانوا يرون أن الدعوة في ذلك البلد مستجابة ثم سمى اللهم عليك بأبي جهل وعليك بعتبة بن ربيعة وشيبة بن ربيعة والوليد بن عتبة وأمية بن خلف وعقبة بن أبي معيط وعد السابع فلم نحفظه قال فوالذي نفسي بيده لقد رأيت الذين عد رسول الله صلى الله عليه وسلم صرعى في القليب قليب بدر»'
+  expect_verdict: EXACT
+  expect_record: hadith:bukhari:237
+  rationale: >-
+    Sahih al-Bukhari 237 as the edition prints it: a subordinate clause ending at the
+    chain-transfer mark, and then 869 characters of narration -- the longest appended
+    text in this edition, and the complete account of the camel entrails placed on the
+    Prophet's back at the Ka'ba. The clause is editorial apparatus and is rightly
+    unscorable; applying that judgement to the narration behind it returned NOT_FOUND
+    0.393 for a reader quoting the printed hadith. Unscorability is a judgement about
+    one string, and this case is the other string.

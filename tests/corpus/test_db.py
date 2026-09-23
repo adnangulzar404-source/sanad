@@ -259,16 +259,22 @@ def test_a_candidate_carries_the_text_that_was_indexed(tmp_path):
     assert by_variant["full"].norm_aggressive == "matnword addendaword"
 
 
-def test_an_excluded_records_second_representation_is_not_indexed_either(tmp_path):
-    """`unscorable_reason` excludes the record, not just its primary row.
+def test_an_excluded_records_second_representation_is_indexed(tmp_path):
+    """`unscorable_reason` excludes the primary row, and only that row.
 
-    `build._hadith_records` never emits a variant for an excluded record, so
-    this state cannot arise from today's build -- which is exactly why the
-    filter here needs its own test. The exclusion is enforced in three
-    independent places on purpose (build, this index, and
-    `engine._exact_at_tier`), so that no single mistake can put the edition's
-    editorial apparatus behind a verdict. A guard only the build makes
-    reachable is a guard nothing checks.
+    This test asserted the opposite until the whole-branch review, and the
+    code, the docstrings and the test agreed with each other while being
+    wrong together. The reason is a judgement about ONE string -- the primary
+    matn, pinned by its sha256 in the ingest audit -- and the full printed
+    text is a different string that was never judged. Hadith 237 is the one
+    record in this edition where the two differ: a 40-character
+    chain-transfer fragment, and behind it the longest narration in the
+    collection at 869 characters, which the old rule removed from the corpus
+    entirely.
+
+    The primary stays excluded, which is the half that was always right: an
+    editorial pointer answered as a hadith is how "bi-hadha" once returned
+    EXACT 1.0 / Sahih al-Bukhari 1379.
     """
     conn = db.connect(tmp_path / "c.db", read_only=False)
     db.insert_source(conn, _a_source(id="openiti-bukhari-jk000110", kind="hadith-arabic"))
@@ -280,10 +286,13 @@ def test_an_excluded_records_second_representation_is_not_indexed_either(tmp_pat
         norm_standard="matnword addendaword",
         norm_aggressive="matnword addendaword")])
     db.rebuild_fts(conn)
-    assert conn.execute("SELECT count(*) FROM records_fts").fetchone()[0] == 0
-    assert db.fts_candidates(conn, "matnword") == []
-    assert db.fts_records(conn, "addendaword") == []
-    # still stored, still fetchable, still displayable -- only never scored
+    indexed = conn.execute(
+        "SELECT variant FROM records_fts").fetchall()
+    assert [r["variant"] for r in indexed] == ["full"]
+    # the full text is a candidate; the primary is not
+    assert {c.variant for c in db.fts_candidates(conn, "addendaword")} == {"full"}
+    assert db.fts_records(conn, "addendaword") != []
+    # still stored, still fetchable, still displayable
     assert db.get_record(conn, "hadith:bukhari:1") is not None
     assert len(db.get_record_variants(conn, "hadith:bukhari:1")) == 1
 

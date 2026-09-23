@@ -141,11 +141,15 @@ def _hadith_records(
         ))
 
         # The second representation, for the records the cut actually split.
-        # Skipped where the audit says the record is not quotable at all: an
-        # unscorable_reason excludes every representation, not just the
-        # primary (`rebuild_fts` and `engine._exact_at_tier` filter on it too,
-        # so this is the third of three independent places that agree).
-        if u.addenda_ar is not None and u.unscorable_reason is None:
+        # NOT skipped for an unscorable record. `unscorable_reason` is a
+        # judgement about one string -- the primary matn, pinned by its
+        # sha256 in `openiti._UNSCORABLE` -- and the full printed text is a
+        # different string that was never judged. Applying the judgement to
+        # both representations took 237's 869-character narration, the
+        # longest addendum in the edition, out of the corpus on the strength
+        # of a ruling about the 40-character fragment in front of it, and
+        # quoting the printed hadith returned NOT_FOUND 0.37.
+        if u.addenda_ar is not None:
             whole = full_text(u)
             variants.append(RecordVariant(
                 record_id=u.record_id,

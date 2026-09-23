@@ -91,11 +91,16 @@ def _exact_at_tier(conn: sqlite3.Connection, text: str, tier: Tier) -> list[Reco
     `UNION ALL`) collapses a record that ties on both of its representations
     to one row, so it can never be reported twice in `also_at`.
 
-    `unscorable_reason IS NULL` excludes the records whose stored text is the
-    edition's editorial apparatus rather than a narration -- see
-    `Record.unscorable_reason` -- and is applied to both halves: "bi-hadha"
-    normalizes to itself and tied four records exactly, verdict EXACT, score
-    1.0.
+    `unscorable_reason IS NULL` excludes the records whose stored PRIMARY is
+    the edition's editorial apparatus rather than a narration -- see
+    `Record.unscorable_reason`. "bi-hadha" normalizes to itself and tied four
+    records exactly, verdict EXACT, score 1.0.
+
+    It is applied to the FIRST half only. The reason is a judgement about one
+    string, and the second half reads a different one: record 237's primary
+    is a chain-transfer fragment and its full printed text is an ordinary
+    869-character narration, the longest in the edition. Filtering both
+    halves on the primary's judgement made the printed hadith unfindable.
     """
     needle = normalize(text, tier)
     if not needle:
@@ -107,7 +112,7 @@ def _exact_at_tier(conn: sqlite3.Connection, text: str, tier: Tier) -> list[Reco
         " UNION "
         "SELECT r.id, r.surah, r.ayah FROM record_variants v"
         " JOIN records r ON r.id = v.record_id"
-        f" WHERE v.{column} = ? AND r.unscorable_reason IS NULL"
+        f" WHERE v.{column} = ?"
         " ORDER BY surah, ayah, id",
         (needle, needle)).fetchall()
     return [db.get_record(conn, row["id"]) for row in rows]

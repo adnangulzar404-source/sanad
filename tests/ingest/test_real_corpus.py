@@ -396,3 +396,59 @@ def test_the_ayat_that_were_answered_as_a_hadith_are_not():
             for m in verify_spans(conn, text):
                 assert m.record is None or m.record.kind != "hadith", text
                 assert m.verdict is not Verdict.WRONG_REFERENCE, text
+
+
+# --- I1: unscorability is judged, and applied, per representation -----------
+
+
+def test_the_longest_addendum_in_the_edition_is_reachable():
+    """Hadith 237's full printed text, against the shipped corpus.
+
+    237 is the only record that is both on the unscorable audit list and
+    carries an addendum, and its addendum is the longest in this edition at
+    869 characters -- the complete narration of the camel entrails placed on
+    the Prophet's back at the Ka'ba. The audit ruled on its 40-character
+    primary, a "bayna" clause ending at the chain-transfer mark, and that
+    ruling was applied to both representations: quoting the hadith as the
+    edition prints it returned NOT_FOUND at 0.393.
+
+    The earlier justification for excluding it -- "237's story is at 3641" --
+    is true of the story and false of the text. 3641 narrates the same event
+    in different words with a different chain, and Sanad verifies wording.
+    """
+    from sanad.verify.engine import Verdict, verify_spans
+    conn = db.connect(DB_PATH)
+    rec = db.get_record(conn, "hadith:bukhari:237")
+    assert rec.unscorable_reason and len(rec.addenda_ar) == 869
+    whole = rec.text_ar + " " + rec.addenda_ar
+    m = verify_spans(conn, f"«{whole}»")
+    assert len(m) == 1
+    assert m[0].verdict is Verdict.EXACT
+    assert m[0].record.id == "hadith:bukhari:237"
+
+
+def test_the_excluded_primary_of_that_record_is_still_excluded():
+    """The half of the ruling that was right stays right: the chain-transfer
+    fragment on its own is apparatus, and answering it with a Bukhari
+    citation would be the `_UNSCORABLE` defect all over again."""
+    from sanad.verify.engine import Verdict, verify_spans
+    conn = db.connect(DB_PATH)
+    rec = db.get_record(conn, "hadith:bukhari:237")
+    m = verify_spans(conn, f"«{rec.text_ar}»")
+    assert len(m) == 1
+    assert m[0].verdict is Verdict.NOT_FOUND
+    assert m[0].record is None
+
+
+def test_every_other_excluded_record_is_excluded_whole():
+    """237 is the exception because it is the only excluded record with a
+    second representation. The other sixteen have nothing but their primary,
+    so nothing about them changes -- asserted rather than assumed, because
+    "only one record is affected" is the entire safety argument."""
+    conn = db.connect(DB_PATH)
+    rows = conn.execute(
+        "SELECT r.id, count(v.record_id) AS n FROM records r"
+        " LEFT JOIN record_variants v ON v.record_id = r.id"
+        " WHERE r.unscorable_reason IS NOT NULL GROUP BY r.id").fetchall()
+    assert len(rows) == 17
+    assert {r["id"]: r["n"] for r in rows if r["n"]} == {"hadith:bukhari:237": 1}

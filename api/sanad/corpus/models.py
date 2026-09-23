@@ -58,18 +58,26 @@ class Record:
     # `record_variants`, and is indexed and scored alongside the primary. See
     # `RecordVariant` for why. Also displayed -- `api.schemas.RecordOut`.
     addenda_ar: str | None = None
-    # Why this record's text is not an independently quotable text, or None.
+    # Why this record's PRIMARY text -- `text_ar`, and only `text_ar` -- is
+    # not an independently quotable text, or None.
     # Where a narration repeats one already given in full, the al-Bugha
     # edition prints a pointer -- "bi-hadha", "mithlahu", "nahwahu" -- in
     # place of the matn. Those strings are everyday Arabic, and scoring them
     # made Sanad answer a commonplace with EXACT 1.0 and a Bukhari citation.
     # A record with a reason here keeps its id, its text and its citation and
-    # stays reachable by reference lookup; it is simply never a match
-    # candidate -- excluded from the FTS index (see `rebuild_fts`) and from
-    # the exact-tier lookup (see `verify.engine._exact_at_tier`). The list of
-    # 17 is an audit of the pinned edition; see `openiti._UNSCORABLE`. A
-    # reason here excludes EVERY representation of the record, the full
-    # printed text included -- see `RecordVariant`.
+    # stays reachable by reference lookup; its primary is simply never a
+    # match candidate -- excluded from the FTS index (see `rebuild_fts`) and
+    # from the exact-tier lookup (see `verify.engine._exact_at_tier`). The
+    # list of 17 is an audit of the pinned edition; see
+    # `openiti._UNSCORABLE`.
+    #
+    # THE SCOPE IS THE PRIMARY, NOT THE RECORD. The audit pins the sha256 of
+    # one specific string and classifies that string; the full printed text
+    # is a different string and was never judged. Applying the judgement to
+    # both took hadith 237's 869-character narration -- the longest addendum
+    # in this edition, and an ordinary quotable hadith -- out of the corpus
+    # because of a ruling about the 40-character chain-transfer fragment
+    # printed in front of it. See `RecordVariant`.
     unscorable_reason: str | None = None
 
 
@@ -109,7 +117,10 @@ class RecordVariant:
     how many of its representations tie -- see `verify.engine._exact_at_tier`
     and `_best_fuzzy`.
 
-    Records with an `unscorable_reason` get no rows here at all.
+    A record with an `unscorable_reason` still gets a row here. That reason
+    is a judgement about its primary matn and carries no verdict on the full
+    printed text -- 237 is the one record where the two differ, and the
+    difference is 869 characters of narration.
     """
 
     record_id: str

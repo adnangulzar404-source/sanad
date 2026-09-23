@@ -112,13 +112,16 @@ Each hadith stores its matn (`text_ar`, scored) separately from its isnad
 (`isnad_ar`, shown for context, never scored). The 1987 edition appends
 secondary narrations after the primary matn; 392 records were cut at a
 detected secondary-narration boundary, with the removed text preserved
-verbatim in `addenda_ar`. 392 of those are indexed under *two* scored
+verbatim in `addenda_ar`. 391 of those are indexed under *two* scored
 representations — the primary matn and the full printed text — so that
 either the intended quotation or the full printed hadith verifies, and
 neither an over-cut nor an under-cut costs a verification. 17 records whose
 matn is an editorial pointer (e.g. `بهذا`, `مثله`, `نحوه`) or a bare incipit
 are excluded from scoring (`unscorable_reason` set) but remain reachable by
-reference lookup.
+reference lookup. That exclusion is scoped to the *primary* matn, which is
+the string the audit actually read: one of the 17 (hadith 237) also carries
+an addendum, and its full printed text — the longest in this edition — is
+indexed and scorable while its primary is not.
 
 **Corpus totals.** 13,365 records: 6,236 ayat + 7,129 hadith. The committed
 `data/sanad-quran.db` currently hashes to

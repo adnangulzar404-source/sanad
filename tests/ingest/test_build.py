@@ -657,15 +657,14 @@ def test_the_full_printed_text_is_scored_alongside_the_primary(real_corpus):
     assert len(rows) == 392
     checked = 0
     for row in rows:
-        if row["unscorable_reason"]:
-            assert row["variant"] is None, row["id"]   # excluded from both
-            continue
+        # 237 is here too. Its `unscorable_reason` is a judgement about its
+        # primary matn and carries no verdict on the text printed behind it.
         assert row["variant"] == "full", row["id"]
         assert row["whole"] == row["text_ar"] + " " + row["addenda_ar"], row["id"]
         for form in ("light", "standard", "aggressive"):
             assert row[f"norm_{form}"] == normalize(row["whole"], form), row["id"]
         checked += 1
-    assert checked == 391
+    assert checked == 392
 
 
 def test_a_record_with_no_addendum_has_no_second_representation(real_corpus):
@@ -679,19 +678,31 @@ def test_a_record_with_no_addendum_has_no_second_representation(real_corpus):
     assert n == 0
 
 
-def test_an_unscorable_record_is_excluded_from_both_representations(real_corpus):
-    """237 carries an addendum and is on the unscorable audit list. Neither
-    its primary nor its full text may be a match candidate."""
+def test_an_unscorable_records_full_text_is_still_a_representation(real_corpus):
+    """237 carries an addendum and is on the unscorable audit list, and the
+    two facts are about different strings.
+
+    Its primary is `bayna rasul allah ... ha`, a subordinate clause ending at
+    the chain-transfer mark -- rightly unscorable. Its addendum is 869
+    characters, the longest in this edition, and holds the complete narration
+    of the camel entrails placed on the Prophet's back at the Ka'ba. The rule
+    that excluded both applied a judgement made about 40 characters to 869 it
+    had never seen, and a reader quoting Bukhari 237 as the edition prints it
+    was told it was not in this corpus.
+
+    So: no primary index row, one full-text index row, one variant.
+    """
     out, _, _ = real_corpus
     conn = db.connect(out)
     rec = db.get_record(conn, "hadith:bukhari:237")
     assert rec.addenda_ar and rec.unscorable_reason
+    assert len(rec.addenda_ar) == 869
     assert conn.execute(
         "SELECT count(*) FROM record_variants WHERE record_id = 'hadith:bukhari:237'"
-    ).fetchone()[0] == 0
-    assert conn.execute(
-        "SELECT count(*) FROM records_fts WHERE record_id = 'hadith:bukhari:237'"
-    ).fetchone()[0] == 0
+    ).fetchone()[0] == 1
+    variants = [r[0] for r in conn.execute(
+        "SELECT variant FROM records_fts WHERE record_id = 'hadith:bukhari:237'")]
+    assert variants == ["full"]
 
 
 def test_no_hadith_record_ships_an_empty_scored_text(real_corpus):
@@ -758,12 +769,17 @@ def test_editorial_pointers_are_kept_but_never_scored(real_corpus):
         assert rec.unscorable_reason, record_id
 
 
-def test_no_unscorable_record_is_in_the_search_index(real_corpus):
+def test_no_unscorable_primary_is_in_the_search_index(real_corpus):
+    """All 17 excluded primaries are out of the index, and the only index row
+    any of them has is 237's full printed text -- which is a narration, not
+    the apparatus the audit ruled on."""
     out, _, _ = real_corpus
-    n = db.connect(out).execute(
-        "SELECT count(*) FROM records_fts f JOIN records r ON r.id = f.record_id"
-        " WHERE r.unscorable_reason IS NOT NULL").fetchone()[0]
-    assert n == 0
+    rows = db.connect(out).execute(
+        "SELECT f.record_id, f.variant FROM records_fts f"
+        " JOIN records r ON r.id = f.record_id"
+        " WHERE r.unscorable_reason IS NOT NULL").fetchall()
+    assert [(r["record_id"], r["variant"]) for r in rows] == \
+        [("hadith:bukhari:237", "full")]
 
 
 def test_a_famous_short_matn_is_still_indexed_and_scorable(real_corpus):

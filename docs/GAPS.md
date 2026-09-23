@@ -178,9 +178,10 @@ This whole section is Stage B (Ask). The verify path generates nothing.
       **false-verification count that fails the build at one**. The gate is
       span-budgeted, so a fabrication cannot verify invisibly alongside a
       genuine āyah in the same case.
-- [x] Error analysis: `docs/hadith-noise-report.md` for the corpus;
-      `.superpowers/sdd/2026-09-22-hadith-corpus/progress.md` for the defect
-      record behind it.
+- [x] Error analysis: `docs/hadith-noise-report.md` for the corpus, and
+      `docs/hadith-build-log.md` for the defect record behind it — every
+      ruling, including the two that were later overturned and the argument
+      that overturned them.
 - [x] Reproducibility: the corpus rebuilds byte-identically from cached
       sources, and the build is checksummed. Instructions in `README.md`.
 

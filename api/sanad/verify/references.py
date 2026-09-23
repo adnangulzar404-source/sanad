@@ -186,8 +186,8 @@ _HADITH_CITE = re.compile(
     r"(?:\s*,)?\s*"
     r"(?P<book>(?:book|kitab)\s*\d+\s*,?\s*)?"
     r"(?:(?:hadith|hadeeth|no\.?|number|#)\s*)?"
-    r"(?P<number>\d{1,4})"
-    r"(?:\s*[:\uFF1A]\s*(?P<second>\d{1,4}))?",
+    r"(?P<number>\d+)"
+    r"(?:\s*[:\uFF1A]\s*(?P<second>\d+))?",
     re.IGNORECASE,
 )
 
@@ -209,10 +209,9 @@ _HADITH_CITE = re.compile(
 # alternation), so it is just an optional one-token prefix on the name
 # itself rather than a separate alternation.
 #
-# The digit group is the exact same `\d{1,4}` character class as
-# `_HADITH_CITE` and `_NUMERIC` above -- Python's `re` already treats
-# Arabic-Indic (U+0660-0669) and Eastern Arabic (U+06F0-06F9) digits as
-# `\d`, and `int()` already parses them (see
+# The digit group is the exact same `\d+` as `_HADITH_CITE` above -- Python's
+# `re` already treats Arabic-Indic (U+0660-0669) and Eastern Arabic
+# (U+06F0-06F9) digits as `\d`, and `int()` already parses them (see
 # `test_arabic_indic_digits_parse_correctly`, which exercises this on the
 # Qur'an path) -- so no separate digit-normalizing routine is written here.
 _COLLECTIONS_AR = {
@@ -224,8 +223,8 @@ _HADITH_CITE_AR = re.compile(
     r"(?P<name>(?:\u0627\u0644)?\u0628\u062E\u0627\u0631\u064A)\b"
     r"\s*"
     r"(?:(?:\u062D\u062F\u064A\u062B|\u0631\u0642\u0645)\s*)?"
-    r"(?P<number>\d{1,4})"
-    r"(?:\s*[:\uFF1A]\s*(?P<second>\d{1,4}))?"
+    r"(?P<number>\d+)"
+    r"(?:\s*[:\uFF1A]\s*(?P<second>\d+))?"
 )
 
 MAX_HADITH_NO = 7124
@@ -236,6 +235,36 @@ MAX_HADITH_NO = 7124
 # citation costs a downgrade to a correct plain match, a spurious one costs a
 # false accusation of misattribution.
 MIN_HADITH_NO = 1
+# How many digits a hadith number can have, derived from the bound above
+# rather than typed, so the two cannot disagree.
+_MAX_HADITH_DIGITS = len(str(MAX_HADITH_NO))
+
+
+def _hadith_number(digits: str) -> int | None:
+    """The hadith number a run of digits names, or None if it names none.
+
+    THE DIGIT RUN IS TAKEN WHOLE. It used to be `\\d{1,4}` with no trailing
+    boundary, so "Bukhari 12345" was read as a citation of hadith 1234 and a
+    correctly quoted hadith beside it came back WRONG_REFERENCE -- the same
+    false accusation as a book-relative citation, from a narrower trigger.
+    The upper bound hid it for exactly the numbers that happen to exceed
+    7124: "Bukhari 99999" was already declined, "Bukhari 71240" was not.
+
+    Length is checked BEFORE `int()`, and that ordering is load-bearing:
+    CPython refuses to convert a digit string past a few thousand characters,
+    so a pasted number of that size would raise out of a parser whose only
+    job here is to decline. Leading zeros are dropped first, and dropped by
+    Unicode digit VALUE rather than by stripping the character "0", because
+    the Arabic-Indic zero is U+0660 and this module never re-spells what a
+    reader wrote.
+    """
+    first = next((i for i, ch in enumerate(digits) if unicodedata.digit(ch)),
+                 len(digits))
+    significant = digits[first:]
+    if len(significant) > _MAX_HADITH_DIGITS:
+        return None
+    value = int(significant) if significant else 0
+    return value if MIN_HADITH_NO <= value <= MAX_HADITH_NO else None
 
 
 def _resolve_collection(name: str) -> str | None:
@@ -275,16 +304,16 @@ def _collect_hadith_citations(
         groups = m.groupdict()
         if groups.get("book") or groups.get("second"):
             continue
-        printed = m.group("number")
-        # `int()` already understands Arabic-Indic and Eastern Arabic digits
-        # (same as `_NUMERIC`'s surah/ayah conversion below), so a citation
-        # written with Arabic-Indic digits and one written with ASCII digits
-        # resolve to the same `hadith_no` -- the numeral SCRIPT a citation
-        # happens to use is not part of the text being verified, unlike the
-        # matn/ayah wording itself, which this module never re-spells. `raw`
-        # still preserves the untouched matched text for display/audit.
-        value = int(printed)
-        if not MIN_HADITH_NO <= value <= MAX_HADITH_NO:
+        # `_hadith_number` reads the WHOLE digit run and bounds it. `int()`
+        # already understands Arabic-Indic and Eastern Arabic digits (same as
+        # `_NUMERIC`'s surah/ayah conversion below), so a citation written
+        # with Arabic-Indic digits and one written with ASCII digits resolve
+        # to the same `hadith_no` -- the numeral SCRIPT a citation happens to
+        # use is not part of the text being verified, unlike the matn/ayah
+        # wording itself, which this module never re-spells. `raw` still
+        # preserves the untouched matched text for display/audit.
+        value = _hadith_number(m.group("number"))
+        if value is None:
             continue  # out of range -- never falls back to a verse reading
         refs.append(HadithReference(collection, str(value), m.group(0), m.start()))
 

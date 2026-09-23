@@ -286,3 +286,14 @@
     "Bukhari 1:2", hadith 2, and answered WRONG_REFERENCE. Cased separately from the
     spelt-out form because the two are different branches of the pattern and a fix to
     one would not touch the other.
+- id: hadith-overlong-number-is-not-a-misattribution
+  text: '«الحرب خدعة» (Bukhari 12345)'
+  expect_verdict: EXACT
+  expect_record: hadith:bukhari:2866
+  forbid_verdict: WRONG_REFERENCE
+  rationale: >-
+    A mistyped or foreign number, silently truncated to its first four digits by a
+    digit pattern with no trailing boundary: 12345 became 1234, and a correctly quoted
+    hadith beside it was called a misattribution. The number is out of range and must
+    resolve to nothing -- the same trade-off the module states for every other citation
+    form, where a miss costs a downgrade and noise costs a false accusation.

@@ -202,6 +202,67 @@ def test_a_plain_number_still_resolves_beside_the_refusal():
     assert len(refs) == 1 and refs[0].hadith_no == "2866"
 
 
+# --- the digit run is taken whole -------------------------------------------
+#
+# `\d{1,4}` with no trailing boundary silently truncated a longer number to
+# its first four digits, so "Bukhari 12345" cited hadith 1234 and a correctly
+# quoted hadith beside it came back WRONG_REFERENCE. The upper bound hid it
+# for precisely the numbers that overshoot 7124, which is why "Bukhari 99999"
+# looked fine while "Bukhari 71240" did not.
+
+
+@pytest.mark.parametrize("text,truncation", [
+    ("Bukhari 12345", "1234"),
+    ("Bukhari 71240", "7124"),   # truncates to the corpus maximum: in range
+    ("Bukhari 99999", "9999"),   # out of range, so this one only ever looked fine
+    ("البخاري ٢٨٦٦٠", "2866"),
+])
+def test_an_overlong_number_never_resolves_to_its_first_digits(text, truncation):
+    refs = [r for r in parse_references(text) if isinstance(r, HadithReference)]
+    assert truncation not in [r.hadith_no for r in refs]
+    # and it resolves to no reference of any kind, not merely a different one
+    assert parse_references(text) == []
+
+
+@pytest.mark.parametrize("text", ["Bukhari 12345", "البخاري ٢٨٦٦٠"])
+def test_an_overlong_number_still_claims_its_span(text):
+    """It is still unmistakably a citation, so the verifier must not be
+    offered it as a quotation to look up -- the Arabic form especially, since
+    an Arabic-script citation is itself a run of Arabic.
+    """
+    assert parse_citations(text).spans
+
+
+@pytest.mark.parametrize("text,number", [
+    ("Bukhari 11", "11"),
+    ("Bukhari 7124", "7124"),
+    ("Bukhari 0002866", "2866"),
+])
+def test_a_number_inside_the_range_still_resolves(text, number):
+    """The boundary must not be paid for with the numbers that are fine.
+    Leading zeros are not significance -- "0002866" is 2866, and the length
+    bound is applied to the significant digits, not to the written ones.
+    """
+    refs = [r for r in parse_references(text) if isinstance(r, HadithReference)]
+    assert len(refs) == 1 and refs[0].hadith_no == number
+
+
+def test_a_pasted_number_too_long_for_int_declines_instead_of_raising():
+    """The parser's job here is to decline, not to raise.
+
+    CPython refuses to convert a digit string past a few thousand characters,
+    so an unbounded `int()` on a `\\d+` group turns a pasted number into a
+    ValueError out of `parse_references` -- a 500 from a text input. The
+    length check runs first for that reason, and this pins the ordering.
+    """
+    assert parse_references("Bukhari " + "9" * 10000) == []
+    # And the other shape of long run: ten thousand leading zeros in front of
+    # a real number. Only the significant digits are converted, so this is
+    # hadith 1 rather than either a crash or a refusal.
+    padded = parse_references("Bukhari " + "0" * 10000 + "1")
+    assert [r.hadith_no for r in padded] == ["1"]
+
+
 def test_a_volume_prefixed_citation_is_not_parsed():
     """"Vol. 4, Book 52, Hadith 268" is the same USC-MSA scheme with a volume
     in front. The pattern does not reach across the "Vol. 4," and must not
@@ -406,11 +467,11 @@ def test_an_unresolvable_citation_still_reports_its_span(text):
     covered = set()
     for start, end in parsed.spans:
         covered.update(range(start, end))
-    # What is left uncovered must be too slight to read as a quotation. (It is
-    # not always empty: `\\d{1,4}` stops after four digits, so the fifth digit
-    # of "99999" is outside the claim. That leftover is one character, which
-    # is the point -- no run of it can survive extraction.)
-    assert len(set(range(len(text))) - covered) <= 1
+    # Nothing is left over. It used to be one character: `\\d{1,4}` stopped
+    # after four digits, so the fifth digit of "99999" fell outside the claim
+    # -- the same missing boundary that made "Bukhari 12345" cite hadith 1234.
+    # The digit run is taken whole now, so the claim covers the whole citation.
+    assert set(range(len(text))) - covered == set()
 
 
 def test_prose_with_no_citation_claims_no_spans():

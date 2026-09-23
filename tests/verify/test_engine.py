@@ -1,6 +1,7 @@
 import pytest
 from sanad.corpus import db
 from sanad.verify.engine import Verdict, verify_spans
+from sanad.verify.references import HadithReference, Reference
 
 IKHLAS_1 = "قُلْ هُوَ ٱللَّهُ أَحَدٌ"
 # quran:108:1. The task brief's literal used a bare alef here; the corpus (and
@@ -449,3 +450,560 @@ def test_an_excluded_record_never_verifies_under_either_representation(
         m = _only(verify_spans(conn, f"«{quote}»"))
         assert m.verdict is Verdict.NOT_FOUND, quote
         assert m.record is None
+
+
+# =========================================================================
+# Task 6: a citation may only ever attach to a quotation of its OWN kind
+# =========================================================================
+#
+# Every Arabic string in this section is either read out of the corpus at run
+# time or written as explicit backslash-u escapes -- never typed as a literal
+# glyph. This project has shipped eleven defects from Arabic altered silently
+# in transit, two of them inside the test that was supposed to catch it, so a
+# fixture that "looks right" is not evidence.
+#
+# "sahih al-bukhari": sahih U+0635 U+062D U+064A U+062D, then the definite
+# article U+0627 U+0644 attached to bukhari U+0628 U+062E U+0627 U+0631 U+064A.
+# "rawahu" (narrated by) is U+0631 U+0648 U+0627 U+0647.
+_AL_BUKHARI_AR = "\u0627\u0644\u0628\u062e\u0627\u0631\u064a"
+_SAHIH_AL_BUKHARI_AR = "\u0635\u062d\u064a\u062d" + " " + _AL_BUKHARI_AR
+_RAWAHU_AL_BUKHARI_AR = "\u0631\u0648\u0627\u0647" + " " + _AL_BUKHARI_AR
+# "qala al-nabiyyu" (the Prophet said): U+0642 U+0627 U+0644 + U+0627 U+0644
+# U+0646 U+0628 U+064A. Prose, not a quotation -- see D2.
+_QALA_AL_NABI_AR = "\u0642\u0627\u0644 \u0627\u0644\u0646\u0628\u064a"
+
+
+def _arabic_indic(n: int) -> str:
+    """Arabic-Indic digits (U+0660-U+0669), GENERATED from the integer.
+
+    Typing "٣٠٣٠" by hand is exactly the transcription step that has gone
+    wrong here before; deriving it from `n` means the fixture cannot disagree
+    with the number the assertion is about.
+    """
+    return "".join(chr(0x0660 + int(d)) for d in str(n))
+
+
+def test_arabic_indic_digit_helper_is_itself_correct():
+    """The helper is a fixture generator; if it is wrong, every Arabic
+    citation test below is testing the wrong number and still passing."""
+    assert [ord(c) for c in _arabic_indic(3030)] == [0x0663, 0x0660, 0x0663, 0x0660]
+    assert int(_arabic_indic(2866)) == 2866
+
+
+# --- D1: the exact reproduction from the findings ---------------------------
+
+
+def test_d1_a_correctly_cited_hadith_beside_a_quranic_citation(conn):
+    """The defect this task exists for.
+
+    `الحرب خدعة` really IS Sahih al-Bukhari 2866. Before the fix, the Qur'anic
+    "112:1" from the far end of the sentence was handed to the hadith span as
+    its "given reference", and Sanad told the user their correct citation was
+    wrong -- a false accusation of misattribution, the same severity class as
+    a false EXACT.
+    """
+    matn = db.get_record(conn, "hadith:bukhari:2866").text_ar
+    text = (f"The Prophet said «{matn}» (Bukhari 2866), and the "
+            f"Qur'an says «{IKHLAS_1}» (112:1).")
+    hadith, ayah = verify_spans(conn, text)
+
+    assert hadith.span.text == matn
+    assert hadith.verdict is Verdict.EXACT
+    assert hadith.record.id == "hadith:bukhari:2866"
+    assert hadith.given_reference is not None
+    assert hadith.given_reference.raw == "Bukhari 2866"
+
+    assert ayah.verdict is Verdict.EXACT
+    assert ayah.record.id == "quran:112:1"
+    assert ayah.given_reference.raw == "112:1"
+
+
+def test_a_hadith_quoted_and_correctly_cited_verifies(conn):
+    matn = db.get_record(conn, "hadith:bukhari:1").text_ar
+    m = _only(verify_spans(conn, f"«{matn}» (Bukhari 1)"))
+    assert m.verdict is Verdict.EXACT
+    assert m.record.id == "hadith:bukhari:1"
+
+
+def test_the_famous_short_matn_verifies_on_its_own(conn):
+    """The section-7 canary. Fails the moment anyone stores isnad+matn in
+    text_ar: scoring across the chain puts a short famous matn near 0.13."""
+    matn = db.get_record(conn, "hadith:bukhari:1").text_ar
+    m = _only(verify_spans(conn, f"«{matn}»"))
+    assert m.verdict is Verdict.EXACT
+    assert m.record.id == "hadith:bukhari:1"
+
+
+def test_a_genuinely_wrong_hadith_citation_is_flagged_and_names_the_record(conn):
+    matn = db.get_record(conn, "hadith:bukhari:2866").text_ar
+    m = _only(verify_spans(conn, f"«{matn}» (Bukhari 1)"))
+    assert m.verdict is Verdict.WRONG_REFERENCE
+    # It must name where the text actually IS, not merely refuse the citation.
+    assert m.record.id == "hadith:bukhari:2866"
+    assert m.record.reference_display == "Sahih al-Bukhari 2866"
+    assert m.given_reference.hadith_no == "1"
+
+
+# --- D1 generalised: neither kind of citation may cross over -----------------
+
+
+def test_a_quranic_citation_never_attaches_to_a_hadith_quotation(conn):
+    """The findings' rule, and the point on which the brief's own Step 1 test
+    was wrong: a verse citation beside a hadith quotation is NOT a wrong
+    reference, it is NO reference. The brief expected WRONG_REFERENCE here;
+    that would be the very false accusation D1 is about, just spelled
+    differently -- the user has cited nothing at all about this hadith.
+    """
+    matn = db.get_record(conn, "hadith:bukhari:1").text_ar
+    m = _only(verify_spans(conn, f"«{matn}» (Al-Baqarah 2:255)"))
+    assert m.verdict is Verdict.EXACT
+    assert m.record.id == "hadith:bukhari:1"
+    assert m.given_reference is None
+
+
+def test_a_hadith_citation_never_attaches_to_an_ayah_quotation(conn):
+    m = _only(verify_spans(conn, f"«{IKHLAS_1}» (Bukhari 1)"))
+    assert m.verdict is Verdict.EXACT
+    assert m.record.id == "quran:112:1"
+    assert m.given_reference is None
+
+
+def test_a_hadith_citation_cannot_rescue_a_wrong_verse_citation(conn):
+    """Both kinds present, the verse one wrong: the verse quotation must still
+    be flagged. A fix that simply preferred "the reference of the same kind as
+    the nearest one" would pass the two tests above and fail this."""
+    m = _only(verify_spans(conn, f"«{IKHLAS_1}» (Bukhari 1) (2:4)"))
+    assert m.verdict is Verdict.WRONG_REFERENCE
+    assert m.given_reference.surah == 2
+
+
+def test_a_quranic_citation_cannot_rescue_a_wrong_hadith_citation(conn):
+    matn = db.get_record(conn, "hadith:bukhari:2866").text_ar
+    m = _only(verify_spans(conn, f"«{matn}» (112:1) (Bukhari 1)"))
+    assert m.verdict is Verdict.WRONG_REFERENCE
+    assert m.given_reference.hadith_no == "1"
+
+
+def test_cross_kind_attachment_is_impossible_by_construction():
+    """Not "no cross-kind citation is near enough" -- there is no route.
+
+    `_NearbyReferences` has one field per kind, each typed to the one
+    reference class that cites it, and `for_kind` is the only way out. A
+    distance-based guard would have to be remembered at every call site; this
+    holds even if a future caller forgets.
+    """
+    from sanad.verify.engine import _NearbyReferences
+
+    verse = Reference(112, 1, "112:1", 0)
+    hadith = HadithReference("bukhari", "1", "Bukhari 1", 0)
+
+    verse_only = _NearbyReferences(ayah=verse, hadith=None, nearest=verse)
+    assert verse_only.for_kind("ayah") is verse
+    assert verse_only.for_kind("hadith") is None
+
+    hadith_only = _NearbyReferences(ayah=None, hadith=hadith, nearest=hadith)
+    assert hadith_only.for_kind("hadith") is hadith
+    assert hadith_only.for_kind("ayah") is None
+
+    both = _NearbyReferences(ayah=verse, hadith=hadith, nearest=hadith)
+    assert both.for_kind("ayah") is verse
+    assert both.for_kind("hadith") is hadith
+    # A kind nothing cites gets nothing, rather than falling back to "any".
+    assert both.for_kind("tafsir") is None
+
+
+def test_the_window_is_not_what_keeps_the_kinds_apart(conn):
+    """A verse citation immediately adjacent to a hadith quotation -- zero
+    distance, nothing for a window to exclude -- still does not attach.
+    Pins that the fix is structural, so nobody is tempted to widen or narrow
+    `window=180` to influence it."""
+    from sanad.verify.references import nearest_reference
+
+    matn = db.get_record(conn, "hadith:bukhari:1").text_ar
+    m = _only(verify_spans(conn, f"(2:255)«{matn}»(2:255)"))
+    assert m.verdict is Verdict.EXACT
+    assert m.given_reference is None
+    # And the same at the level below, with the window shut to nothing.
+    verse = Reference(2, 255, "2:255", 0)
+    assert nearest_reference([verse], 0, kind="hadith", window=10_000) is None
+
+
+# --- Arabic-script citations attach exactly as the Latin ones do -------------
+
+
+def test_a_correctly_cited_hadith_in_arabic_script_verifies(conn):
+    matn = db.get_record(conn, "hadith:bukhari:2866").text_ar
+    for form in (_SAHIH_AL_BUKHARI_AR, _AL_BUKHARI_AR, _RAWAHU_AL_BUKHARI_AR):
+        citation = f"{form} {_arabic_indic(2866)}"
+        matches = [m for m in verify_spans(conn, f"«{matn}» ({citation})")
+                   if m.span.text == matn]
+        m = _only(matches)
+        assert m.verdict is Verdict.EXACT, citation
+        assert m.record.id == "hadith:bukhari:2866"
+        assert m.given_reference is not None and m.given_reference.hadith_no == "2866"
+
+
+def test_a_wrong_hadith_citation_in_arabic_script_is_still_flagged(conn):
+    matn = db.get_record(conn, "hadith:bukhari:2866").text_ar
+    citation = f"{_SAHIH_AL_BUKHARI_AR} {_arabic_indic(1)}"
+    matches = [m for m in verify_spans(conn, f"«{matn}» ({citation})")
+               if m.span.text == matn]
+    m = _only(matches)
+    assert m.verdict is Verdict.WRONG_REFERENCE
+    assert m.record.id == "hadith:bukhari:2866"
+
+
+def test_a_correctly_cited_hadith_survives_an_unrelated_quranic_citation(conn):
+    """The findings' generalisation of D1, in both citation languages and in
+    both orders, with the verse citation nearer than the hadith one."""
+    matn = db.get_record(conn, "hadith:bukhari:2866").text_ar
+    latin = "Bukhari 2866"
+    arabic = f"{_SAHIH_AL_BUKHARI_AR} {_arabic_indic(2866)}"
+    for citation in (latin, arabic):
+        for text in (f"(112:1) «{matn}» ({citation})",
+                     f"({citation}) «{matn}» (112:1)",
+                     f"(112:1) ({citation}) «{matn}»"):
+            m = _only([x for x in verify_spans(conn, text) if x.span.text == matn])
+            assert m.verdict is Verdict.EXACT, text
+            assert m.record.id == "hadith:bukhari:2866"
+
+
+# --- D2: a citation is not a quotation ---------------------------------------
+
+
+def test_d2_an_arabic_citation_is_not_offered_as_a_quotation(conn):
+    """The reproduction from the findings.
+
+    The citation is itself a run of Arabic script, so the extractor used to
+    hand it to the verifier, which duly reported "صحيح البخاري ٣٠٣٠ -- not in
+    this corpus". Only people who cite in Arabic ever saw this.
+    """
+    matn = db.get_record(conn, "hadith:bukhari:2866").text_ar
+    citation = f"{_SAHIH_AL_BUKHARI_AR} {_arabic_indic(3030)}"
+    out = verify_spans(conn, f"{_QALA_AL_NABI_AR} «{matn}» ({citation})")
+    assert citation not in [m.span.text for m in out]
+    quoted = _only([m for m in out if m.span.text == matn])
+    # The findings' literal reproduction cites 3030 for a matn that is really
+    # 2866, so the two fixes compose here: the citation stops being scored as
+    # a quotation (D2) AND it now reaches the hadith it was written for (D1),
+    # which is how it can be judged wrong at all. Before this task it was
+    # ignored, and the matn read EXACT with a Qur'anic reference attached.
+    assert quoted.verdict is Verdict.WRONG_REFERENCE
+    assert quoted.record.id == "hadith:bukhari:2866"
+    assert quoted.given_reference.hadith_no == "3030"
+    # The same sentence with the RIGHT number verifies, citation still unscored.
+    right = f"{_SAHIH_AL_BUKHARI_AR} {_arabic_indic(2866)}"
+    out_right = verify_spans(conn, f"{_QALA_AL_NABI_AR} «{matn}» ({right})")
+    assert right not in [m.span.text for m in out_right]
+    assert _only([m for m in out_right if m.span.text == matn]).verdict is Verdict.EXACT
+    # Out of scope, stated explicitly rather than changed quietly: the bare
+    # prose run "قال النبي" is still extracted and still scores NOT_FOUND.
+    # That is the Arabic-run extractor's problem, not the citation's; see the
+    # findings, D2. Pinned here so a future change to it is visible, not
+    # endorsed.
+    assert [m.span.text for m in out] == [_QALA_AL_NABI_AR, matn]
+
+
+def test_a_citation_standing_entirely_alone_yields_no_quotation(conn):
+    for n in (1, 342, 3030, 7124):
+        for form in (_SAHIH_AL_BUKHARI_AR, _AL_BUKHARI_AR, _RAWAHU_AL_BUKHARI_AR):
+            text = f"{form} {_arabic_indic(n)}"
+            assert verify_spans(conn, text) == [], text
+
+
+def test_a_quotation_is_not_dropped_merely_for_sitting_next_to_a_citation(conn):
+    """The D2 filter removes spans a citation CONSUMES, not spans it neighbours.
+    An over-broad filter would silently delete real quotations, which is worse
+    than the defect it fixes."""
+    matn = db.get_record(conn, "hadith:bukhari:2866").text_ar
+    citation = f"{_SAHIH_AL_BUKHARI_AR} {_arabic_indic(2866)}"
+    out = verify_spans(conn, f"«{matn}»{citation}")
+    assert [m.span.text for m in out] == [matn]
+    assert out[0].verdict is Verdict.EXACT
+
+
+def test_no_corpus_record_is_swallowed_by_the_citation_filter(conn):
+    """Sweep, not sample: every one of the 13,365 records, checked for text
+    that `parse_references` would read as a citation covering it.
+
+    If any record's own text contained something the citation patterns match,
+    the D2 filter could delete a genuine quotation of it instead of a
+    citation. Today none does -- and this test is what notices if a future
+    edition, or a future citation pattern, changes that.
+    """
+    from sanad.verify.references import parse_references
+
+    offenders = [r.id for r in db.iter_records(conn) if parse_references(r.text_ar)]
+    assert offenders == [], f"{len(offenders)} records, e.g. {offenders[:5]}"
+
+
+# --- hadith_no is not unique -------------------------------------------------
+
+
+def test_a_repeated_hadith_number_is_satisfied_by_either_record(conn):
+    """7,124 distinct printed numbers over 7,129 records. A citation of a
+    repeated number is correct for ANY record carrying it; treating the first
+    hit as the only one would flag one of the two as a wrong reference."""
+    rows = conn.execute(
+        "SELECT hadith_no FROM records WHERE kind='hadith'"
+        " GROUP BY hadith_no HAVING count(*) > 1").fetchall()
+    assert rows, "fixture assumes the edition repeats at least one number"
+    checked = 0
+    for (number,) in rows:
+        siblings = conn.execute(
+            "SELECT id FROM records WHERE kind='hadith' AND hadith_no = ?"
+            " AND unscorable_reason IS NULL", (number,)).fetchall()
+        for (rid,) in siblings:
+            rec = db.get_record(conn, rid)
+            m = _only(verify_spans(conn, f"«{rec.text_ar}» (Bukhari {number})"))
+            assert m.verdict is not Verdict.WRONG_REFERENCE, rid
+            assert m.record.hadith_no == number, rid
+            checked += 1
+    assert checked >= 2, "test exercised nothing"
+
+
+# --- the two representations of one hadith are one record --------------------
+
+
+def test_the_full_printed_text_with_a_correct_citation_verifies_once(conn):
+    """A hadith is indexed under its primary matn AND its full printed text.
+    Reference checking must see one record, not two: a record reported twice
+    would read as "this also appears at Sahih al-Bukhari 10" on a match to
+    Sahih al-Bukhari 10."""
+    rec = db.get_record(conn, "hadith:bukhari:10")
+    assert rec.addenda_ar, "fixture assumes this record was cut"
+    whole = db.get_record_variants(conn, rec.id)[0].text_ar
+    for quote in (rec.text_ar, whole):
+        m = _only(verify_spans(conn, f"«{quote}» (Bukhari {rec.hadith_no})"))
+        assert m.verdict is Verdict.EXACT
+        assert m.record.id == rec.id
+        assert m.also_at == []
+
+
+def test_the_full_printed_text_with_a_wrong_citation_is_flagged_once(conn):
+    rec = db.get_record(conn, "hadith:bukhari:10")
+    whole = db.get_record_variants(conn, rec.id)[0].text_ar
+    m = _only(verify_spans(conn, f"«{whole}» (Bukhari 1)"))
+    assert m.verdict is Verdict.WRONG_REFERENCE
+    assert m.record.id == rec.id
+    assert m.also_at == []
+
+
+# --- sweeps: the general property, not the examples --------------------------
+
+
+def test_every_ayah_correctly_cited_still_verifies(conn):
+    """The Qur'an path must not regress. Sweep, not sample: all 6,236 ayat,
+    each quoted verbatim with its own address."""
+    verified = {Verdict.EXACT, Verdict.EXACT_ORTHOGRAPHY}
+    bad = []
+    checked = 0
+    for r in db.iter_records(conn):
+        if r.kind != "ayah":
+            continue
+        m = _only(verify_spans(conn, f"«{r.text_ar}» ({r.surah}:{r.ayah})"))
+        checked += 1
+        if m.verdict not in verified or m.record.id != r.id:
+            bad.append((r.id, m.verdict, m.record.id if m.record else None))
+    assert checked == 6236, checked
+    assert bad == [], f"{len(bad)} regressed, e.g. {bad[:5]}"
+
+
+def test_every_ayah_wrongly_cited_is_still_flagged(conn):
+    """The other half of the sweep. 2:255 is unique in the corpus (nothing
+    ties with it), so citing it for any OTHER ayah is genuinely wrong."""
+    bad = []
+    checked = 0
+    for r in db.iter_records(conn):
+        if r.kind != "ayah" or r.id == "quran:2:255":
+            continue
+        m = _only(verify_spans(conn, f"«{r.text_ar}» (2:255)"))
+        checked += 1
+        if m.verdict is not Verdict.WRONG_REFERENCE:
+            bad.append((r.id, m.verdict))
+    assert checked == 6235, checked
+    assert bad == [], f"{len(bad)} not flagged, e.g. {bad[:5]}"
+
+
+def test_no_correctly_cited_hadith_is_ever_flagged_wrong_reference(conn):
+    """Sweep of all 7,112 scorable hadith, each quoted verbatim and cited with
+    its own printed number, in the Latin citation form."""
+    bad = []
+    checked = 0
+    for r in db.iter_records(conn):
+        if r.kind != "hadith" or r.unscorable_reason is not None:
+            continue
+        m = _only(verify_spans(conn, f"«{r.text_ar}» (Bukhari {r.hadith_no})"))
+        checked += 1
+        if m.verdict is Verdict.WRONG_REFERENCE or m.record is None \
+                or m.record.hadith_no != r.hadith_no:
+            bad.append((r.id, m.verdict, m.record.id if m.record else None))
+    assert checked == 7112, checked
+    assert bad == [], f"{len(bad)} regressed, e.g. {bad[:5]}"
+
+
+def test_no_correctly_cited_hadith_is_flagged_in_the_arabic_citation_form(conn):
+    """Same sweep, Arabic-script citation. The two forms must be
+    interchangeable: an Arabic citation is not a second-class one."""
+    bad = []
+    checked = 0
+    for r in db.iter_records(conn):
+        if r.kind != "hadith" or r.unscorable_reason is not None:
+            continue
+        citation = f"{_SAHIH_AL_BUKHARI_AR} {_arabic_indic(int(r.hadith_no))}"
+        m = _only([x for x in verify_spans(conn, f"«{r.text_ar}» ({citation})")
+                   if x.span.text == r.text_ar])
+        checked += 1
+        if m.verdict is Verdict.WRONG_REFERENCE or m.record is None \
+                or m.record.hadith_no != r.hadith_no:
+            bad.append((r.id, m.verdict, m.record.id if m.record else None))
+    assert checked == 7112, checked
+    assert bad == [], f"{len(bad)} regressed, e.g. {bad[:5]}"
+
+
+def test_every_wrongly_cited_hadith_is_flagged(conn):
+    """hadith:bukhari:1's text is unique in the corpus, so citing Bukhari 1
+    for any hadith not printed under number 1 is genuinely wrong."""
+    bad = []
+    checked = 0
+    for r in db.iter_records(conn):
+        if r.kind != "hadith" or r.unscorable_reason is not None or r.hadith_no == "1":
+            continue
+        m = _only(verify_spans(conn, f"«{r.text_ar}» (Bukhari 1)"))
+        checked += 1
+        if m.verdict is not Verdict.WRONG_REFERENCE:
+            bad.append((r.id, m.verdict))
+    assert checked == 7111, checked
+    assert bad == [], f"{len(bad)} not flagged, e.g. {bad[:5]}"
+
+
+def test_no_hadith_verifies_under_a_quranic_citation_or_vice_versa(conn):
+    """The D1 property swept across both corpora at once: a citation of the
+    other kind is never allowed to decide a verdict. Every scorable record,
+    quoted verbatim with a citation of the WRONG kind attached, must reach
+    exactly the verdict it reaches with no citation at all."""
+    bad = []
+    checked = 0
+    for r in db.iter_records(conn):
+        if r.unscorable_reason is not None:
+            continue
+        wrong_kind = "(Bukhari 1)" if r.kind == "ayah" else "(2:255)"
+        plain = _only(verify_spans(conn, f"«{r.text_ar}»"))
+        crossed = _only(verify_spans(conn, f"«{r.text_ar}» {wrong_kind}"))
+        checked += 1
+        if crossed.verdict is not plain.verdict or crossed.given_reference is not None:
+            bad.append((r.id, plain.verdict, crossed.verdict))
+    assert checked == 13348, checked
+    assert bad == [], f"{len(bad)} differed, e.g. {bad[:5]}"
+
+
+# --- paths no real-corpus input can reach ------------------------------------
+#
+# Two branches of the kind-aware reference check cannot be exercised by
+# `data/sanad-quran.db` as it stands: no ayah shares text with any hadith
+# (swept and confirmed), and every hadith record is in the one collection the
+# citation patterns know. An unobservable branch is one no test can watch
+# fail, so -- as elsewhere in this file -- they get throwaway databases built
+# to reach them, which pins the ENGINE's behaviour rather than today's data.
+
+
+@pytest.fixture()
+def an_ayah_and_a_hadith_with_the_same_text(tmp_path):
+    from sanad.corpus.models import Record, Source
+    text = "اااا بببب جججج"
+    conn = db.connect(tmp_path / "c.db", read_only=False)
+    db.insert_source(conn, Source(
+        id="s", kind="hadith-arabic", title="t", publisher=None, edition=None,
+        url="https://example.invalid/", license_id="public-domain",
+        license_url=None, attribution="a", retrieved_at="2026-09-23",
+        upstream_sha256="0" * 64, modifications="none"))
+    common = {"source_id": "s", "text_ar": text, "text_ar_sha256": "x" * 64,
+              "norm_light": text, "norm_standard": text, "norm_aggressive": text}
+    db.insert_records(conn, [
+        Record(id="quran:2:1", kind="ayah", surah=2, ayah=1,
+               reference_display="Al-Baqarah 2:1", **common),
+        Record(id="hadith:bukhari:7", kind="hadith", collection="bukhari",
+               hadith_no="7", numbering_scheme="bugha-1987",
+               reference_display="Sahih al-Bukhari 7", **common),
+    ])
+    db.rebuild_fts(conn)
+    return conn, text
+
+
+def test_a_tie_across_kinds_is_resolved_by_the_citation_given(
+        an_ayah_and_a_hadith_with_the_same_text):
+    """One wording, two records of different kinds. The citation decides which
+    one the reader meant -- and each kind of citation can only ever select a
+    record of its own kind."""
+    conn, text = an_ayah_and_a_hadith_with_the_same_text
+    m = _only(verify_spans(conn, f"«{text}» (Bukhari 7)"))
+    assert m.verdict is Verdict.EXACT
+    assert m.record.id == "hadith:bukhari:7"
+    m = _only(verify_spans(conn, f"«{text}» (2:1)"))
+    assert m.verdict is Verdict.EXACT
+    assert m.record.id == "quran:2:1"
+
+
+def test_a_wrong_citation_is_reported_against_the_kind_that_was_cited(
+        an_ayah_and_a_hadith_with_the_same_text):
+    """The fallback in `_select_by_reference`. With no candidate agreeing, the
+    record reported must be one of the kind the reader actually cited: telling
+    someone who wrote "Bukhari 9" that the text is at Al-Baqarah 2:1, with no
+    citation shown and no flag raised, would bury the error they made."""
+    conn, text = an_ayah_and_a_hadith_with_the_same_text
+    m = _only(verify_spans(conn, f"«{text}» (Bukhari 9)"))
+    assert m.verdict is Verdict.WRONG_REFERENCE
+    assert m.record.id == "hadith:bukhari:7"
+    assert m.given_reference.hadith_no == "9"
+    m = _only(verify_spans(conn, f"«{text}» (2:9)"))
+    assert m.verdict is Verdict.WRONG_REFERENCE
+    assert m.record.id == "quran:2:1"
+    assert m.given_reference.surah == 2
+
+
+@pytest.fixture()
+def a_hadith_in_another_collection(tmp_path):
+    """A hadith record NOT in Bukhari. The corpus has only Bukhari today, so
+    the collection half of the hadith conflict check is otherwise dead code --
+    and dead code in a correctness check is indistinguishable from a bug."""
+    from sanad.corpus.models import Record, Source
+    text = "اااا بببب جججج"
+    conn = db.connect(tmp_path / "c.db", read_only=False)
+    db.insert_source(conn, Source(
+        id="s", kind="hadith-arabic", title="t", publisher=None, edition=None,
+        url="https://example.invalid/", license_id="public-domain",
+        license_url=None, attribution="a", retrieved_at="2026-09-23",
+        upstream_sha256="0" * 64, modifications="none"))
+    db.insert_records(conn, [Record(
+        id="hadith:muslim:1", source_id="s", kind="hadith", collection="muslim",
+        hadith_no="1", numbering_scheme="x", text_ar=text,
+        text_ar_sha256="x" * 64, norm_light=text, norm_standard=text,
+        norm_aggressive=text, reference_display="Sahih Muslim 1")])
+    db.rebuild_fts(conn)
+    return conn, text
+
+
+def test_the_right_number_in_the_wrong_collection_is_a_wrong_reference(
+        a_hadith_in_another_collection):
+    conn, text = a_hadith_in_another_collection
+    m = _only(verify_spans(conn, f"«{text}» (Bukhari 1)"))
+    assert m.verdict is Verdict.WRONG_REFERENCE
+    assert m.record.id == "hadith:muslim:1"
+
+
+def test_a_hadith_citation_does_not_attach_through_the_bismillah_retry(conn):
+    """The Bismillah retry has its own reference comparison, reached only
+    after the text as quoted has failed at every tier. It must obey the same
+    kind rule as the main path -- a branch that took a different route to the
+    citation would be a second place for D1 to come back."""
+    rec = db.get_record(conn, "quran:112:1")
+    m = _only(verify_spans(conn, f"«{rec.bismillah} {rec.text_ar}» (Bukhari 1)"))
+    assert m.verdict is Verdict.EXACT
+    assert m.record.id == "quran:112:1"
+    assert m.given_reference is None
+    # ... and a verse citation on that same path still works, right and wrong.
+    assert _only(verify_spans(
+        conn, f"«{rec.bismillah} {rec.text_ar}» (112:1)")).verdict is Verdict.EXACT
+    assert _only(verify_spans(
+        conn, f"«{rec.bismillah} {rec.text_ar}» (2:255)")
+    ).verdict is Verdict.WRONG_REFERENCE

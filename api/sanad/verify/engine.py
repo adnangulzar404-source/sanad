@@ -17,7 +17,13 @@ from ..arabic.similarity import ratio
 from ..corpus import db
 from ..corpus.models import Record
 from .extract import Span, extract_spans
-from .references import Reference, nearest_reference, parse_references
+from .references import (
+    AnyReference,
+    HadithReference,
+    Reference,
+    nearest_reference,
+    parse_references,
+)
 
 NEAR_THRESHOLD = 0.86
 CANDIDATE_LIMIT = 50
@@ -51,7 +57,13 @@ class Match:
     record: Record | None
     tier: Tier | None
     score: float
-    given_reference: Reference | None = None
+    # The citation the reader gave FOR THIS QUOTATION, or None. Where a record
+    # was matched this is always a citation of that record's own kind -- a
+    # verse citation is never reported as the reference "given" for a hadith,
+    # or the reverse; see `_NearbyReferences`. Where nothing matched there is
+    # no kind to align to, and this is simply the nearest citation of either
+    # kind, for display: no attachment is being claimed.
+    given_reference: AnyReference | None = None
     diff: list[tuple[str, str]] | None = None
     # Other record ids carrying identical normalized text at the matched tier
     # (e.g. Ar-Rahman's refrain, repeated 31 times). Empty for the
@@ -160,35 +172,103 @@ def _build_diff(quoted: str, canonical: str) -> list[tuple[str, str]]:
     return out
 
 
-def _reference_conflicts(given: Reference, rec: Record) -> bool:
+def _reference_conflicts(given: AnyReference, rec: Record) -> bool:
+    """Does the citation the reader gave disagree with where the text is?
+
+    Only ever called with a citation of `rec`'s OWN kind -- `_NearbyReferences`
+    is what guarantees that, and the `isinstance` below is dispatch, not a
+    guard. A cross-kind pair never reaches here to be judged either way.
+
+    For a hadith the comparison is on the PRINTED number, not the record id:
+    `hadith_no` is not unique (7,124 distinct numbers over 7,129 records --
+    the repeats carry an occurrence ordinal in the id and the display string,
+    never in the printed number). A citation of a repeated number agrees with
+    ANY record printed under it, which is why `_select_by_reference` walks
+    every tied candidate rather than judging the first.
+    """
+    if isinstance(given, HadithReference):
+        return given.collection != rec.collection or given.hadith_no != rec.hadith_no
     if given.surah != rec.surah:
         return True
     return given.ayah is not None and given.ayah != rec.ayah
 
 
+@dataclass(frozen=True)
+class _NearbyReferences:
+    """The citations near one span, kept apart BY THE KIND THEY CAN ADDRESS.
+
+    This shape is the fix for the Task 6 findings' D1, and the reason it is a
+    shape rather than a check. Previously a single "nearest reference" was
+    resolved for a span and then compared against whatever record the text
+    matched: a Qur'anic `112:1` at the far end of a sentence was handed to a
+    hadith quotation and reported as its given reference, so Sanad told a
+    reader who had cited Sahih al-Bukhari 2866 perfectly that their citation
+    was wrong. A false accusation of misattribution is in the same severity
+    class as a false EXACT.
+
+    There is no field here that can carry a `Reference` to a hadith record or
+    a `HadithReference` to an ayah: `for_kind` is the only way out, and it
+    reads the field named for the record's own kind. A kind that nothing
+    cites gets `None`, never a fallback to "whatever was nearest". The
+    property therefore holds by construction, for every present and future
+    call site, instead of resting on three separate guards that each have to
+    be remembered.
+
+    `nearest` is the nearest citation of EITHER kind and exists for exactly
+    one purpose: a span that matched NO record has no kind to align to, and
+    showing the reader the citation they wrote next to unfindable text is
+    information, not an attachment -- no comparison is ever made against it.
+    It is deliberately not reachable through `for_kind`.
+    """
+
+    ayah: Reference | None
+    hadith: HadithReference | None
+    nearest: AnyReference | None
+
+    def for_kind(self, kind: str) -> AnyReference | None:
+        if kind == "ayah":
+            return self.ayah
+        if kind == "hadith":
+            return self.hadith
+        return None
+
+    def for_record(self, rec: Record) -> AnyReference | None:
+        return self.for_kind(rec.kind)
+
+
 def _select_by_reference(
-    candidates: list[Record], given: Reference | None
+    candidates: list[Record], nearby: _NearbyReferences
 ) -> tuple[Record, bool]:
     """Which tied candidate a citation is naming, among records sharing text.
 
-    Returns `(selected, agreed)`. When `given` names a surah (and, if given,
-    an ayah) that one of the tied `candidates` actually has, that candidate is
+    Returns `(selected, agreed)`. When the citation given for a candidate's
+    own kind names something that candidate actually is, that candidate is
     selected and `agreed` is True -- the quotation is genuine text, correctly
-    attributed, even though several other records happen to share its exact
-    wording. Otherwise the lowest-surah:ayah candidate is selected (a stable,
-    deterministic default) and `agreed` is False: either there was no nearby
-    reference, or every candidate disagreed with the one given (a genuine
-    WRONG_REFERENCE, reported against that default candidate).
+    attributed, even though other records happen to share its exact wording.
+
+    When nothing agrees, the fallback prefers a candidate the reader actually
+    cited something FOR, so that a wrong citation is reported against a record
+    of the kind that was cited. Tie sets are usually all one kind, in which
+    case this is the old behaviour exactly (the lowest-surah:ayah candidate);
+    it only differs where an ayah and a hadith share wording, where reporting
+    the wrong hadith number against the ayah -- or silently dropping it --
+    would both be worse. The final fallback is the first candidate: stable and
+    deterministic, and `agreed` is False, so no citation is endorsed.
     """
-    if given is not None:
-        for cand in candidates:
-            if not _reference_conflicts(given, cand):
-                return cand, True
+    for cand in candidates:
+        given = nearby.for_record(cand)
+        if given is not None and not _reference_conflicts(given, cand):
+            return cand, True
+    for cand in candidates:
+        if nearby.for_record(cand) is not None:
+            return cand, False
     return candidates[0], False
 
 
-def _nearest_reference_to_span(refs: list[Reference], span: Span) -> Reference | None:
-    """The reference "given" for a span, checked from both of its edges.
+def _nearest_reference_to_span(
+    refs: list[AnyReference], span: Span
+) -> _NearbyReferences:
+    """The citations "given" for a span, resolved per kind, from both edges.
 
     `nearest_reference` measures its window from a single point. A citation
     conventionally follows the closing quote ("«verse» (2:255)"), so for a
@@ -197,13 +277,30 @@ def _nearest_reference_to_span(refs: list[Reference], span: Span) -> Reference |
     measured only from span.start -- silently skipping the reference-conflict
     check and letting a wrong citation on a long verse read as EXACT. Some
     citations instead precede the quote, so span.start must still be tried.
+
+    Each kind is resolved independently and on its own merits: a nearer
+    citation of one kind never displaces, shadows or stands in for one of the
+    other. That matters for text carrying both ("«matn» (112:1) (Bukhari 1)"),
+    where a "nearest, then check its kind" rule would drop the hadith citation
+    and let a genuinely wrong one pass unflagged.
     """
-    near_start = nearest_reference(refs, span.start)
-    near_end = nearest_reference(refs, span.end)
-    if near_start and near_end:
-        return (near_start if abs(near_start.start - span.start) <= abs(near_end.start - span.end)
-                else near_end)
-    return near_start or near_end
+    def of_kind(kind: str) -> AnyReference | None:
+        near_start = nearest_reference(refs, span.start, kind=kind)
+        near_end = nearest_reference(refs, span.end, kind=kind)
+        if near_start and near_end:
+            return (near_start
+                    if abs(near_start.start - span.start) <= abs(near_end.start - span.end)
+                    else near_end)
+        return near_start or near_end
+
+    ayah = of_kind("ayah")
+    hadith = of_kind("hadith")
+    both = [r for r in (ayah, hadith) if r is not None]
+    nearest = min(
+        both,
+        key=lambda r: min(abs(r.start - span.start), abs(r.start - span.end)),
+    ) if both else None
+    return _NearbyReferences(ayah=ayah, hadith=hadith, nearest=nearest)
 
 
 _MatchCore = tuple[Verdict, Record | None, Tier | None, float,
@@ -211,7 +308,8 @@ _MatchCore = tuple[Verdict, Record | None, Tier | None, float,
 
 
 def _match_text(
-    conn: sqlite3.Connection, text: str, given: Reference | None, *, include_fuzzy: bool = True
+    conn: sqlite3.Connection, text: str, nearby: _NearbyReferences,
+    *, include_fuzzy: bool = True
 ) -> _MatchCore:
     """Core three-tier-then-fuzzy lookup, independent of any particular `Span`.
 
@@ -245,8 +343,12 @@ def _match_text(
         candidates = _exact_at_tier(conn, text, tier)
         if not candidates:
             continue
-        selected, agreed = _select_by_reference(candidates, given)
+        selected, agreed = _select_by_reference(candidates, nearby)
         also_at = [c.id for c in candidates if c.id != selected.id]
+        # Only a citation of the SELECTED record's own kind can make this a
+        # wrong reference. Where none was given, the verdict is decided on the
+        # text alone -- the correct answer for a quotation nobody cited.
+        given = nearby.for_record(selected)
         verdict = Verdict.WRONG_REFERENCE if (given and not agreed) else _TIER_VERDICT[tier]
         return verdict, selected, tier, 1.0, None, also_at
 
@@ -256,7 +358,7 @@ def _match_text(
     candidates, score, matched_text = _best_fuzzy(conn, text)
     if candidates and score >= NEAR_THRESHOLD:
         tier: Tier = "aggressive"
-        selected, _agreed = _select_by_reference(candidates, given)
+        selected, _agreed = _select_by_reference(candidates, nearby)
         also_at = [c.id for c in candidates if c.id != selected.id]
         diff = _build_diff(text, matched_text[selected.id])
         return _TIER_VERDICT[tier], selected, tier, score, diff, also_at
@@ -310,7 +412,7 @@ def _strip_bismillah_prefix(conn: sqlite3.Connection, text: str) -> str | None:
 
 
 def _accept_bismillah_retry(
-    conn: sqlite3.Connection, stripped: str, given: Reference | None
+    conn: sqlite3.Connection, stripped: str, nearby: _NearbyReferences
 ) -> _MatchCore | None:
     """Run the full pipeline on a Bismillah-stripped remainder, but only
     accept the result when at least one record tied on that remainder is
@@ -343,7 +445,7 @@ def _accept_bismillah_retry(
     discarded.
     """
     _retry_verdict, retry_record, retry_tier, retry_score, _retry_diff, retry_also_at = (
-        _match_text(conn, stripped, given))
+        _match_text(conn, stripped, nearby))
     if retry_record is None:
         return None
 
@@ -356,8 +458,9 @@ def _accept_bismillah_retry(
     if not qualifying:
         return None
 
-    selected, agreed = _select_by_reference(qualifying, given)
+    selected, agreed = _select_by_reference(qualifying, nearby)
     also_at = [c.id for c in tied if c.id != selected.id]
+    given = nearby.for_record(selected)
 
     if retry_tier == "aggressive":
         # Aggressive-tier matches may never assert WRONG_REFERENCE (see
@@ -373,38 +476,78 @@ def _accept_bismillah_retry(
 
 
 def _classify(conn: sqlite3.Connection, span: Span,
-              refs: list[Reference]) -> Match:
-    given = _nearest_reference_to_span(refs, span)
+              refs: list[AnyReference]) -> Match:
+    nearby = _nearest_reference_to_span(refs, span)
 
     # 1. Exact tiers on the text as quoted (no fuzzy fallback yet -- see
     #    `_match_text`'s docstring for why the fuzzy layer must not see the
     #    un-stripped text before the Bismillah retry gets a chance).
     verdict, record, tier, score, diff, also_at = _match_text(
-        conn, span.text, given, include_fuzzy=False)
+        conn, span.text, nearby, include_fuzzy=False)
 
     # 2. A leading Bismillah, stripped, run through the full pipeline.
     if verdict is Verdict.NOT_FOUND:
         stripped = _strip_bismillah_prefix(conn, span.text)
         if stripped is not None:
-            retry = _accept_bismillah_retry(conn, stripped, given)
+            retry = _accept_bismillah_retry(conn, stripped, nearby)
             if retry is not None:
                 verdict, record, tier, score, diff, also_at = retry
 
     # 3. Last resort: fuzzy match on the text exactly as quoted.
     if verdict is Verdict.NOT_FOUND:
-        verdict, record, tier, score, diff, also_at = _match_text(conn, span.text, given)
+        verdict, record, tier, score, diff, also_at = _match_text(conn, span.text, nearby)
 
+    # Report the citation given FOR THE RECORD THAT MATCHED -- necessarily one
+    # of that record's own kind. With nothing matched there is no kind to
+    # align to, so the nearest of either kind is shown as-is; nothing was
+    # compared against it and no attachment is claimed.
+    given = nearby.for_record(record) if record is not None else nearby.nearest
     return Match(span, verdict, record, tier, score, given, diff, also_at)
 
 
+def _is_only_a_citation(span: Span, refs: list[AnyReference]) -> bool:
+    """Is this "quotation" nothing but a citation the reader wrote?
+
+    The Task 6 findings, D2: an Arabic-script citation is itself a run of
+    Arabic, so the extractor offered "صحيح البخاري ٣٠٣٠" up as a quotation and
+    the verifier duly answered "not in this corpus". A citation is not a
+    quotation, and only people who cite in Arabic ever saw this -- exactly the
+    readers most likely to.
+
+    The test is on what is LEFT after the characters covered by parsed
+    citations are set aside: a span survives only if the remainder would still
+    have qualified as a span on its own, by `extract_spans`' own measure and
+    its own per-kind minimum. So a citation standing alone is dropped, while a
+    quotation that merely sits next to one is untouched -- an over-broad
+    filter here would silently delete real quotations, which is worse than the
+    defect it fixes.
+
+    Nothing is trimmed, re-spelled or handed on: the remainder is measured and
+    discarded. Spans that survive are verified as the reader wrote them, byte
+    for byte. On today's corpus no record's own text contains anything
+    `parse_references` reads as a citation (swept in the tests), so this can
+    only ever remove a citation, never a quotation of a real record.
+    """
+    covered = [(r.start, r.start + len(r.raw)) for r in refs]
+    if not covered:
+        return False
+    remainder = "".join(
+        ch for i, ch in enumerate(span.text, start=span.start)
+        if not any(s <= i < e for s, e in covered)
+    )
+    floor = 2 if span.kind == "wrapped" else 6  # extract_spans' own minimums
+    return len(normalize(remainder, "aggressive").replace(" ", "")) < floor
+
+
 def verify_spans(conn: sqlite3.Connection, text: str) -> list[Match]:
-    # `parse_references` also yields `HadithReference`s (Task 5 of the hadith
-    # corpus plan). The Qur'an-matching pipeline below only knows how to
-    # reconcile a `Reference` (surah:ayah) against a candidate record --
-    # `_reference_conflicts` reads `.surah`/`.ayah`, which a `HadithReference`
-    # does not have -- so it is filtered out here rather than passed through
-    # and crashing on the first citation like "(Bukhari 1)" that lands near a
-    # verse quotation. Resolving a hadith citation against a hadith record,
-    # and giving it its own conflict check, is a later step's job.
-    refs = [r for r in parse_references(text) if isinstance(r, Reference)]
-    return [_classify(conn, span, refs) for span in extract_spans(text)]
+    # `parse_references` yields both families -- `Reference` (surah:ayah) and
+    # `HadithReference` (Task 5 of the hadith corpus plan) -- and both are
+    # passed through. The Task 5 stopgap that filtered `HadithReference` out
+    # here is gone: it existed only because the conflict check would have read
+    # `.surah` off one and crashed, and `_NearbyReferences` now routes each
+    # family to the record kind it can actually address, so a hadith citation
+    # reaches a hadith quotation and nothing else. Keeping both mechanisms
+    # would have left the filter quietly suppressing the feature.
+    refs = parse_references(text)
+    return [_classify(conn, span, refs) for span in extract_spans(text)
+            if not _is_only_a_citation(span, refs)]

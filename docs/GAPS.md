@@ -52,6 +52,16 @@ understood the item well enough to refuse it.
       records, so a citation resolves to any record bearing that number.
 - [~] Hadith grading authority: **non-goal**, as above. The rule *"never a
       single undated label"* stands if this is ever revisited.
+- [ ] **Book-relative hadith citations.** `Book 52, Hadith 268` is USC-MSA /
+      sunnah.com numbering — the form most people copy-paste — and this corpus
+      is numbered by the al-Bughā edition. We have no mapping between them and
+      will not invent one, so such a citation currently resolves to nothing:
+      the quotation is still verified on its text, but the reference is
+      neither confirmed nor challenged. Reading it as an al-Bughā number
+      instead would tell correctly-citing readers they are wrong, which is
+      why it does not. Two things are missing: a real concordance, and a way
+      for the product to *say* "we recognised this citation and cannot
+      resolve it" rather than falling silent (P1)
 - [ ] Topic / subject taxonomy to route questions to evidence (P1)
 - [ ] Cross-references between Qur'an, hadith, and tafsir (P2)
 - [ ] Glossary of Islamic terms with transliteration and disambiguation (P1)

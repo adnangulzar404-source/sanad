@@ -63,6 +63,17 @@ def test_correct_text_correct_reference_is_exact(conn):
     assert m.verdict is Verdict.EXACT
 
 
+def test_nearby_hadith_citation_does_not_crash_a_verse_match(conn):
+    """`parse_references` now also yields `HadithReference`s (Task 5). A
+    hadith citation sitting near a verse quotation must not be handed to the
+    surah:ayah conflict check as if it were a `Reference` -- see
+    `verify_spans`. Regression test for AttributeError: 'HadithReference'
+    object has no attribute 'surah'."""
+    m = _only(verify_spans(conn, f"«{IKHLAS_1}» (Bukhari 1)"))
+    assert m.verdict is Verdict.EXACT
+    assert m.record.id == "quran:112:1"
+
+
 def test_correct_text_wrong_ayah_is_wrong_reference(conn):
     m = _only(verify_spans(conn, f"«{IKHLAS_1}» (112:4)"))
     assert m.verdict is Verdict.WRONG_REFERENCE

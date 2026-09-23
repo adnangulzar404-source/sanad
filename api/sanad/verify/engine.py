@@ -398,5 +398,13 @@ def _classify(conn: sqlite3.Connection, span: Span,
 
 
 def verify_spans(conn: sqlite3.Connection, text: str) -> list[Match]:
-    refs = parse_references(text)
+    # `parse_references` also yields `HadithReference`s (Task 5 of the hadith
+    # corpus plan). The Qur'an-matching pipeline below only knows how to
+    # reconcile a `Reference` (surah:ayah) against a candidate record --
+    # `_reference_conflicts` reads `.surah`/`.ayah`, which a `HadithReference`
+    # does not have -- so it is filtered out here rather than passed through
+    # and crashing on the first citation like "(Bukhari 1)" that lands near a
+    # verse quotation. Resolving a hadith citation against a hadith record,
+    # and giving it its own conflict check, is a later step's job.
+    refs = [r for r in parse_references(text) if isinstance(r, Reference)]
     return [_classify(conn, span, refs) for span in extract_spans(text)]

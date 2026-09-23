@@ -65,7 +65,18 @@ _CLAIM_RULES: list[tuple[str, re.Pattern[str], str, str]] = [
             re.IGNORECASE,
         ),
         "Hadith citation",
-        "No licensed Hadith edition is bundled in this corpus. Treat as unverified.",
+        # This note used to read "No licensed Hadith edition is bundled in this
+        # corpus. Treat as unverified." That was true until Sahih al-Bukhari
+        # was ingested and is now false: it was being printed beside a hadith
+        # this corpus had just verified word for word, contradicting Sanad's
+        # own result. What is still true, and is what a reader needs, is the
+        # scope limit and the refusal to grade -- the same two points the
+        # corpus-scope caveat makes, said about the citation in front of them.
+        (
+            "This corpus contains Sahih al-Bukhari and no other collection, so a "
+            "citation of any other source cannot be checked here. Sanad compares "
+            "wording against a printed edition; it does not grade authenticity."
+        ),
     ),
 ]
 

@@ -24,9 +24,13 @@ def _deps(**over):
 
 def _run(question, deps, risk="GENERAL"):
     import sanad.pipeline.orchestrate as o
+    orig_route_risk = o.route_risk
     o.route_risk = lambda t: __import__("sanad.verify.claims", fromlist=["RiskCode"]).RiskCode(risk)
-    return list(orchestrate.run_ask(object(), object(), question,
-                                    anthropic_key="a", voyage_key=None, deps=deps))
+    try:
+        return list(orchestrate.run_ask(object(), object(), question,
+                                        anthropic_key="a", voyage_key=None, deps=deps))
+    finally:
+        o.route_risk = orig_route_risk
 
 
 def test_happy_path_publishes():
@@ -240,6 +244,43 @@ def test_disputed_risk_relabels_and_still_publishes():
     assert final.stage == "final"
     assert final.payload["status"] == "published"
     assert final.payload["risk"] == "DISPUTED"
+
+
+def test_run_helper_restores_route_risk_after_disputed_call():
+    """Regression for the `_run` test-helper hazard: `_run` monkeypatches the
+    module-level `route_risk` with NO teardown, so it only looked safe
+    because every existing test happens to route through `_run` (which
+    reassigns the patch fresh each call). Any caller that invokes
+    `orchestrate.run_ask` directly — bypassing `_run` — after some other
+    test's `_run(..., risk="DISPUTED")` call would silently inherit that
+    leaked fake forever, an order-dependence landmine.
+
+    This test manufactures exactly that sequence itself (a DISPUTED `_run`
+    call, immediately followed by a DIRECT `run_ask` call) so it proves the
+    fix regardless of file/collection order, then asserts the direct call
+    sees the REAL router's classification of "Can I divorce my wife?"
+    (PERSONAL_RULING, per verify.claims' real _PERSONAL_TOPICS pattern) --
+    not a leaked "DISPUTED".
+
+    Before `_run` was changed to restore `route_risk` in a `finally` block,
+    this failed: the direct call below observed the leaked fake, saw
+    risk="DISPUTED" (requires_handoff=False) instead of the real
+    PERSONAL_RULING classification, and so ran straight past the router
+    into the rest of the pipeline instead of stopping — `stages` was
+    `["router", "expand", "retrieve", "select", "check", "audit", "final"]`
+    with `risk == "DISPUTED"`, failing the `== ["router"]` assertion below.
+    """
+    _run("Some disputed question", _deps(), risk="DISPUTED")
+
+    events = list(orchestrate.run_ask(object(), object(), "Can I divorce my wife?",
+                                      anthropic_key="a", voyage_key=None,
+                                      deps=_deps()))
+    assert [e.stage for e in events] == ["router"], (
+        "route_risk leaked from the prior DISPUTED _run() call instead of "
+        "being restored -- the real router never got to classify this "
+        "question")
+    assert events[0].payload["risk"] == "PERSONAL_RULING"
+    assert events[0].payload["requires_handoff"] is True
 
 
 def test_deps_none_resolves_default_deps_without_error():

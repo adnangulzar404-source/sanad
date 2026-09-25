@@ -194,3 +194,49 @@ def test_contains_arabic_direct():
 def test_word_count_direct():
     assert word_count("one two three") == 3
     assert word_count("") == 0
+
+
+# =====================================================================
+# Fix round 2 (ruling g) — the collection-title exemption must require a
+# TITLE BOUNDARY after the collection name (a hadith number, end-of-clause
+# punctuation, end-of-string, or an "and"/"or" connector to another title),
+# not just the bare name. Otherwise a punctuation-free run-on where a real
+# grading claim happens to be followed by a bare collection name slips
+# through unblocked.
+# =====================================================================
+
+# --- must BLOCK: run-on sentences the ruling-b fix newly let through ---
+
+def test_blocks_sahih_bukhari_runon_has_documented():
+    sel = _sel(items=[SelectedItem("hadith:bukhari:2866",
+                                   "This narration is sahih Bukhari has documented similarly.")])
+    assert _blocked(sel, "no_grading")
+
+def test_blocks_sahih_bukhari_runon_also_lists():
+    sel = _sel(items=[SelectedItem("hadith:bukhari:2866",
+                                   "It is considered sahih Bukhari also lists other versions.")])
+    assert _blocked(sel, "no_grading")
+
+# --- hard constraint: every title-boundary form must still PASS ---
+
+def test_sahih_muslim_with_number_passes():
+    sel = _sel(items=[SelectedItem("hadith:bukhari:2866", "Sahih Muslim 1234")])
+    assert all(r.passed for r in check(sel, CANDS))
+
+# (test_sahih_bukhari_without_al_passes, test_sahih_al_bukhaari_alt_spelling_passes,
+# test_the_sahih_of_bukhari_passes, test_citation_of_sahih_al_bukhari_passes, and
+# test_naming_al_hasan_al_basri_passes above already cover the number/period/
+# end-of-string/original/unrelated hard-constraint rows verbatim.)
+
+# --- round-1 must-BLOCK sanity check, named explicitly in the ruling ---
+
+def test_graded_al_sahih_by_majority_of_scholars_blocks():
+    sel = _sel(items=[SelectedItem("hadith:bukhari:2866",
+                                   "This report is graded al-Sahih by the majority of "
+                                   "hadith scholars.")])
+    assert _blocked(sel, "no_grading")
+
+def test_sahih_muslim_hadith_itself_graded_sahih_blocks():
+    sel = _sel(items=[SelectedItem("hadith:bukhari:2866",
+                                   "This Sahih Muslim hadith is itself graded sahih.")])
+    assert _blocked(sel, "no_grading")

@@ -87,9 +87,31 @@ GRADING_TERMS = ("sahih", "saheeh", "صحيح",  # صحيح
 # spelling). COLLECTION_TITLES keeps its name from the original interface but
 # now holds collection-name tokens rather than full exact phrases.
 COLLECTION_TITLES = ("bukhari", "bukhaari", "muslim")
+
+# Fix round 2, ruling g: the round-1 exemption above matched a bare
+# collection name with nothing after it, which let a REAL grading claim
+# hide in a punctuation-free run-on ("sahih Bukhari has documented
+# similarly" — "sahih" governs nothing here, "Bukhari" starts a new clause
+# with no comma). A citation is exempt only if the collection name is
+# followed by a TITLE BOUNDARY: a hadith number (optionally after
+# whitespace), end-of-clause punctuation/closing quote, end-of-string, or an
+# "and"/"or" connector into another collection name. A verb or other word
+# continuing the sentence is not a boundary, so the exemption doesn't apply
+# and the grading term gets tokenized and blocked. Quote characters are
+# built via chr() rather than typed glyphs, per sanad-character-transit-
+# defect.
+_QUOTE_CHARS = "\"'" + chr(0x2019) + chr(0x201D)  # straight ", straight ', curly ', curly "
+_TITLE_BOUNDARY = (
+    r"(?=\s*\d"                                      # a hadith number
+    r"|[.,;:)" + _QUOTE_CHARS + r"]"                  # end-of-clause punctuation / closing quote
+    r"|\s*$"                                          # end of string (optional trailing space)
+    r"|\s+(?:and|or)\s+(?:al\s+|of\s+(?:the\s+)?)?(?:"
+    + "|".join(COLLECTION_TITLES) + r")\b"            # connector into another title
+    r")"
+)
 _COLLECTION_TITLE_RE = re.compile(
     r"\bsahih\b(?:\s+(?:al\s+|of\s+(?:the\s+)?))?\s*(?:"
-    + "|".join(COLLECTION_TITLES) + r")\b")
+    + "|".join(COLLECTION_TITLES) + r")\b" + _TITLE_BOUNDARY)
 
 # Fix round 1, ruling c (resolves I3): the original NAME_PARTICLES adjacency
 # exemption is dropped entirely, and the constant removed — it protected no

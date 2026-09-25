@@ -66,12 +66,15 @@ def call_structured(*, system_blocks: list[dict], user_text: str, schema: dict,
 
     if resp.status_code != 200:
         raise ClaudeError(f"anthropic {resp.status_code}: {resp.text[:200]}")
-    data = resp.json()
+    try:
+        data = resp.json()
+    except json.JSONDecodeError as exc:
+        raise ClaudeError(f"malformed response body: {exc}") from exc
     if data.get("stop_reason") == "refusal":
         cat = (data.get("stop_details") or {}).get("category")
         raise ClaudeError(f"model refused (category={cat})")
     try:
         text = next(b["text"] for b in data["content"] if b.get("type") == "text")
         return json.loads(text)
-    except (StopIteration, KeyError, json.JSONDecodeError) as exc:
+    except (StopIteration, KeyError, IndexError, TypeError, json.JSONDecodeError) as exc:
         raise ClaudeError(f"no valid JSON in response: {exc}") from exc

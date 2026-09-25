@@ -39,6 +39,26 @@ def test_http_error_raises_claude_error():
     except ClaudeError:
         pass
 
+def test_malformed_response_body_raises_claude_error():
+    def h(req):
+        return httpx.Response(200, content=b"not json at all {{{")
+    try:
+        call_structured(system_blocks=[{"type": "text", "text": "s"}], user_text="q",
+                        schema=_SCHEMA, key="k", client=_client(h))
+        assert False
+    except ClaudeError:
+        pass
+
+def test_transport_exception_raises_claude_error():
+    def h(req):
+        raise httpx.ConnectError("boom", request=req)
+    try:
+        call_structured(system_blocks=[{"type": "text", "text": "s"}], user_text="q",
+                        schema=_SCHEMA, key="k", client=_client(h))
+        assert False
+    except ClaudeError:
+        pass
+
 def test_request_body_uses_adaptive_thinking_and_output_config():
     seen = {}
     def h(req):

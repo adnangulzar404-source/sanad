@@ -187,23 +187,64 @@ def verify(payload: VerifyRequest, request: Request) -> VerifyResponse:
     )
 
 
+# The client-facing text for a mid-stream `ClaudeError`/`VoyageError` catch
+# (see `ask()` below). The route is a trust boundary: `str(exc)` can carry
+# arbitrary upstream text (a provider's error body, a transport message that
+# happens to echo a header) and must never be forwarded to the client
+# verbatim -- only this fixed, generic string goes out over the wire. The
+# real exception text is still recorded, but only in the server-side audit
+# row (`_write_ask_audit`'s `error_detail`), which the client never reads.
+_GENERIC_MIDSTREAM_ERROR_MESSAGE = "An internal error occurred while processing the request."
+
+
+def _abstain_payload(*, risk: str, abstain_reason: str) -> dict:
+    """The shared shape of an abstained `final` event's payload.
+
+    Both the missing-key path and the mid-stream-error path in `ask()` need
+    this exact dict, differing only in `risk` and `abstain_reason` --
+    factored out so the two copies (previously separate ~10-line literals)
+    cannot silently drift apart.
+    """
+    return {
+        "status": "abstained", "question_language": None,
+        "summary": None, "items": [],
+        "reached": {"quran": False, "hadith": False},
+        "unreached_reason": None, "risk": risk,
+        "requires_handoff": False,
+        "abstain_reason": abstain_reason,
+        "corpus_scope": CORPUS_SCOPE,
+    }
+
+
 def _write_ask_audit(request: Request, status: str, risk: str,
-                     record_ids: list[str], reached: dict) -> None:
+                     record_ids: list[str], reached: dict,
+                     error_detail: str | None = None) -> None:
     """One `audit_log` row per `/api/ask` call (spec §9) -- never the question
     text or the search terms, same rule `verify()` follows above. Reuses
     `app.state.audit_lock` for the same reason `verify()` does: see
     `app.py`'s `_open_audit_conn` docstring for why the write and its commit
     must be one atomic unit under that lock.
+
+    `error_detail`, when given, is the full `str(exc)` from a mid-stream
+    `ClaudeError`/`VoyageError` -- recorded here, server-side only, because
+    the client-facing `error` event carries a generic message instead (see
+    `_GENERIC_MIDSTREAM_ERROR_MESSAGE`). Omitted from `detail_json` on the
+    (overwhelmingly common) no-error path rather than always present as
+    `None`, so the row's shape matches the brief's documented
+    `{risk, record_ids, abstained, reached}` exactly whenever there was
+    nothing to add.
     """
+    detail = {"risk": risk, "record_ids": record_ids,
+              "abstained": status == "abstained", "reached": reached}
+    if error_detail is not None:
+        detail["error"] = error_detail
     audit_conn = _audit_conn(request)
     with request.app.state.audit_lock:
         audit_conn.execute(
             "INSERT INTO audit_log (ts, request_id, stage, verdict, detail_json) "
             "VALUES (?,?,?,?,?)",
             (datetime.now(timezone.utc).isoformat(), str(uuid.uuid4()), "ask",
-             status,
-             json.dumps({"risk": risk, "record_ids": record_ids,
-                         "abstained": status == "abstained", "reached": reached})))
+             status, json.dumps(detail)))
         audit_conn.commit()
 
 
@@ -235,19 +276,13 @@ def ask(payload: AskRequest, request: Request) -> StreamingResponse:
         status = "abstained"
         risk = "GENERAL"
         reached = {"quran": False, "hadith": False}
+        error_detail: str | None = None
 
         if anthropic_key is None:
-            final = {
-                "stage": "final",
-                "payload": {
-                    "status": "abstained", "question_language": None,
-                    "summary": None, "items": [],
-                    "reached": {"quran": False, "hadith": False},
-                    "unreached_reason": None, "risk": "GENERAL",
-                    "requires_handoff": False,
-                    "abstain_reason": ("Ask needs an Anthropic API key, which is "
-                                       "not configured. Verification is unaffected."),
-                    "corpus_scope": CORPUS_SCOPE}}
+            final = {"stage": "final", "payload": _abstain_payload(
+                risk="GENERAL",
+                abstain_reason=("Ask needs an Anthropic API key, which is "
+                                "not configured. Verification is unaffected."))}
             yield f"data: {json.dumps(final)}\n\n"
             _write_ask_audit(request, "abstained", "GENERAL", [], reached)
             return
@@ -280,22 +315,25 @@ def ask(payload: AskRequest, request: Request) -> StreamingResponse:
             # future stage that forgets to catch) still surfaces as the
             # brief's error event and a clean stream close, never a bare 500
             # or a truncated response.
-            yield f"data: {json.dumps({'stage': 'error', 'payload': {'code': 'pipeline_error', 'message': str(exc)}})}\n\n"
+            #
+            # Trust boundary: `str(exc)` is NEVER put in the client-facing
+            # event -- an upstream provider's raw error text could carry
+            # anything, including a fragment of a request that had a key in
+            # it. Only the fixed, generic message crosses the wire; the real
+            # detail is recorded server-side only, via `error_detail` below.
+            error_detail = str(exc)
+            error_event = {"stage": "error", "payload": {
+                "code": "pipeline_error",
+                "message": _GENERIC_MIDSTREAM_ERROR_MESSAGE}}
+            yield f"data: {json.dumps(error_event)}\n\n"
             status = "abstained"
-            final = {
-                "stage": "final",
-                "payload": {
-                    "status": "abstained", "question_language": None,
-                    "summary": None, "items": [],
-                    "reached": {"quran": False, "hadith": False},
-                    "unreached_reason": None, "risk": risk,
-                    "requires_handoff": False,
-                    "abstain_reason": "The Ask pipeline encountered an error and could not complete.",
-                    "corpus_scope": CORPUS_SCOPE}}
+            final = {"stage": "final", "payload": _abstain_payload(
+                risk=risk,
+                abstain_reason="The Ask pipeline encountered an error and could not complete.")}
             yield f"data: {json.dumps(final)}\n\n"
             reached = {"quran": False, "hadith": False}
 
-        _write_ask_audit(request, status, risk, record_ids, reached)
+        _write_ask_audit(request, status, risk, record_ids, reached, error_detail=error_detail)
 
     return StreamingResponse(_sse(), media_type="text/event-stream")
 

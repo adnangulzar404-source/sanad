@@ -102,10 +102,16 @@ def test_ask_route_is_mounted(tmp_path):
 def test_ask_midstream_claude_error_becomes_error_event(monkeypatch, tmp_path):
     from sanad.api import routes
 
+    # A distinctive fragment, standing in for anything an upstream provider's
+    # raw error text could carry (up to and including a key) -- the fix
+    # under test is that this string reaches the audit log but NEVER the
+    # client-facing SSE stream.
+    SECRET_FRAGMENT = "sk-ant-should-never-leave-the-server"
+
     def fake_run(cc, vc, q, *, anthropic_key, voyage_key, deps=None):
         from sanad.pipeline.types import StageEvent
         yield StageEvent("router", {"risk": "GENERAL", "requires_handoff": False})
-        raise ClaudeError("boom: transport failed")
+        raise ClaudeError(f"boom: transport failed ({SECRET_FRAGMENT})")
         yield  # pragma: no cover -- unreachable, makes this a generator
 
     monkeypatch.setattr(routes, "run_ask", fake_run)
@@ -116,13 +122,28 @@ def test_ask_midstream_claude_error_becomes_error_event(monkeypatch, tmp_path):
     events = _events_from(r.text)
     assert events[0]["stage"] == "router"
     assert events[1]["stage"] == "error"
+    # Trust boundary: the client-facing error event carries a fixed, generic
+    # message -- never the raw exception text.
+    assert events[1]["payload"]["message"] == routes._GENERIC_MIDSTREAM_ERROR_MESSAGE
+    assert SECRET_FRAGMENT not in r.text
     final = events[-1]["payload"]
     assert final["status"] == "abstained"
     assert sum(1 for e in events if e["stage"] == "final") == 1
 
     from sanad.api.app import _conn_for_tests
     row = _conn_for_tests().execute(
-        "SELECT stage, verdict FROM audit_log ORDER BY id DESC LIMIT 1"
+        "SELECT stage, verdict, detail_json FROM audit_log ORDER BY id DESC LIMIT 1"
     ).fetchone()
     assert row["stage"] == "ask"
     assert row["verdict"] == "abstained"
+    # The full exception text is recorded server-side, in the audit row only.
+    detail = json.loads(row["detail_json"])
+    assert SECRET_FRAGMENT in detail["error"]
+
+
+def test_ask_rejects_oversized_question(tmp_path):
+    # AskRequest.question has max_length=2000 (the brief's own schema) --
+    # one character over that must 422, same as the blank-question case.
+    client = _make_client(tmp_path)
+    r = client.post("/api/ask", json={"question": "a" * 2001})
+    assert r.status_code == 422

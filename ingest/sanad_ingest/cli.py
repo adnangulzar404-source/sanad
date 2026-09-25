@@ -28,10 +28,30 @@ def main(argv: list[str] | None = None) -> int:
                    default=Path("docs/hadith-noise-report.md"))
     b.add_argument("-v", "--verbose", action="store_true")
 
+    e = sub.add_parser("embed", help="generate embeddings into the vectors sidecar DB")
+    e.add_argument("--db", type=Path, default=Path("data/sanad-quran.db"))
+    e.add_argument("--vectors", type=Path, default=Path("data/sanad-vectors.db"))
+    e.add_argument("-v", "--verbose", action="store_true")
+
     args = parser.parse_args(argv)
     logging.basicConfig(
         level=logging.DEBUG if args.verbose else logging.INFO,
         format="%(levelname)s %(message)s")
+
+    if args.command == "embed":
+        from sanad.retrieve.voyage import resolve_voyage_key
+
+        from .embed import run_embed
+        key = resolve_voyage_key()
+        if not key:
+            print("error: VOYAGE_API_KEY is not set; embedding needs a Voyage key. "
+                  "The rest of the corpus builds and serves without one.",
+                  file=sys.stderr)
+            return 1
+        stats = run_embed(args.db, args.vectors, key=key)
+        print(f"embedded {stats['embedded']}, skipped {stats['skipped']} "
+              f"(total {stats['total']}) -> {args.vectors}")
+        return 0
 
     try:
         stats = build_corpus(args.lockfile, args.out, args.cache,

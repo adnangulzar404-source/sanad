@@ -59,6 +59,17 @@ def test_non_object_json_body_raises_claude_error():
     except ClaudeError:
         pass
 
+def test_non_dict_content_item_raises_claude_error():
+    def h(req):
+        return httpx.Response(200,
+            content=b'{"stop_reason":"end_turn","content":["oops"]}')
+    try:
+        call_structured(system_blocks=[{"type": "text", "text": "s"}], user_text="q",
+                        schema=_SCHEMA, key="k", client=_client(h))
+        assert False
+    except ClaudeError:
+        pass
+
 def test_transport_exception_raises_claude_error():
     def h(req):
         raise httpx.ConnectError("boom", request=req)

@@ -78,5 +78,6 @@ def call_structured(*, system_blocks: list[dict], user_text: str, schema: dict,
     try:
         text = next(b["text"] for b in data["content"] if b.get("type") == "text")
         return json.loads(text)
-    except (StopIteration, KeyError, IndexError, TypeError, json.JSONDecodeError) as exc:
+    except (StopIteration, KeyError, IndexError, TypeError, AttributeError,
+            json.JSONDecodeError) as exc:
         raise ClaudeError(f"no valid JSON in response: {exc}") from exc

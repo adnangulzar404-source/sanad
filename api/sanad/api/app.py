@@ -12,7 +12,13 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.types import Scope
 
 from ..corpus.schema import AUDIT_SCHEMA_SQL
-from ..settings import file_sha256, resolve_audit_db_path, resolve_db_path
+from ..retrieve.vector_store import connect_vectors
+from ..settings import (
+    file_sha256,
+    resolve_audit_db_path,
+    resolve_db_path,
+    resolve_vectors_db_path,
+)
 from .routes import router
 
 log = logging.getLogger(__name__)
@@ -128,6 +134,15 @@ def create_app() -> FastAPI:
     app.state.db_sha256 = file_sha256(corpus_path)
     log.info("corpus %s sha256=%s (read-only)", corpus_path, app.state.db_sha256)
     log.info("audit log %s", audit_path)
+
+    # The vectors sidecar is optional (spec's Availability note): Ask degrades
+    # to lexical-only retrieval when it is absent, rather than failing to
+    # start. Read-only for the same reason the corpus connection is -- a
+    # live server has no business writing to a build artifact.
+    vectors_path = resolve_vectors_db_path()
+    app.state.vectors_conn = (
+        connect_vectors(vectors_path, read_only=True) if vectors_path else None)
+    log.info("vectors %s", vectors_path or "(absent -- Ask runs lexical-only)")
 
     app.include_router(router)
 

@@ -136,6 +136,41 @@ class CorpusResponse(BaseModel):
     sources: list[CorpusSourceOut]
 
 
+class AskRequest(BaseModel):
+    question: str = Field(..., max_length=2000)
+
+    @field_validator("question")
+    @classmethod
+    def not_blank(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("question must not be blank")
+        return v
+
+
+class ReachedOut(BaseModel):
+    quran: bool
+    hadith: bool
+
+
+class AskItemOut(BaseModel):
+    record_id: str
+    framing: str
+    record: RecordOut | None = None
+
+
+class AskFinalOut(BaseModel):
+    status: str                       # "published" | "abstained"
+    question_language: str | None = None
+    summary: str | None = None
+    items: list[AskItemOut] = Field(default_factory=list)
+    reached: ReachedOut
+    unreached_reason: str | None = None
+    risk: str
+    requires_handoff: bool = False
+    abstain_reason: str | None = None
+    corpus_scope: str
+
+
 class RecordDetailOut(BaseModel):
     """`GET /api/records/{id}`'s full response -- a superset of `RecordOut`
     (which is what `QuotationOut.record` embeds). This endpoint additionally

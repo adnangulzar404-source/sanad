@@ -21,6 +21,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/ask": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ask
+         * @description Streams the Ask pipeline's `StageEvent`s as `text/event-stream`.
+         *
+         *     The route owns key resolution (Task 10's carry-forward rule): it calls
+         *     `resolve_anthropic_key`/`resolve_voyage_key` and passes the resolved
+         *     values into `run_ask` as plain kwargs -- `run_ask` never reads the
+         *     environment itself. A missing Anthropic key produces a clean `final`
+         *     abstain event (spec §3.5: Verify must stay fully functional even when
+         *     Ask cannot run), never a 500. The vectors sidecar is optional; its
+         *     absence is the `voyage_key=None`, lexical-only path -- see `app.py`.
+         *
+         *     The server renders records: `final.items` carry `record_id` + `framing`
+         *     from `run_ask` only. This handler is the ONLY place that turns a
+         *     `record_id` into Arabic text, via `db.get_record` + `_record_out` --
+         *     exactly the same structural guarantee `verify()` relies on. Nothing here
+         *     ever serializes Arabic that passed through the model.
+         */
+        post: operations["ask_api_ask_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/records/{record_id}": {
         parameters: {
             query?: never;
@@ -100,6 +134,11 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AskRequest */
+        AskRequest: {
+            /** Question */
+            question: string;
+        };
         /** ClaimOut */
         ClaimOut: {
             /** Kind */
@@ -327,6 +366,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["VerifyResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ask_api_ask_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AskRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */

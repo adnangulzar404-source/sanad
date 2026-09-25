@@ -7,14 +7,20 @@ import uuid
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import StreamingResponse
 
+from ..agents.claude_client import ClaudeError, resolve_anthropic_key
 from ..arabic.normalize import normalize
 from ..corpus import db
 from ..corpus.models import Record
 from ..corpus.scope import CORPUS_SCOPE
+from ..pipeline.orchestrate import run_ask
+from ..retrieve.voyage import VoyageError, resolve_voyage_key
 from ..verify.claims import detect_claims, requires_handoff, route_risk
 from ..verify.engine import Verdict, verify_spans
 from .schemas import (
+    AskFinalOut,  # noqa: F401 -- documents the `final` event's payload shape
+    AskRequest,
     ClaimOut,
     CorpusResponse,
     CorpusSourceOut,
@@ -179,6 +185,119 @@ def verify(payload: VerifyRequest, request: Request) -> VerifyResponse:
         overall=_overall(quotations, claims, handoff),
         corpus_scope=CORPUS_SCOPE,
     )
+
+
+def _write_ask_audit(request: Request, status: str, risk: str,
+                     record_ids: list[str], reached: dict) -> None:
+    """One `audit_log` row per `/api/ask` call (spec §9) -- never the question
+    text or the search terms, same rule `verify()` follows above. Reuses
+    `app.state.audit_lock` for the same reason `verify()` does: see
+    `app.py`'s `_open_audit_conn` docstring for why the write and its commit
+    must be one atomic unit under that lock.
+    """
+    audit_conn = _audit_conn(request)
+    with request.app.state.audit_lock:
+        audit_conn.execute(
+            "INSERT INTO audit_log (ts, request_id, stage, verdict, detail_json) "
+            "VALUES (?,?,?,?,?)",
+            (datetime.now(timezone.utc).isoformat(), str(uuid.uuid4()), "ask",
+             status,
+             json.dumps({"risk": risk, "record_ids": record_ids,
+                         "abstained": status == "abstained", "reached": reached})))
+        audit_conn.commit()
+
+
+@router.post("/ask")
+def ask(payload: AskRequest, request: Request) -> StreamingResponse:
+    """Streams the Ask pipeline's `StageEvent`s as `text/event-stream`.
+
+    The route owns key resolution (Task 10's carry-forward rule): it calls
+    `resolve_anthropic_key`/`resolve_voyage_key` and passes the resolved
+    values into `run_ask` as plain kwargs -- `run_ask` never reads the
+    environment itself. A missing Anthropic key produces a clean `final`
+    abstain event (spec §3.5: Verify must stay fully functional even when
+    Ask cannot run), never a 500. The vectors sidecar is optional; its
+    absence is the `voyage_key=None`, lexical-only path -- see `app.py`.
+
+    The server renders records: `final.items` carry `record_id` + `framing`
+    from `run_ask` only. This handler is the ONLY place that turns a
+    `record_id` into Arabic text, via `db.get_record` + `_record_out` --
+    exactly the same structural guarantee `verify()` relies on. Nothing here
+    ever serializes Arabic that passed through the model.
+    """
+    conn = _conn(request)
+    vectors_conn = getattr(request.app.state, "vectors_conn", None)
+    anthropic_key = resolve_anthropic_key()
+    voyage_key = resolve_voyage_key()
+
+    def _sse():
+        record_ids: list[str] = []
+        status = "abstained"
+        risk = "GENERAL"
+        reached = {"quran": False, "hadith": False}
+
+        if anthropic_key is None:
+            final = {
+                "stage": "final",
+                "payload": {
+                    "status": "abstained", "question_language": None,
+                    "summary": None, "items": [],
+                    "reached": {"quran": False, "hadith": False},
+                    "unreached_reason": None, "risk": "GENERAL",
+                    "requires_handoff": False,
+                    "abstain_reason": ("Ask needs an Anthropic API key, which is "
+                                       "not configured. Verification is unaffected."),
+                    "corpus_scope": CORPUS_SCOPE}}
+            yield f"data: {json.dumps(final)}\n\n"
+            _write_ask_audit(request, "abstained", "GENERAL", [], reached)
+            return
+
+        try:
+            for event in run_ask(conn, vectors_conn, payload.question,
+                                 anthropic_key=anthropic_key, voyage_key=voyage_key):
+                payload_out = dict(event.payload)
+                if event.stage == "router":
+                    risk = payload_out.get("risk", risk)
+                if event.stage == "final":
+                    items = []
+                    for it in payload_out.get("items", []):
+                        rec = db.get_record(conn, it["record_id"])
+                        items.append({
+                            "record_id": it["record_id"], "framing": it["framing"],
+                            "record": _record_out(conn, rec).model_dump() if rec else None})
+                    payload_out["items"] = items
+                    payload_out["corpus_scope"] = CORPUS_SCOPE
+                    record_ids = [it["record_id"] for it in items]
+                    status = payload_out.get("status", "abstained")
+                    risk = payload_out.get("risk", risk)
+                    reached = payload_out.get("reached", reached)
+                yield f"data: {json.dumps({'stage': event.stage, 'payload': payload_out})}\n\n"
+        except (ClaudeError, VoyageError) as exc:
+            # `run_ask` already catches its own ClaudeError calls internally
+            # and turns them into `error` + abstained-`final` StageEvents
+            # (see `pipeline.orchestrate`) -- this is a second line of
+            # defense so an exception that reaches the route (a bug, or a
+            # future stage that forgets to catch) still surfaces as the
+            # brief's error event and a clean stream close, never a bare 500
+            # or a truncated response.
+            yield f"data: {json.dumps({'stage': 'error', 'payload': {'code': 'pipeline_error', 'message': str(exc)}})}\n\n"
+            status = "abstained"
+            final = {
+                "stage": "final",
+                "payload": {
+                    "status": "abstained", "question_language": None,
+                    "summary": None, "items": [],
+                    "reached": {"quran": False, "hadith": False},
+                    "unreached_reason": None, "risk": risk,
+                    "requires_handoff": False,
+                    "abstain_reason": "The Ask pipeline encountered an error and could not complete.",
+                    "corpus_scope": CORPUS_SCOPE}}
+            yield f"data: {json.dumps(final)}\n\n"
+            reached = {"quran": False, "hadith": False}
+
+        _write_ask_audit(request, status, risk, record_ids, reached)
+
+    return StreamingResponse(_sse(), media_type="text/event-stream")
 
 
 @router.get("/records/{record_id}", response_model=RecordDetailOut)

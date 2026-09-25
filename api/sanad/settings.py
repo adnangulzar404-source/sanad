@@ -44,6 +44,23 @@ def resolve_audit_db_path() -> Path:
     return Path("data/sanad-audit.db")
 
 
+def resolve_vectors_db_path() -> Path | None:
+    """`SANAD_VECTORS_DB` env var if set and an existing file, else
+    `data/sanad-vectors.db` if it exists, else `None`.
+
+    Unlike `resolve_db_path`, absence is not an error: the vectors sidecar
+    (`retrieve.vector_store`) is optional -- Ask degrades to lexical-only
+    retrieval when it is missing (spec's Availability note), it does not
+    fail to start.
+    """
+    override = os.environ.get("SANAD_VECTORS_DB")
+    if override:
+        p = Path(override)
+        return p if p.is_file() else None
+    p = Path("data/sanad-vectors.db")
+    return p if p.is_file() else None
+
+
 def file_sha256(path: Path) -> str:
     h = hashlib.sha256()
     with path.open("rb") as fh:

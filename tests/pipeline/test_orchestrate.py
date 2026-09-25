@@ -1,5 +1,7 @@
 from types import SimpleNamespace
 
+import pytest
+
 from sanad.pipeline import orchestrate
 from sanad.pipeline.types import (Expansion, RetrievalResult, RetrievalHit,
                                    Selection, SelectedItem, AuditVerdict, GuardResult)
@@ -139,6 +141,126 @@ def test_fabricated_id_drives_retry_then_abstain_via_real_guards():
     ))
     assert events[-1].payload["status"] == "abstained"
     assert events[-1].payload["abstain_reason"]
+
+
+def test_claude_error_in_select_abstains_and_skips_later_stages():
+    """Modeled on test_claude_error_in_expand_abstains_not_raises: select's
+    ClaudeError must be caught, mapped to an abstained final, and must NOT
+    let guards/audit run on a selection that was never produced."""
+    from sanad.agents.claude_client import ClaudeError
+
+    def boom(cc, q, hits, *, key, client=None, feedback=None):
+        raise ClaudeError("refused")
+
+    guard_calls, audit_calls = [], []
+
+    def spy_guards(sel, cands):
+        guard_calls.append(1)
+        return [GuardResult("g", True, "")]
+
+    def spy_audit(cc, sel, *, key, client=None):
+        audit_calls.append(1)
+        return AuditVerdict(False, [])
+
+    try:
+        events = _run("q", _deps(select=boom, guards=spy_guards, audit=spy_audit))
+    except ClaudeError:
+        pytest.fail("ClaudeError from select escaped run_ask; it must be caught "
+                    "and mapped to an abstained outcome, never raised")
+
+    finals = [e for e in events if e.stage == "final"]
+    assert finals, "no final event emitted"
+    assert finals[-1].payload["status"] == "abstained"
+    assert finals[-1].payload["abstain_reason"]
+    assert guard_calls == [], "guards must not run after select's ClaudeError"
+    assert audit_calls == [], "audit must not run after select's ClaudeError"
+
+
+def test_claude_error_in_audit_abstains_and_no_exception_escapes():
+    """Modeled on test_claude_error_in_expand_abstains_not_raises: audit's
+    ClaudeError must be caught, mapped to an abstained final, and must NOT
+    let adjudicate run on a verdict that was never produced."""
+    from sanad.agents.claude_client import ClaudeError
+
+    def boom(cc, sel, *, key, client=None):
+        raise ClaudeError("refused")
+
+    real_adjudicate = orchestrate.adjudicate
+    adjudicate_calls = []
+
+    def spy_adjudicate(**kw):
+        adjudicate_calls.append(kw)
+        return real_adjudicate(**kw)
+
+    orchestrate.adjudicate = spy_adjudicate
+    try:
+        try:
+            events = _run("q", _deps(audit=boom))
+        except ClaudeError:
+            pytest.fail("ClaudeError from audit escaped run_ask; it must be "
+                        "caught and mapped to an abstained outcome, never raised")
+    finally:
+        orchestrate.adjudicate = real_adjudicate
+
+    finals = [e for e in events if e.stage == "final"]
+    assert finals, "no final event emitted"
+    assert finals[-1].payload["status"] == "abstained"
+    assert finals[-1].payload["abstain_reason"]
+    assert adjudicate_calls == [], "adjudicate must not run after audit's ClaudeError"
+
+
+def test_disputed_risk_relabels_and_still_publishes():
+    """Task 11's SSE contract depends on this path: DISPUTED risk with clean
+    guards/audit must route through adjudicate's RELABEL_INTERPRETATION
+    branch (not PUBLISH, not ABSTAIN) and still land on status="published",
+    with risk="DISPUTED" carried through so the frontend can render the
+    interpretation caveat off `risk` alone (no separate status string)."""
+    from sanad.pipeline.adjudicate import Decision
+
+    real_adjudicate = orchestrate.adjudicate
+    decisions = []
+
+    def spy_adjudicate(**kw):
+        d = real_adjudicate(**kw)
+        decisions.append(d)
+        return d
+
+    orchestrate.adjudicate = spy_adjudicate
+    try:
+        events = _run("Is qunut obligatory according to the four madhhabs?",
+                      _deps(), risk="DISPUTED")
+    finally:
+        orchestrate.adjudicate = real_adjudicate
+
+    assert decisions == [Decision.RELABEL_INTERPRETATION]
+    assert events[0].stage == "router"
+    assert events[0].payload["requires_handoff"] is False
+    assert events[0].payload["risk"] == "DISPUTED"
+    final = events[-1]
+    assert final.stage == "final"
+    assert final.payload["status"] == "published"
+    assert final.payload["risk"] == "DISPUTED"
+
+
+def test_deps_none_resolves_default_deps_without_error():
+    """Smoke test for the production wiring path: run_ask(deps=None) must
+    resolve to DEFAULT_DEPS, lazily binding the real `retrieve` function via
+    _bind_retrieve, rather than crashing on a None dep. Routed through the
+    PERSONAL_RULING handoff path (via _run's usual route_risk monkeypatch, so
+    this is decoupled from the real claim-detection regexes) so it returns
+    right after the router stage before any dep is actually called — hermetic
+    (no network, no keys) while still exercising the deps=None -> DEFAULT_DEPS
+    resolution line for real."""
+    events = _run("q", None, risk="PERSONAL_RULING")
+    assert [e.stage for e in events] == ["router"]
+    assert events[0].payload["requires_handoff"] is True
+
+    # The wiring shape: DEFAULT_DEPS now holds the real production stages.
+    assert orchestrate.DEFAULT_DEPS.expand is orchestrate._expand.expand_query
+    assert orchestrate.DEFAULT_DEPS.select is orchestrate._select.select_and_frame
+    assert orchestrate.DEFAULT_DEPS.guards is orchestrate._guards.check
+    assert orchestrate.DEFAULT_DEPS.audit is orchestrate._audit.audit_brief
+    assert orchestrate.DEFAULT_DEPS.retrieve is not None
 
 
 def test_auditor_not_given_expansion_or_selection_reasoning():

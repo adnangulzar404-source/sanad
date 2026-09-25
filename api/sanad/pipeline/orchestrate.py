@@ -17,7 +17,7 @@ from ..agents import expand as _expand
 from ..agents import select as _select
 from ..agents.claude_client import ClaudeError
 from ..corpus.scope import CORPUS_SCOPE
-from ..verify.claims import RiskCode, requires_handoff, route_risk
+from ..verify.claims import requires_handoff, route_risk
 from . import guards as _guards
 from .adjudicate import Decision, adjudicate
 from .types import StageEvent

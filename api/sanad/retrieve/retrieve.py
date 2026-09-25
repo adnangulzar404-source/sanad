@@ -34,7 +34,7 @@ def _fts_ranked(conn: sqlite3.Connection, arabic_terms: list[str]) -> list[str]:
     return order
 
 
-def _vector_ranked(cconn, vconn, *, question, key, embed_fn) -> list[str]:
+def _vector_ranked(vconn, *, question, key, embed_fn) -> list[str]:
     if vconn is None or not key:
         return []
     corpus = [(e.record_id, e.vec) for e in iter_embeddings(vconn)]
@@ -49,7 +49,7 @@ def retrieve(corpus_conn, vectors_conn, *, arabic_terms, question,
              voyage_key, embed_fn=voyage.embed_texts) -> RetrievalResult:
     lexical = _fts_ranked(corpus_conn, arabic_terms)
     try:
-        vector = _vector_ranked(corpus_conn, vectors_conn, question=question,
+        vector = _vector_ranked(vectors_conn, question=question,
                                 key=voyage_key, embed_fn=embed_fn)
     except voyage.VoyageError:
         vector = []  # degrade to lexical; never fail the whole request

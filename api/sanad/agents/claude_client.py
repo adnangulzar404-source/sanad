@@ -70,6 +70,8 @@ def call_structured(*, system_blocks: list[dict], user_text: str, schema: dict,
         data = resp.json()
     except json.JSONDecodeError as exc:
         raise ClaudeError(f"malformed response body: {exc}") from exc
+    if not isinstance(data, dict):
+        raise ClaudeError(f"response body is not a JSON object: {type(data).__name__}")
     if data.get("stop_reason") == "refusal":
         cat = (data.get("stop_details") or {}).get("category")
         raise ClaudeError(f"model refused (category={cat})")

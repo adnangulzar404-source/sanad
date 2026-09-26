@@ -119,6 +119,18 @@ describe("Ask screen", () => {
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
+  it("surfaces an error (not a permanent spinner) when the stream closes with no terminal frame", async () => {
+    // A truncated SSE body / recycled worker: some stage frames, then a clean
+    // EOF with no `final` or `error`. Must not hang on "Thinking…".
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(sse([
+      { stage: "router", payload: { risk: "GENERAL", requires_handoff: false } },
+      { stage: "retrieve", payload: { candidate_count: 2 } },
+    ])));
+    await ask();
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent(/returned an error/i));
+    expect(screen.getByRole("button", { name: "Ask" })).not.toBeDisabled();
+  });
+
   it("says unreachable when the endpoint cannot be reached", async () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("failed to fetch")));
     await ask();

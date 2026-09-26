@@ -117,6 +117,14 @@ export function Ask() {
 
               <section>
                 <h2 className="data" style={{ margin: "0 0 0.6rem" }}>evidence</h2>
+                {(final.reached.quran || final.reached.hadith) && (
+                  <p data-testid="ask-reached" className="data" style={{ margin: "0 0 0.75rem" }}>
+                    Drawn from: {[
+                      final.reached.quran && "the Qur'an",
+                      final.reached.hadith && "Sahih al-Bukhari",
+                    ].filter(Boolean).join(" and ")}
+                  </p>
+                )}
                 {final.items.map((item) => (
                   <AskEvidenceCard key={item.record_id} item={item} />
                 ))}

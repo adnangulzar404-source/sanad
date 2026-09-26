@@ -73,6 +73,18 @@ export function useAsk() {
     const reader = resp.body.getReader();
     const decoder = new TextDecoder();
     let buf = "";
+    // `final` is the only terminal frame that carries a result. We track it in
+    // a local (not by reading `phase`, which would be stale in this closure) so
+    // that:
+    //  - an `error` frame does NOT set the phase immediately: production emits
+    //    `error` THEN a `final` abstained frame, and the final must win without
+    //    a flicker through the error state;
+    //  - a lone `error` frame with no following `final` (a hard mid-stream
+    //    crash) still surfaces as an error, via the post-loop check;
+    //  - a stream that closes cleanly with NO terminal frame at all (a proxy
+    //    idle-timeout, a recycled worker, a truncated SSE body) surfaces as an
+    //    error instead of hanging on "Thinking…" forever.
+    let sawFinal = false;
     try {
       for (;;) {
         const { done, value } = await reader.read();
@@ -88,17 +100,20 @@ export function useAsk() {
           if (evt.stage === "final") {
             setFinal(evt.payload as AskFinal);
             setPhase("done");
-          } else if (evt.stage === "error") {
-            setPhase("error");
-          } else {
+            sawFinal = true;
+          } else if (evt.stage !== "error") {
             seen.add(evt.stage);
             setStages(computeStages(seen));
           }
+          // `error` frames are intentionally not acted on here; see above.
         }
+        if (sawFinal) break; // stop reading once the terminal result arrived
       }
+      if (!sawFinal) setPhase("error");
     } catch {
-      // Mid-stream drop. If `final` already arrived, keep the result.
-      setPhase((p) => (p === "done" ? p : "error"));
+      // Mid-stream drop (a throw, not a graceful EOF). Keep a result that
+      // already arrived; otherwise this is an error.
+      if (!sawFinal) setPhase("error");
     }
   }, []);
 

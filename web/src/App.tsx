@@ -54,17 +54,22 @@ export default function App() {
 
   return (
     <>
-      <nav aria-label="mode" style={{
+      <nav aria-label="mode" role="tablist" style={{
         display: "flex", gap: "0.5rem", maxWidth: "72rem",
         margin: "0 auto", padding: "1rem 1.5rem 0",
       }}>
-        <button role="tab" aria-selected={tab === "verify"} onClick={() => setTab("verify")}
+        <button role="tab" id="tab-verify" aria-controls="mode-panel"
+                aria-selected={tab === "verify"} onClick={() => setTab("verify")}
                 style={tabStyle(tab === "verify")}>Verify</button>
-        <button role="tab" aria-selected={tab === "ask"} onClick={() => setTab("ask")}
+        <button role="tab" id="tab-ask" aria-controls="mode-panel"
+                aria-selected={tab === "ask"} onClick={() => setTab("ask")}
                 style={tabStyle(tab === "ask")}>Ask</button>
       </nav>
 
-      {tab === "verify" ? <Verify /> : <Ask />}
+      <div role="tabpanel" id="mode-panel"
+           aria-labelledby={tab === "verify" ? "tab-verify" : "tab-ask"}>
+        {tab === "verify" ? <Verify /> : <Ask />}
+      </div>
       <div style={{ maxWidth: "72rem", margin: "0 auto", padding: "0 1.5rem 4rem" }}>
         {showProvenance ? (
           <ProvenancePanel onClose={close} />

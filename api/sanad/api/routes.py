@@ -406,4 +406,17 @@ def corpus(request: Request) -> CorpusResponse:
 @router.get("/health")
 def health(request: Request) -> dict:
     stats = db.corpus_stats(_conn(request))
-    return {"status": "ok", "records": stats["records"], "sources": stats["sources"]}
+    # Presence-only diagnostics for the Ask path: booleans, never the values.
+    # `ask_key_present` reports whether ANTHROPIC_API_KEY is resolvable at
+    # runtime (the exact check the /api/ask route makes); `vectors_present`
+    # reports whether the optional vector sidecar is mounted. Neither ever
+    # discloses a secret -- they exist so a missing-key or lexical-only deploy
+    # can be confirmed without reading the /api/ask stream.
+    return {
+        "status": "ok",
+        "records": stats["records"],
+        "sources": stats["sources"],
+        "ask_key_present": resolve_anthropic_key() is not None,
+        "voyage_key_present": resolve_voyage_key() is not None,
+        "vectors_present": getattr(request.app.state, "vectors_conn", None) is not None,
+    }

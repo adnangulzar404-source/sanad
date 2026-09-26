@@ -3,8 +3,50 @@ from types import SimpleNamespace
 import pytest
 
 from sanad.pipeline import orchestrate
+from sanad.pipeline.guards import contains_arabic
 from sanad.pipeline.types import (Expansion, RetrievalResult, RetrievalHit,
                                    Selection, SelectedItem, AuditVerdict, GuardResult)
+
+
+def _walk_strings(obj):
+    """Yield every string leaf inside a StageEvent payload (dict/list/tuple
+    of arbitrary depth), so a leak check doesn't have to know each payload's
+    exact shape."""
+    if isinstance(obj, str):
+        yield obj
+    elif isinstance(obj, dict):
+        for v in obj.values():
+            yield from _walk_strings(v)
+    elif isinstance(obj, (list, tuple)):
+        for v in obj:
+            yield from _walk_strings(v)
+
+
+def _assert_no_leak(events, secret=None):
+    """The unifying guarantee under final review: no streamed StageEvent may
+    carry model-originated Arabic PROSE (a framing, a summary, an audit
+    flag, a guard detail), and no streamed StageEvent may carry a
+    provider's raw error text. Checks every string in every event's
+    payload -- not just the one field a given ruling named -- so this
+    catches a leak in a field nobody thought to look at.
+
+    Deliberate exception: the `expand` stage's `search_terms` are Arabic BY
+    DESIGN (spec stage 1 -- multiple Arabic surface forms for the lexical
+    index) and are explicitly part of the brief's `expand` StageEvent
+    schema, untouched by and unrelated to this review's C1/I1/M2 findings
+    (which are about prose presented as evidence, audit flags, and error
+    text -- never about the search keys used to retrieve candidates). Any
+    OTHER stage carrying Arabic is exactly the bug this review found.
+    """
+    for e in events:
+        if e.stage == "expand":
+            continue
+        for s in _walk_strings(e.payload):
+            assert not contains_arabic(s), (
+                f"Arabic leaked into a streamed '{e.stage}' event: {s!r}")
+            if secret is not None:
+                assert secret not in s, (
+                    f"secret leaked into a streamed '{e.stage}' event: {s!r}")
 
 
 def _deps(**over):
@@ -318,3 +360,147 @@ def test_auditor_not_given_expansion_or_selection_reasoning():
     cc, sel, key, client = audit_call_args[0]
     assert isinstance(sel, Selection)
     assert key == "a"
+
+
+# =====================================================================
+# Final-review fix -- Critical C1 (select emitted before guards.check ran),
+# Important I1 (raw provider error text in an `error` StageEvent), Medium
+# M2 (unscrubbed Arabic in an `audit` StageEvent's `flags`). The unifying
+# guarantee: no streamed StageEvent may carry model-originated Arabic, and
+# no streamed StageEvent may carry a provider's raw error text. Each test
+# below drives a DIFFERENT overall outcome (happy publish, guard-fail then
+# retry, persistent-failure abstain, each of the three error paths) and
+# scans EVERY event's payload with `_assert_no_leak`, not just the one
+# field a given ruling named.
+# =====================================================================
+
+def test_arabic_in_framing_never_streamed_across_guard_fail_then_retry_publish():
+    """Ruling C1. Uses the REAL guards.check (not a fake) so
+    no_arabic_in_prose actually fires on attempt 0's Arabic framing; a clean
+    attempt 1 then publishes -- proving the leak check holds across both the
+    guard-fail/retry step and the eventual happy-publish outcome of the same
+    run, and that the redacted attempt-0 `select` event carried no prose."""
+    from sanad.pipeline.guards import check as real_check
+
+    calls = {"n": 0}
+
+    def flaky_select(cc, q, hits, *, key, client=None, feedback=None):
+        calls["n"] += 1
+        framing = "It reads كتب عليكم." if calls["n"] == 1 else "Clean framing."
+        return Selection("Summary.", [SelectedItem("quran:2:183", framing)])
+
+    events = _run("q", _deps(select=flaky_select, guards=real_check))
+    assert calls["n"] == 2  # the Arabic framing drove exactly one retry
+    assert events[-1].payload["status"] == "published"
+
+    select_events = [e for e in events if e.stage == "select"]
+    assert len(select_events) == 2
+    assert select_events[0].payload == {"status": "rejected"}  # attempt 0: redacted
+    assert "framing" not in str(select_events[0].payload)
+    _assert_no_leak(events)
+
+
+def test_arabic_in_framing_never_streamed_when_persistent_abstains():
+    """Ruling C1, the abstain outcome: Arabic in the framing on BOTH
+    attempts (the real guards.check fails it every time) must still never
+    reach any streamed event, all the way to the final abstain."""
+    from sanad.pipeline.guards import check as real_check
+
+    def always_arabic_select(cc, q, hits, *, key, client=None, feedback=None):
+        return Selection("Summary.", [SelectedItem("quran:2:183", "It reads كتب عليكم.")])
+
+    events = _run("q", _deps(select=always_arabic_select, guards=real_check))
+    assert events[-1].payload["status"] == "abstained"
+    select_events = [e for e in events if e.stage == "select"]
+    assert len(select_events) == 2
+    assert all(e.payload == {"status": "rejected"} for e in select_events)
+    _assert_no_leak(events)
+
+
+def test_arabic_in_audit_flag_never_streamed_on_publish():
+    """Ruling M2, the happy-publish outcome: a clean (non-overreaching)
+    audit verdict can still carry an Arabic-script flag -- nothing about
+    `overreach=False` guarantees the model wrote its flags in English."""
+    def audit_with_arabic_flag(cc, sel, *, key, client=None):
+        return AuditVerdict(False, ["فحص جيد", "looks fine overall"])
+
+    events = _run("q", _deps(audit=audit_with_arabic_flag))
+    assert events[-1].payload["status"] == "published"
+    audit_events = [e for e in events if e.stage == "audit"]
+    assert len(audit_events) == 1
+    assert "فحص جيد" not in audit_events[0].payload["flags"]
+    assert "looks fine overall" in audit_events[0].payload["flags"]  # non-Arabic flag preserved
+    _assert_no_leak(events)
+
+
+def test_arabic_in_audit_flag_never_streamed_across_retry_then_abstain():
+    """Ruling M2, the retry-then-abstain outcome: a persistently
+    overreaching audit verdict (driving RETRY then ABSTAIN) with an
+    Arabic-script flag on every attempt must never leak it."""
+    def always_overreaching_audit(cc, sel, *, key, client=None):
+        return AuditVerdict(True, ["تجاوز واضح", "overreach detected"])
+
+    events = _run("q", _deps(audit=always_overreaching_audit))
+    assert events[-1].payload["status"] == "abstained"
+    audit_events = [e for e in events if e.stage == "audit"]
+    assert len(audit_events) == 2
+    for e in audit_events:
+        assert "تجاوز واضح" not in e.payload["flags"]
+    _assert_no_leak(events)
+
+
+def test_provider_secret_never_streamed_on_expand_failure():
+    """Ruling I1, expand_failed. A ClaudeError's message can carry a
+    provider's raw response text; the streamed `error` event must carry
+    only the fixed generic message, and the SECRET must not appear anywhere
+    in the stream, though it's fine (expected) that `code` stays informative."""
+    from sanad.agents.claude_client import ClaudeError
+
+    SECRET = "sk-ant-super-secret-leak-marker-should-never-stream"
+
+    def boom(q, *, key, client=None):
+        raise ClaudeError(f"transport failed, response body: {SECRET}")
+
+    events = _run("q", _deps(expand=boom))
+    assert events[-1].payload["status"] == "abstained"
+    error_events = [e for e in events if e.stage == "error"]
+    assert len(error_events) == 1
+    assert error_events[0].payload["code"] == "expand_failed"
+    assert error_events[0].payload["message"] == orchestrate._CLIENT_STAGE_ERROR_MESSAGE
+    _assert_no_leak(events, secret=SECRET)
+
+
+def test_provider_secret_never_streamed_on_select_failure():
+    """Ruling I1, select_failed."""
+    from sanad.agents.claude_client import ClaudeError
+
+    SECRET = "sk-ant-super-secret-leak-marker-should-never-stream"
+
+    def boom(cc, q, hits, *, key, client=None, feedback=None):
+        raise ClaudeError(f"transport failed, response body: {SECRET}")
+
+    events = _run("q", _deps(select=boom))
+    assert events[-1].payload["status"] == "abstained"
+    error_events = [e for e in events if e.stage == "error"]
+    assert len(error_events) == 1
+    assert error_events[0].payload["code"] == "select_failed"
+    assert error_events[0].payload["message"] == orchestrate._CLIENT_STAGE_ERROR_MESSAGE
+    _assert_no_leak(events, secret=SECRET)
+
+
+def test_provider_secret_never_streamed_on_audit_failure():
+    """Ruling I1, audit_failed."""
+    from sanad.agents.claude_client import ClaudeError
+
+    SECRET = "sk-ant-super-secret-leak-marker-should-never-stream"
+
+    def boom(cc, sel, *, key, client=None):
+        raise ClaudeError(f"transport failed, response body: {SECRET}")
+
+    events = _run("q", _deps(audit=boom))
+    assert events[-1].payload["status"] == "abstained"
+    error_events = [e for e in events if e.stage == "error"]
+    assert len(error_events) == 1
+    assert error_events[0].payload["code"] == "audit_failed"
+    assert error_events[0].payload["message"] == orchestrate._CLIENT_STAGE_ERROR_MESSAGE
+    _assert_no_leak(events, secret=SECRET)

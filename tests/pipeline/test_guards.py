@@ -230,6 +230,34 @@ def test_sahih_muslim_with_number_passes():
 
 # --- round-1 must-BLOCK sanity check, named explicitly in the ruling ---
 
+# =====================================================================
+# Final-review fix (Critical C1's "ALSO verify" clause) -- a guard's own
+# `detail` string must never quote raw model-originated Arabic, since
+# `check()`'s return value is streamed verbatim to the client as the
+# `check` StageEvent (see pipeline.orchestrate). Two distinct sources of
+# Arabic in a detail string: a matched Arabic-script grading term
+# (GRADING_TERMS includes "صحيح"/"ضعيف"/"موضوع" by design), and a
+# fabricated `record_id` that itself contains Arabic characters (a
+# free-form model output this module doesn't control).
+# =====================================================================
+
+def test_grading_detail_never_quotes_a_arabic_grading_term():
+    sel = _sel(items=[SelectedItem("hadith:bukhari:2866", "This hadith is صحيح.")])
+    g = next(r for r in check(sel, CANDS) if r.name == "no_grading")
+    assert not g.passed
+    assert "صحيح" not in g.detail
+    assert "<arabic script redacted>" in g.detail
+
+
+def test_cited_id_detail_never_quotes_an_arabic_record_id():
+    sel = _sel(items=[SelectedItem("quran:٩:فبركة", "Fabricated.")])
+    g = next(r for r in check(sel, CANDS) if r.name == "cited_id_in_candidates")
+    assert not g.passed
+    assert "٩" not in g.detail
+    assert "فبركة" not in g.detail
+    assert "<arabic script redacted>" in g.detail
+
+
 def test_graded_al_sahih_by_majority_of_scholars_blocks():
     sel = _sel(items=[SelectedItem("hadith:bukhari:2866",
                                    "This report is graded al-Sahih by the majority of "

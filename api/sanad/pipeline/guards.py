@@ -126,6 +126,40 @@ def contains_arabic(s: str) -> bool:
     return _ARABIC.search(s) is not None
 
 
+# Final-review fix (Critical C1's "ALSO verify" clause): a guard's `detail`
+# string can itself embed model-originated content -- a fabricated
+# `record_id` (cited_id_in_candidates, no_arabic_in_prose's label, and
+# length_bounds all interpolate `item.record_id`, which is free-form model
+# output, not a value this module controls) or a matched grading term
+# (no_grading: GRADING_TERMS deliberately includes the Arabic literals
+# "صحيح"/"ضعيف"/"موضوع", so a prose fragment written in Arabic script can be
+# quoted verbatim into "grading term(s) matched: ..."). `check()`'s return
+# value is streamed to the client as the `check` StageEvent's payload
+# (pipeline.orchestrate), so every detail string must be scrubbed before it
+# leaves this function -- the unifying guarantee is that NO model-produced
+# Arabic ever reaches the client, and a guard's own diagnostic text is not
+# exempt just because it names *why* something failed rather than *what* the
+# brief said.
+_ARABIC_REDACTED = "<arabic script redacted>"
+# `_ARABIC` is a single-character class (one match per Arabic codepoint), so
+# substituting it directly would replace a multi-letter word one character at
+# a time, e.g. four repeats of the placeholder for a four-letter word. Match
+# a whole contiguous run instead, so one Arabic word/phrase becomes one
+# placeholder.
+_ARABIC_RUN = re.compile(_ARABIC.pattern + "+")
+
+
+def redact_arabic(text: str) -> str:
+    """Replace every contiguous run of Arabic-script characters in `text`
+    with a fixed, content-free placeholder. Public (no leading underscore)
+    because `pipeline.orchestrate` reuses it for the same guarantee on the
+    `audit` StageEvent's model-authored `flags` -- one place owns "how do we
+    redact Arabic from client-facing text" rather than two independent
+    regexes that could silently drift apart on which Arabic blocks they
+    cover."""
+    return _ARABIC_RUN.sub(_ARABIC_REDACTED, text) if text else text
+
+
 def word_count(s: str) -> int:
     return len(s.split())
 
@@ -179,16 +213,19 @@ def check(selection: Selection, candidate_ids: set[str]) -> list[GuardResult]:
 
     return [
         GuardResult("cited_id_in_candidates", not stray,
-                    "" if not stray else f"ids outside candidate set: {stray}"),
+                    redact_arabic("" if not stray
+                                   else f"ids outside candidate set: {stray}")),
         GuardResult("no_arabic_in_prose", not arabic_offenders,
-                    "" if not arabic_offenders
-                    else f"Arabic script found in: {', '.join(arabic_offenders)}"),
+                    redact_arabic("" if not arabic_offenders
+                                   else f"Arabic script found in: {', '.join(arabic_offenders)}")),
         GuardResult("length_bounds", not length_offenders,
-                    "" if not length_offenders else "; ".join(length_offenders)),
+                    redact_arabic("" if not length_offenders
+                                   else "; ".join(length_offenders))),
         GuardResult("no_unanimity", unanimity_match is None,
-                    "" if unanimity_match is None
-                    else f"unanimity phrase matched: '{unanimity_match.group(0)}'"),
+                    redact_arabic("" if unanimity_match is None
+                                   else f"unanimity phrase matched: '{unanimity_match.group(0)}'")),
         GuardResult("no_grading", not grading_matches,
-                    "" if not grading_matches
-                    else f"grading term(s) matched: {', '.join(sorted(set(grading_matches)))}"),
+                    redact_arabic("" if not grading_matches
+                                   else f"grading term(s) matched: "
+                                        f"{', '.join(sorted(set(grading_matches)))}")),
     ]

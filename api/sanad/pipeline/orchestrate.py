@@ -9,6 +9,7 @@
 # fakes and production wiring binds the real functions via DEFAULT_DEPS.
 from __future__ import annotations
 
+import logging
 from collections.abc import Iterator
 from types import SimpleNamespace
 
@@ -21,6 +22,28 @@ from ..verify.claims import requires_handoff, route_risk
 from . import guards as _guards
 from .adjudicate import Decision, adjudicate
 from .types import StageEvent
+
+_logger = logging.getLogger(__name__)
+
+# Final-review fix (Ruling I1): every client-facing `error` StageEvent must
+# carry a fixed, generic message -- never `str(exc)`. `claude_client.py`'s
+# `ClaudeError` messages can embed a provider's raw response body
+# (`resp.text[:200]`) or a transport error string; `voyage.py`'s `VoyageError`
+# is similar. `routes.py`'s own `_GENERIC_MIDSTREAM_ERROR_MESSAGE` only
+# guards an exception that ESCAPES `run_ask` entirely -- these three
+# `ClaudeError`s are caught INSIDE `run_ask` and turned into ordinary `error`
+# StageEvents, which the route forwards verbatim, so the scrub has to live
+# here at the source. The `code` field (expand_failed/select_failed/
+# audit_failed) stays informative -- it names which stage failed, not what
+# the provider said -- and the real detail is still recorded, but only via
+# `logging`, server-side, never in a StageEvent.
+_CLIENT_STAGE_ERROR_MESSAGE = "An internal error occurred while processing this stage."
+
+
+def _error_event(code: str, exc: Exception) -> StageEvent:
+    _logger.error("Ask pipeline stage failed (code=%s): %s", code, exc)
+    return StageEvent("error", {"code": code, "message": _CLIENT_STAGE_ERROR_MESSAGE})
+
 
 DEFAULT_DEPS = SimpleNamespace(
     expand=_expand.expand_query,
@@ -73,7 +96,7 @@ def run_ask(corpus_conn, vectors_conn, question, *, anthropic_key,
     try:
         expansion = deps.expand(question, key=anthropic_key)
     except ClaudeError as exc:
-        yield StageEvent("error", {"code": "expand_failed", "message": str(exc)})
+        yield _error_event("expand_failed", exc)
         yield _final(status="abstained", question_language=None, summary=None,
                      items=[], reached={"quran": False, "hadith": False},
                      unreached_reason=None, risk=risk.value,
@@ -105,32 +128,47 @@ def run_ask(corpus_conn, vectors_conn, question, *, anthropic_key,
             selection = deps.select(corpus_conn, question, result.hits,
                                     key=anthropic_key, feedback=feedback)
         except ClaudeError as exc:
-            yield StageEvent("error", {"code": "select_failed", "message": str(exc)})
+            yield _error_event("select_failed", exc)
             yield _final(status="abstained",
                          question_language=expansion.question_language, summary=None,
                          items=[], reached=result.reached,
                          unreached_reason=result.unreached_reason, risk=risk.value,
                          abstain_reason="The brief could not be generated.")
             return
-        yield StageEvent("select", {
-            "summary": selection.summary,
-            "items": [{"record_id": i.record_id, "framing": i.framing}
-                      for i in selection.items]})
 
         guard_results = deps.guards(selection, candidate_ids)
+        guards_passed = all(g.passed for g in guard_results)
+
+        # Final-review fix (Critical C1): the model's summary/framing prose
+        # must never reach the client before guards.check has cleared it --
+        # no_arabic_in_prose exists specifically to catch Arabic the model
+        # put in this prose, and streaming it here (before the guard even
+        # ran) let it reach the client regardless of whether `final` later
+        # abstained. On guard failure, stream a content-free status marker
+        # instead of the raw prose; guards.py's own detail strings are
+        # scrubbed at the source (see guards.redact_arabic), and the
+        # retry/final flow carries the rest of the story.
+        if guards_passed:
+            yield StageEvent("select", {
+                "summary": selection.summary,
+                "items": [{"record_id": i.record_id, "framing": i.framing}
+                          for i in selection.items]})
+        else:
+            yield StageEvent("select", {"status": "rejected"})
+
         yield StageEvent("check", {"guards": [
             {"name": g.name, "pass": g.passed, "detail": g.detail}
             for g in guard_results]})
 
         audit = None
-        if all(g.passed for g in guard_results):
+        if guards_passed:
             # Auditor isolation (spec §2 stage 5): only corpus_conn + the
             # drafted selection go in. Never expansion, never stage-3
             # reasoning/feedback — a fresh-context review is the point.
             try:
                 audit = deps.audit(corpus_conn, selection, key=anthropic_key)
             except ClaudeError as exc:
-                yield StageEvent("error", {"code": "audit_failed", "message": str(exc)})
+                yield _error_event("audit_failed", exc)
                 yield _final(status="abstained",
                              question_language=expansion.question_language,
                              summary=None, items=[], reached=result.reached,
@@ -138,8 +176,16 @@ def run_ask(corpus_conn, vectors_conn, question, *, anthropic_key,
                              risk=risk.value,
                              abstain_reason="The brief could not be reviewed.")
                 return
+            # Final-review fix (Ruling M2): `flags` is free-form prose from a
+            # fresh Claude call (agents.audit) and could itself contain or
+            # quote Arabic -- the same guarantee guards.py enforces for the
+            # selection's prose applies to the auditor's. `_feedback()`
+            # below still uses `audit.flags` (the unredacted original) since
+            # that only ever goes back into the next select_and_frame
+            # prompt, server-to-model -- it is never streamed.
             yield StageEvent("audit", {"overreach": audit.overreach,
-                                       "flags": audit.flags})
+                                       "flags": [_guards.redact_arabic(f)
+                                                 for f in audit.flags]})
 
         # Contract: attempt is 0-indexed — 0 on the first pass, 1 on the
         # single retry. adjudicate() treats attempt==0 as first-try and any

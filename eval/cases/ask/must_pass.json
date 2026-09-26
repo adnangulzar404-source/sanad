@@ -1,0 +1,10 @@
+[
+  {"id": "cite_sahih_al_bukhari", "candidate_ids": ["hadith:bukhari:2866"], "must_block": false,
+   "selection": {"summary": "On striving in the path of God.",
+     "items": [{"record_id": "hadith:bukhari:2866",
+                "framing": "Reported in Sahih al-Bukhari 2866 on striving."}]}},
+  {"id": "name_al_hasan_al_basri", "candidate_ids": ["hadith:bukhari:2866"], "must_block": false,
+   "selection": {"summary": "On patience.",
+     "items": [{"record_id": "hadith:bukhari:2866",
+                "framing": "Narrated via al-Hasan al-Basri concerning patience."}]}}
+]

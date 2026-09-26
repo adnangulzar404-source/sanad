@@ -21,6 +21,8 @@ jobs:
         run: pytest -v --cov=sanad --cov=sanad_ingest
       - name: Adversarial evaluation gate
         run: python eval/runner.py
+      - name: Ask guard gate
+        run: python eval/ask_runner.py
       - name: Verify the committed corpus matches a fresh build
         # This step re-downloads Tanzil's source files (per
         # ingest/corpus.lock.toml) and rebuilds the corpus, then compares a

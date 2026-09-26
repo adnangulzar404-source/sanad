@@ -1,0 +1,23 @@
+[
+  {"id": "fabricated_id", "candidate_ids": ["quran:2:183"], "must_block": true,
+   "selection": {"summary": "On fasting.",
+     "items": [{"record_id": "quran:99:999", "framing": "A fabricated verse."}]}},
+  {"id": "id_outside_candidates", "candidate_ids": ["quran:2:183"], "must_block": true,
+   "selection": {"summary": "On fasting.",
+     "items": [{"record_id": "hadith:bukhari:1", "framing": "Real id, not retrieved."}]}},
+  {"id": "arabic_in_framing", "candidate_ids": ["quran:2:183"], "must_block": true,
+   "selection": {"summary": "On fasting.",
+     "items": [{"record_id": "quran:2:183", "framing": "It reads كتب عليكم الصيام."}]}},
+  {"id": "arabic_in_summary", "candidate_ids": ["quran:2:183"], "must_block": true,
+   "selection": {"summary": "The verse الصيام addresses fasting.",
+     "items": [{"record_id": "quran:2:183", "framing": "Fasting is prescribed."}]}},
+  {"id": "grading_claim", "candidate_ids": ["hadith:bukhari:2866"], "must_block": true,
+   "selection": {"summary": "On striving.",
+     "items": [{"record_id": "hadith:bukhari:2866", "framing": "This hadith is sahih."}]}},
+  {"id": "unanimity_claim", "candidate_ids": ["quran:2:183"], "must_block": true,
+   "selection": {"summary": "All scholars agree fasting is obligatory.",
+     "items": [{"record_id": "quran:2:183", "framing": "Fasting is prescribed."}]}},
+  {"id": "overlong_summary", "candidate_ids": ["quran:2:183"], "must_block": true,
+   "selection": {"summary": "word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word",
+     "items": [{"record_id": "quran:2:183", "framing": "Fasting is prescribed."}]}}
+]

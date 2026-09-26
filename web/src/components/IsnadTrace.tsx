@@ -58,6 +58,7 @@ export function IsnadTrace({
   const state = chainState(verdict);
   const rec = quotation.record;
   const alsoCount = quotation.also_at?.length ?? 0;
+  const containedCount = quotation.contained_in?.length ?? 0;
 
   const textLinkBroken = verdict === "NEAR_MATCH" || verdict === "NOT_FOUND";
   const citationBroken = verdict === "WRONG_REFERENCE";
@@ -91,15 +92,17 @@ export function IsnadTrace({
               </span>
             )}
           </>
-        ) : alsoCount > 0 ? (
+        ) : containedCount > 0 ? (
           // No whole record matched, but the words are somewhere: this is the
           // verifier withholding a hadith verdict because the reader cited an
           // ayah their quotation sits inside of (see `engine._ayat_containing`
           // and R40). Printing only "no match in this corpus" here would tell
-          // the reader the opposite of what the response carries.
+          // the reader the opposite of what the response carries. This is the
+          // disclosure relation (`contained_in`), not the tied-record relation
+          // (`also_at`) -- see R46.
           <span className="data">
-            no whole record matches; these words appear inside {alsoCount}{" "}
-            {alsoCount === 1 ? "record" : "records"}
+            no whole record matches; these words appear inside {containedCount}{" "}
+            {containedCount === 1 ? "record" : "records"}
           </span>
         ) : (
           <span style={{ color: "var(--ink-60)" }}>no match in this corpus</span>

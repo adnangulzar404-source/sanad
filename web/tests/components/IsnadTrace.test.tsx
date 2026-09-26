@@ -11,7 +11,7 @@ const base: QuotationOut = {
     text_ar: "قُلْ هُوَ ٱللَّهُ أَحَدٌ", text_ar_sha256: "abc123", surah: 112, ayah: 1,
     translation_en: "Say: He is Allah, the One!", translation_disclaimer: "No translation…",
   },
-  given_reference: null, diff: null, also_at: [],
+  given_reference: null, diff: null, also_at: [], contained_in: [],
 } as unknown as QuotationOut;
 
 const q = (over: Partial<QuotationOut>) => ({ ...base, ...over }) as QuotationOut;
@@ -59,11 +59,13 @@ describe("IsnadTrace", () => {
   it("discloses where the words are even when no record was matched", () => {
     // The verifier withholds a hadith verdict when the reader cited an ayah
     // their words sit inside of (engine R40), and returns NOT_FOUND with the
-    // containing ayah in `also_at`. Rendering only "no match in this corpus"
-    // there tells the reader the opposite of what the response says.
+    // containing ayah in `contained_in` (R46: split out of `also_at`, which
+    // is reserved for tied identical-text records). Rendering only "no match
+    // in this corpus" there tells the reader the opposite of what the
+    // response says.
     render(<IsnadTrace quotation={q({
       verdict: "NOT_FOUND", tier: null, score: 0, record: null,
-      also_at: ["quran:54:1"],
+      also_at: [], contained_in: ["quran:54:1"],
     })} />);
     expect(screen.getByTestId("link-matched")).toHaveTextContent(/1 record/i);
     expect(screen.getByTestId("link-matched")).not.toHaveTextContent(/no match in this corpus/i);
@@ -71,7 +73,8 @@ describe("IsnadTrace", () => {
 
   it("still says nothing matched when nothing was found anywhere", () => {
     render(<IsnadTrace quotation={q({
-      verdict: "NOT_FOUND", tier: null, score: 0, record: null, also_at: [],
+      verdict: "NOT_FOUND", tier: null, score: 0, record: null,
+      also_at: [], contained_in: [],
     })} />);
     expect(screen.getByTestId("link-matched")).toHaveTextContent(/no match in this corpus/i);
   });

@@ -141,6 +141,7 @@ def verify(payload: VerifyRequest, request: Request) -> VerifyResponse:
             verdict=m.verdict.value, tier=m.tier, score=round(m.score, 4),
             record=_record_out(conn, m.record) if m.record else None,
             also_at=list(m.also_at),
+            contained_in=list(m.contained_in),
             given_reference=m.given_reference.raw if m.given_reference else None,
             diff=m.diff,
         )

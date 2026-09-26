@@ -227,6 +227,8 @@ export interface components {
             record: components["schemas"]["RecordOut"] | null;
             /** Also At */
             also_at?: string[];
+            /** Contained In */
+            contained_in?: string[];
             /** Given Reference */
             given_reference: string | null;
             /** Diff */

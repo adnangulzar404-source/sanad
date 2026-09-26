@@ -85,20 +85,21 @@ class Match:
     # WRONG_REFERENCE verdict. See `_reference_conflicts`.
     given_reference: AnyReference | None = None
     diff: list[tuple[str, str]] | None = None
-    # Where else in this corpus these words are, beyond the record reported.
-    #
-    # Two things reach this list, and the shared meaning is "these words are
-    # also at X" rather than "X is an equally good answer":
-    #
-    # 1. Other records carrying IDENTICAL normalized text at the matched tier
-    #    (e.g. Ar-Rahman's refrain, repeated 31 times). Empty for the
-    #    overwhelming majority of verses, which are unique.
-    # 2. Any ayah whose own text CONTAINS this quotation, when the record
-    #    reported is a hadith -- see `_ayat_containing`. One pair in the
-    #    shipped corpus does this: Sahih al-Bukhari 3658's whole matn sits
-    #    inside Qur'an 54:1. Saying only "Sahih al-Bukhari 3658" about words
-    #    that are also scripture is true and incomplete.
+    # Other records carrying IDENTICAL normalized text at the matched tier
+    # (e.g. Ar-Rahman's refrain, repeated 31 times). Empty for the
+    # overwhelming majority of verses, which are unique. This is a "tie"
+    # relation only -- see `contained_in` below for the different relation
+    # it used to be conflated with.
     also_at: list[str] = field(default_factory=list)
+    # Ayat whose own text CONTAINS this quotation, when the record reported
+    # is a hadith -- see `_ayat_containing`. One pair in the shipped corpus
+    # does this: Sahih al-Bukhari 3658's whole matn sits inside Qur'an 54:1.
+    # Saying only "Sahih al-Bukhari 3658" about words that are also scripture
+    # is true and incomplete. Split out of `also_at` (R46): "these words are
+    # also scripture at X" is a different relation from "these words tie with
+    # record Y", and conflating them made the client tell them apart only by
+    # the accident that the disclosure case has record=None.
+    contained_in: list[str] = field(default_factory=list)
 
 
 def _exact_at_tier(conn: sqlite3.Connection, text: str, tier: Tier) -> list[Record]:
@@ -574,10 +575,11 @@ def _classify(conn: sqlite3.Connection, span: Span,
         if given is not None and any(not _reference_conflicts(given, ayah)
                                      for ayah in containing):
             return Match(span, Verdict.NOT_FOUND, None, None, 0.0, given, None,
-                         disclosed)
-        also_at = also_at + [i for i in disclosed if i not in also_at]
+                         also_at=[], contained_in=disclosed)
+        return Match(span, verdict, record, tier, score, given, diff,
+                     also_at=also_at, contained_in=disclosed)
 
-    return Match(span, verdict, record, tier, score, given, diff, also_at)
+    return Match(span, verdict, record, tier, score, given, diff, also_at=also_at)
 
 
 def _is_only_a_citation(span: Span, citation_spans: list[tuple[int, int]]) -> bool:

@@ -65,15 +65,17 @@ class QuotationOut(BaseModel):
     tier: str | None
     score: float
     record: RecordOut | None
-    # Where else in this corpus these words are, beyond `record`. Two things
-    # reach it: other records carrying identical text at the matched tier (e.g.
-    # Ar-Rahman's refrain, repeated 31 times), and -- when the quotation is
-    # answered with a hadith, or withheld from being -- any ayah whose own text
-    # CONTAINS the quotation. It is therefore populated even when `record` is
-    # null: a client that prints nothing in that case drops the only thing
-    # telling the reader their words are scripture. See
+    # Other records carrying identical text at the matched tier (e.g.
+    # Ar-Rahman's refrain, repeated 31 times), beyond `record`. See
     # `verify.engine.Match.also_at`.
     also_at: list[str] = Field(default_factory=list)
+    # Ayat whose own text CONTAINS this quotation, when the quotation is
+    # answered with a hadith, or withheld from being one. It is therefore
+    # populated even when `record` is null: a client that prints nothing in
+    # that case drops the only thing telling the reader their words are
+    # scripture. Split out of `also_at` (R46) -- see
+    # `verify.engine.Match.contained_in`.
+    contained_in: list[str] = Field(default_factory=list)
     given_reference: str | None
     diff: list[tuple[str, str]] | None
 

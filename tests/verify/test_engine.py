@@ -152,11 +152,24 @@ def test_duplicate_verse_reports_its_other_locations(conn):
     refrain = db.get_record(conn, "quran:55:16").text_ar
     m = _only(verify_spans(conn, f"«{refrain}»"))
     assert len(m.also_at) == 30  # 31 occurrences, minus the one reported
+    # Tied identical-text records are `also_at`, never `contained_in` (R46).
+    assert m.contained_in == []
 
 
 def test_unique_verse_has_no_also_at(conn):
     m = _only(verify_spans(conn, "«" + db.get_record(conn, "quran:2:255").text_ar + "»"))
     assert m.also_at == []
+
+
+def test_contained_in_carries_the_ayah_not_also_at(conn):
+    # Sahih al-Bukhari 3658's whole matn ("the moon split") sits inside
+    # Qur'an 54:1. Fetch the matn from the corpus by id rather than pasting
+    # Arabic literally -- see the character-in-transit defect history.
+    matn = db.get_record(conn, "hadith:bukhari:3658").text_ar
+    m = _only(verify_spans(conn, f"«{matn}»"))
+    if m.record is not None and m.record.kind == "hadith":
+        assert "quran:54:1" in m.contained_in
+        assert "quran:54:1" not in m.also_at  # no longer conflated
 
 
 # --- Finding 1: an aggressive-tier match may never assert WRONG_REFERENCE ---
@@ -1184,8 +1197,10 @@ def test_a_quranic_fragment_cited_as_quran_is_never_answered_with_a_hadith(conn)
         assert m.record is None, (quoted, m.record.id)
         assert m.verdict is Verdict.NOT_FOUND, quoted
         # Disclosure, not silence: a bare NOT_FOUND would read as "these words
-        # are in neither book", which is the opposite of true.
-        assert m.also_at == ["quran:54:1"], quoted
+        # are in neither book", which is the opposite of true. R46:
+        # containing-ayah disclosure is `contained_in`, not `also_at`.
+        assert m.contained_in == ["quran:54:1"], quoted
+        assert m.also_at == [], quoted
 
 
 def test_a_surah_named_without_a_verse_number_withholds_the_hadith_too(conn):
@@ -1196,20 +1211,23 @@ def test_a_surah_named_without_a_verse_number_withholds_the_hadith_too(conn):
     m = _only(verify_spans(conn, f"«{matn}» (Al-Qamar)"))
     assert m.record is None
     assert m.verdict is Verdict.NOT_FOUND
-    assert m.also_at == ["quran:54:1"]
+    assert m.contained_in == ["quran:54:1"]  # R46: disclosure, not also_at
+    assert m.also_at == []
 
 
 def test_the_ayah_that_contains_a_hadiths_words_is_disclosed_beside_it(conn):
     """Uncited, the hadith verdict stands -- it is a true statement about the
     hadith -- but the Qur'anic co-occurrence is disclosed alongside it. Saying
     only "Sahih al-Bukhari 3658" about words that are also scripture is true
-    and incomplete, and `also_at` is where this codebase already says "these
-    words are also at X"."""
+    and incomplete, and `contained_in` is where this codebase says "these
+    words are also scripture at X" (R46: split out of `also_at`, which is
+    reserved for tied identical-text records)."""
     matn = db.get_record(conn, "hadith:bukhari:3658").text_ar
     m = _only(verify_spans(conn, f"«{matn}»"))
     assert m.verdict is Verdict.EXACT
     assert m.record.id == "hadith:bukhari:3658"
-    assert m.also_at == ["quran:54:1"]
+    assert m.contained_in == ["quran:54:1"]
+    assert m.also_at == []
 
     # Cited as the hadith it is, the hadith answer is not withheld: this
     # reader asked about Sahih al-Bukhari 3658 and is right. Withholding on
@@ -1218,14 +1236,16 @@ def test_the_ayah_that_contains_a_hadiths_words_is_disclosed_beside_it(conn):
     m = _only(verify_spans(conn, f"«{matn}» (Bukhari 3658)"))
     assert m.verdict is Verdict.EXACT
     assert m.record.id == "hadith:bukhari:3658"
-    assert m.also_at == ["quran:54:1"]
+    assert m.contained_in == ["quran:54:1"]
+    assert m.also_at == []
 
     # And a Qur'anic citation that does NOT contain these words is still
     # reported wrong, with the real location disclosed beside it.
     m = _only(verify_spans(conn, f"«{matn}» (2:255)"))
     assert m.verdict is Verdict.WRONG_REFERENCE
     assert m.record.id == "hadith:bukhari:3658"
-    assert m.also_at == ["quran:54:1"]
+    assert m.contained_in == ["quran:54:1"]
+    assert m.also_at == []
 
 
 def test_a_hadith_cited_as_a_verse_it_is_not_inside_is_still_flagged(conn):

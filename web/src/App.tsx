@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
 import { ProvenancePanel } from "./components/ProvenancePanel";
+import { Ask } from "./screens/Ask";
 import { Verify } from "./screens/Verify";
+
+type Tab = "verify" | "ask";
 
 const PROVENANCE_HASH = "#provenance";
 
@@ -20,6 +23,9 @@ export default function App() {
   const [showProvenance, setShowProvenance] = useState(
     () => window.location.hash === PROVENANCE_HASH
   );
+  // Verify is the landing tab: it is the established primary and needs no API
+  // key. Ask is one click away. Tab state is local -- no router dependency.
+  const [tab, setTab] = useState<Tab>("verify");
 
   useEffect(() => {
     const openOnHash = () => {
@@ -38,9 +44,27 @@ export default function App() {
     clearProvenanceHash();
   };
 
+  const tabStyle = (active: boolean) => ({
+    font: "inherit", padding: "0.5rem 1rem", cursor: "pointer",
+    background: "none", border: "none",
+    borderBlockEnd: active ? "2px solid var(--ink)" : "2px solid transparent",
+    color: active ? "var(--ink)" : "var(--ink-60)",
+    fontWeight: active ? 600 : 400,
+  }) as const;
+
   return (
     <>
-      <Verify />
+      <nav aria-label="mode" style={{
+        display: "flex", gap: "0.5rem", maxWidth: "72rem",
+        margin: "0 auto", padding: "1rem 1.5rem 0",
+      }}>
+        <button role="tab" aria-selected={tab === "verify"} onClick={() => setTab("verify")}
+                style={tabStyle(tab === "verify")}>Verify</button>
+        <button role="tab" aria-selected={tab === "ask"} onClick={() => setTab("ask")}
+                style={tabStyle(tab === "ask")}>Ask</button>
+      </nav>
+
+      {tab === "verify" ? <Verify /> : <Ask />}
       <div style={{ maxWidth: "72rem", margin: "0 auto", padding: "0 1.5rem 4rem" }}>
         {showProvenance ? (
           <ProvenancePanel onClose={close} />

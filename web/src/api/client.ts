@@ -55,3 +55,28 @@ export function verify(text: string): Promise<VerifyResponse> {
 export function getCorpus(): Promise<CorpusResponse> {
   return apiFetch<CorpusResponse>("/api/corpus");
 }
+
+// The `/api/ask` SSE `final` payload. Declared by hand rather than generated:
+// the endpoint streams `text/event-stream`, so it has no typed JSON body in the
+// OpenAPI schema. Mirrors the backend `AskFinalOut` (api/sanad/api/schemas.py).
+export interface AskItem {
+  record_id: string;
+  framing: string;
+  record: RecordOut | null;
+}
+export interface AskReached {
+  quran: boolean;
+  hadith: boolean;
+}
+export interface AskFinal {
+  status: "published" | "abstained";
+  question_language: string | null;
+  summary: string | null;
+  items: AskItem[];
+  reached: AskReached;
+  unreached_reason: string | null;
+  risk: string;
+  requires_handoff: boolean;
+  abstain_reason: string | null;
+  corpus_scope: string;
+}

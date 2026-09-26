@@ -70,6 +70,42 @@ def test_ask_streams_events_and_renders_records(monkeypatch, tmp_path):
     assert "patience" not in json.dumps(detail)
 
 
+def test_reverent_transforms_prose_but_never_the_record(monkeypatch, tmp_path):
+    """spec I2: the reverent transform applies to model prose (summary,
+    framing) and NEVER to the canonical record text rendered from the DB."""
+    from sanad.api import routes
+    from sanad.corpus import db
+    from sanad.pipeline.types import StageEvent
+    from sanad.text.reverent import ALAYHI_SALAM, SALLALLAHU
+
+    def fake_run(cc, vc, q, *, anthropic_key, voyage_key, deps=None):
+        yield StageEvent("router", {"risk": "GENERAL", "requires_handoff": False})
+        yield StageEvent("final", {
+            "status": "published", "question_language": "en",
+            "summary": "The Prophet Muhammad taught reliance on God.",
+            "items": [{"record_id": "quran:2:153",
+                       "framing": "Moses called the people to God."}],
+            "reached": {"quran": True, "hadith": False}, "unreached_reason": None,
+            "risk": "GENERAL", "requires_handoff": False, "abstain_reason": None})
+
+    monkeypatch.setattr(routes, "run_ask", fake_run)
+    monkeypatch.setattr(routes, "resolve_anthropic_key", lambda: "a")
+    client = _make_client(tmp_path)
+    final = _events_from(client.post("/api/ask", json={"question": "x"}).text)[-1]["payload"]
+
+    # Prose: God -> Allah, honorifics appended.
+    assert "God" not in final["summary"]
+    assert "Allah" in final["summary"]
+    assert SALLALLAHU in final["summary"]
+    assert final["items"][0]["framing"] == f"Moses {ALAYHI_SALAM} called the people to Allah."
+
+    # Record: byte-identical to the DB (transform never ran on it).
+    conn = client.app.state.conn
+    canonical = db.get_record(conn, "quran:2:153")
+    assert final["items"][0]["record"]["text_ar"] == canonical.text_ar
+    assert SALLALLAHU not in final["items"][0]["record"]["text_ar"]
+
+
 def test_ask_without_key_abstains(monkeypatch, tmp_path):
     from sanad.api import routes
     monkeypatch.setattr(routes, "resolve_anthropic_key", lambda: None)

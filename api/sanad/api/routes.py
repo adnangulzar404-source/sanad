@@ -16,6 +16,7 @@ from ..corpus.models import Record
 from ..corpus.scope import CORPUS_SCOPE
 from ..pipeline.orchestrate import run_ask
 from ..retrieve.voyage import VoyageError, resolve_voyage_key
+from ..text.reverent import reverent
 from ..verify.claims import detect_claims, requires_handoff, route_risk
 from ..verify.engine import Verdict, verify_spans
 from .schemas import (
@@ -295,13 +296,23 @@ def ask(payload: AskRequest, request: Request) -> StreamingResponse:
                 if event.stage == "router":
                     risk = payload_out.get("risk", risk)
                 if event.stage == "final":
+                    # `reverent()` is applied ONLY to the model-authored prose
+                    # (summary, framing) here, after the stage-4 guards have
+                    # already passed on pure-English text. It is NEVER applied
+                    # to the `record` fields below -- those are canonical corpus
+                    # text rendered verbatim by id (spec I2). This is also the
+                    # one place an Arabic honorific constant may enter prose;
+                    # it is app-added, not model output, so it does not violate
+                    # "no Arabic in prose".
                     items = []
                     for it in payload_out.get("items", []):
                         rec = db.get_record(conn, it["record_id"])
                         items.append({
-                            "record_id": it["record_id"], "framing": it["framing"],
+                            "record_id": it["record_id"],
+                            "framing": reverent(it["framing"]),
                             "record": _record_out(conn, rec).model_dump() if rec else None})
                     payload_out["items"] = items
+                    payload_out["summary"] = reverent(payload_out.get("summary"))
                     payload_out["corpus_scope"] = CORPUS_SCOPE
                     record_ids = [it["record_id"] for it in items]
                     status = payload_out.get("status", "abstained")

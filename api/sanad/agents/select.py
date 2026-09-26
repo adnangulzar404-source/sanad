@@ -34,6 +34,7 @@ SELECT_SYSTEM = (
     "5. Write a neutral summary of at most 80 words of what the sources cover. "
     "Do not rule, do not grade authenticity, do not claim consensus.\n"
     "6. Write the summary and every framing in the question's own language.\n"
+    "7. Refer to the one God as 'Allah', never 'God'.\n"
     "Return ONLY the structured object."
 )
 

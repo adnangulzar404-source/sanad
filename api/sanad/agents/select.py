@@ -16,9 +16,9 @@ question (and any retry feedback) varies per request.
 """
 from __future__ import annotations
 
-from . import claude_client
 from ..corpus import db
 from ..pipeline.types import RetrievalHit, SelectedItem, Selection
+from . import claude_client
 
 SELECT_SYSTEM = (
     "You build an EVIDENCE BRIEF from a fixed candidate set of Qur'an verses "

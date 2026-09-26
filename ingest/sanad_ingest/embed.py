@@ -8,7 +8,10 @@ from sanad.corpus import db
 from sanad.corpus.models import FULL_VARIANT
 from sanad.retrieve import voyage
 from sanad.retrieve.vector_store import (
-    EmbeddingRow, connect_vectors, get_embedding, upsert_embeddings,
+    EmbeddingRow,
+    connect_vectors,
+    get_embedding,
+    upsert_embeddings,
 )
 
 

@@ -16,9 +16,9 @@ pattern matching cannot see.
 """
 from __future__ import annotations
 
-from . import claude_client
 from ..corpus import db
 from ..pipeline.types import AuditVerdict, Selection
+from . import claude_client
 
 AUDIT_SYSTEM = (
     "You are an independent reviewer. You are shown an evidence brief (a summary "

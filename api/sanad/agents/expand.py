@@ -9,8 +9,8 @@ forms per concept, not one.
 """
 from __future__ import annotations
 
-from . import claude_client
 from ..pipeline.types import Expansion
+from . import claude_client
 
 EXPAND_SYSTEM = (
     "You expand a user's question into Arabic search terms for a lexical index "

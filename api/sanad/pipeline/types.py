@@ -1,6 +1,8 @@
 # api/sanad/pipeline/types.py — the shared vocabulary across pipeline stages.
 from __future__ import annotations
+
 from dataclasses import dataclass, field
+
 
 @dataclass(frozen=True)
 class RetrievalHit:

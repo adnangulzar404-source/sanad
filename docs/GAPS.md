@@ -110,8 +110,16 @@ understood the item well enough to refuse it.
 
 This whole section is Stage B (Ask). The verify path generates nothing.
 
-- [ ] Arabic-capable embedding model and LLM (P0)
-- [ ] Generation constrained to retrieved spans; quotes copied, never invented (P0)
+- [~] Arabic-capable embedding model and LLM: **wired** (Voyage `voyage-4`
+      binary embeddings + Claude `claude-opus-5`), but **not yet smoke-tested
+      against a live key** — the API shapes are pinned from published docs, not
+      a live response. First check when a key lands (P0).
+- [x] Generation constrained to retrieved spans; quotes copied, never invented:
+      the server renders every quotation from the database by id and Claude
+      never emits Arabic; the deterministic guards reject any cited id outside
+      the retrieved candidate set and any Arabic in the prose, and the
+      two-sided eval gate fails CI if either direction breaks. Fabrication is
+      structural, not policed (P0).
 - [x] Risk router: personal ruling, high-risk, disputed and
       insufficient-evidence classes are detected and diverted today, ahead of
       the Ask route that will consume them. Over-diverts ~15–20%, by design.
@@ -125,6 +133,16 @@ This whole section is Stage B (Ask). The verify path generates nothing.
       faith-crisis case reuses the personal-ruling copy, which presumes the
       person wants a scholar.
 - [ ] Refusal templates in Arabic — English exists, Arabic does not (P1)
+- [ ] **Framing fairness has no hard guard** — the deterministic guards block
+      grading claims, unanimity claims, Arabic in the prose, and out-of-set
+      ids, but they do **not** enforce that the framing or summary is balanced
+      or representative; that is left to the stage-5 audit, which is semantic
+      (a model judgement) rather than a hard deterministic gate. A refusal of
+      record, not an oversight: a deterministic fairness test is not something
+      we know how to write honestly yet (spec §5).
+- [ ] **Public-demo spend cap unresolved** — the Ask path has no budget
+      ceiling on the hosted demo's Anthropic key. Left open deliberately, but
+      it is a P0 before any public demo goes live (spec §15).
 
 ## 6. Provenance and legal
 

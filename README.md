@@ -61,7 +61,22 @@ Stage A — the deterministic core:
 - An adversarial evaluation suite (54 cases) that fails CI if any misquote
   is reported as verified
 
-Not yet included: the Ask pipeline (Stage B).
+### Ask mode (optional)
+
+`POST /api/ask` returns an evidence brief — the passages in the corpus that
+bear on a question, each verbatim and attributed. It needs an Anthropic key;
+vector retrieval additionally needs a Voyage key and a prebuilt sidecar:
+
+```
+export ANTHROPIC_API_KEY=sk-ant-...
+export VOYAGE_API_KEY=...                    # optional; lexical-only without it
+sanad-ingest embed --db data/sanad-quran.db --vectors data/sanad-vectors.db
+```
+
+Without any key, `/api/verify` and the rest of the API work exactly as before —
+Ask degrades to an abstention that says so. Claude never writes Arabic; the
+server renders every quotation from the database by id, so a fabricated or
+altered quotation cannot reach the screen.
 
 **Sanad does not grade hadith authenticity.** A `Sahih al-Bukhari <n>` result
 means the quoted text is present in that collection, nothing more. Modern

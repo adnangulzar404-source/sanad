@@ -1,11 +1,13 @@
 import hashlib
 import re
+import sqlite3
 from pathlib import Path
 
 import pytest
 from sanad.arabic.normalize import normalize
 from sanad.corpus import db
 from sanad_ingest.build import build_corpus
+from sanad_ingest.materialize import MaterializeError, materialize
 
 FIXTURE = Path("tests/fixtures/tanzil_excerpt.txt")
 XML_FIXTURE = Path("tests/fixtures/tanzil_excerpt.xml")
@@ -53,17 +55,45 @@ def test_canonical_text_is_stored_unmodified(built):
     assert rec.text_ar == "قُلْ هُوَ ٱللَّهُ أَحَدٌ"  # diacritics and wasla intact
 
 
-def test_normalized_columns_are_populated(built):
+def test_build_output_is_source_only(built):
+    # Stage A3 Task 4: `build` emits a SOURCE-ONLY DB -- no derived tables, no
+    # derived columns -- while the source columns (text_ar, reference_display)
+    # are fully populated. materialize() is what derives the rest.
     out, _ = built
-    rec = db.get_record(db.connect(out), "quran:112:1")
-    assert rec.norm_standard == "قل هو الله احد"
-    assert rec.norm_light != rec.norm_standard
+    c = sqlite3.connect(out)
+    assert c.execute(
+        "SELECT COUNT(*) FROM sqlite_master WHERE name='records_fts'"
+    ).fetchone()[0] == 0
+    assert c.execute(
+        "SELECT COUNT(*) FROM sqlite_master WHERE name='record_variants'"
+    ).fetchone()[0] == 0
+    assert c.execute(
+        "SELECT COUNT(*) FROM records WHERE norm_standard IS NOT NULL"
+    ).fetchone()[0] == 0
+    assert c.execute(
+        "SELECT COUNT(*) FROM records WHERE text_ar_sha256 IS NOT NULL"
+    ).fetchone()[0] == 0
+    # Source columns are still there.
+    assert c.execute(
+        "SELECT COUNT(*) FROM records WHERE text_ar IS NULL"
+    ).fetchone()[0] == 0
+    assert c.execute(
+        "SELECT COUNT(*) FROM records WHERE reference_display IS NULL"
+    ).fetchone()[0] == 0
 
 
-def test_text_checksum_is_of_canonical_text(built):
+def test_norm_columns_are_null_in_source_only(built):
     out, _ = built
     rec = db.get_record(db.connect(out), "quran:112:1")
-    assert rec.text_ar_sha256 == hashlib.sha256(rec.text_ar.encode("utf-8")).hexdigest()
+    assert rec.norm_standard is None
+    assert rec.norm_light is None
+    assert rec.norm_aggressive is None
+
+
+def test_text_checksum_is_null_in_source_only(built):
+    out, _ = built
+    rec = db.get_record(db.connect(out), "quran:112:1")
+    assert rec.text_ar_sha256 is None
 
 
 def test_attribution_block_is_stored_verbatim(built):
@@ -79,9 +109,12 @@ def test_reference_display_uses_surah_name(built):
     assert rec.reference_display == "Al-Ikhlas 112:1"
 
 
-def test_fts_is_populated(built):
+def test_fts_table_is_absent_in_source_only(built):
+    # records_fts is a derived table; the source-only build never creates it.
     out, _ = built
-    assert db.fts_candidates(db.connect(out), "الصمد") != []
+    assert sqlite3.connect(out).execute(
+        "SELECT COUNT(*) FROM sqlite_master WHERE name='records_fts'"
+    ).fetchone()[0] == 0
 
 
 def test_build_succeeds_with_arabic_only_lockfile(built):
@@ -166,11 +199,15 @@ def test_translation_attribution_is_captured(built_with_translation):
     assert row["attribution"].strip() != ""
 
 
-def test_fts_indexes_translation_text(built_with_translation):
-    # Proves rebuild_fts ran AFTER the translations were inserted, not before.
+def test_translation_source_build_is_still_source_only(built_with_translation):
+    # The FTS index over translation text is derived in materialize(), not
+    # build; the source-only build with a translation source still emits no
+    # records_fts. (test_materialize covers that the index picks up
+    # translations.)
     out, _ = built_with_translation
-    results = db.fts_candidates(db.connect(out), "beneficent")
-    assert any(c.record.id == "quran:1:1" for c in results)
+    assert sqlite3.connect(out).execute(
+        "SELECT COUNT(*) FROM sqlite_master WHERE name='records_fts'"
+    ).fetchone()[0] == 0
 
 
 # --- Arabic source via the XML export (bismillah as metadata) --------------
@@ -357,9 +394,20 @@ _MIIM = chr(0x0645)
 
 @pytest.fixture(scope="module")
 def real_corpus(tmp_path_factory):
-    out = tmp_path_factory.mktemp("real-corpus") / "corpus.db"
-    report = out.parent / "hadith-noise-report.md"
-    stats = build_corpus(REAL_LOCKFILE, out, REAL_CACHE, noise_report=report)
+    """The real corpus, built SOURCE-ONLY then materialised.
+
+    `build_corpus` now emits a source-only DB (no norms, no record_variants, no
+    records_fts); the derived data every assertion below reads is produced by
+    materialize(). The build's own source-only shape is asserted by
+    `test_build_output_is_source_only`; here we want the full corpus.
+    """
+    d = tmp_path_factory.mktemp("real-corpus")
+    src = d / "corpus.db"
+    report = d / "hadith-noise-report.md"
+    stats = build_corpus(REAL_LOCKFILE, src, REAL_CACHE, noise_report=report)
+    # Task 5 will replace this inline materialize with the shared session fixture.
+    out = d / "materialized.db"
+    materialize(str(src), str(out))
     return out, stats, report
 
 
@@ -873,169 +921,44 @@ def test_a_missing_do_not_cut_record_aborts_the_build():
     with pytest.raises(BuildError, match="hadith:bukhari:632"):
         _hadith_records(parsed, locked)
 
-
 # --- C1: a hadith representation may not be wholly Qur'anic -----------------
 #
-# Record 4575's cut left a primary matn that was verbatim Qur'an 53:9-10, so
-# those two verses returned EXACT / Sahih al-Bukhari 4575, and the same verses
-# cited "(53:9)" returned WRONG_REFERENCE. `_NEVER_CUT` corrects that one
-# record; the build-time invariant is what closes the class.
-#
-# The unit tests below use Latin placeholder "verses" on purpose. What is
-# being tested is the containment rule -- token boundaries, one surah at a
-# time, primaries and variants alike -- and that rule is script-agnostic,
-# while an Arabic literal typed into a test file is the single most reliable
-# source of defects on this project. The Arabic half is tested where the
-# Arabic actually lives: over every scorable representation of the shipped
-# corpus, in tests/ingest/test_real_corpus.py.
+# The wholly-Qur'anic guard moved to `sanad_ingest.materialize` in Stage A3
+# Task 4 (it reads norm_standard, which the source-only build no longer
+# computes). The rule itself -- token boundaries, one surah at a time,
+# primaries and variants alike -- is unit-tested against the materialize
+# function in tests/ingest/test_materialize.py. What stays HERE is the wiring:
+# proof that the pipeline actually invokes the gate, so a deleted call is a
+# failing test rather than a silent mutant.
 
 
-def _quran_db(tmp_path, verses):
-    """A database holding nothing but the given ayat."""
-    from sanad.corpus.models import Record
-    conn = db.connect(tmp_path / "q.db", read_only=False)
-    db.insert_records(conn, [
-        Record(id=f"quran:{s}:{a}", source_id="s", kind="ayah", surah=s, ayah=a,
-               text_ar=t, text_ar_sha256="0" * 64,
-               norm_light=normalize(t, "light"),
-               norm_standard=normalize(t, "standard"),
-               norm_aggressive=normalize(t, "aggressive"),
-               reference_display=f"S {s}:{a}")
-        for s, a, t in verses])
-    return conn
-
-
-def _hadith(text, *, record_id="hadith:bukhari:1", unscorable_reason=None):
+def _source_hadith(text, *, record_id="hadith:bukhari:99999"):
+    """A SOURCE-ONLY hadith Record: derived columns left NULL, like build emits."""
     from sanad.corpus.models import Record
     return Record(id=record_id, source_id="s", kind="hadith", collection="bukhari",
-                  hadith_no="1", numbering_scheme="bugha-1987", text_ar=text,
-                  unscorable_reason=unscorable_reason, text_ar_sha256="0" * 64,
-                  norm_light=normalize(text, "light"),
-                  norm_standard=normalize(text, "standard"),
-                  norm_aggressive=normalize(text, "aggressive"),
-                  reference_display="Sahih al-Bukhari 1")
+                  hadith_no="99999", numbering_scheme="bugha-1987", text_ar=text,
+                  text_ar_sha256=None, norm_light=None, norm_standard=None,
+                  norm_aggressive=None, reference_display=f"Sahih al-Bukhari {record_id}")
 
 
-def _variant(text, record_id="hadith:bukhari:1"):
-    from sanad.corpus.models import FULL_VARIANT, RecordVariant
-    return RecordVariant(record_id=record_id, variant=FULL_VARIANT, text_ar=text,
-                         norm_light=normalize(text, "light"),
-                         norm_standard=normalize(text, "standard"),
-                         norm_aggressive=normalize(text, "aggressive"))
-
-
-def _locked_hadith():
-    from sanad_ingest.lockfile import LockedSource
-    return LockedSource(
-        id="x", kind="hadith-arabic", format="openiti-markdown", title="X",
-        url="https://example.invalid/x", license_id="public-domain",
-        content_sha256="0" * 64, modifications="none", expected_records=1)
-
-
-def test_a_wholly_quranic_primary_aborts_the_build(tmp_path):
-    from sanad_ingest.build import BuildError, _reject_wholly_quranic_representations
-    conn = _quran_db(tmp_path, [(53, 9, "alpha beta gamma"), (53, 10, "delta epsilon")])
-    with pytest.raises(BuildError, match="wholly a quotation of the Qur'an"):
-        _reject_wholly_quranic_representations(
-            conn, _locked_hadith(), [_hadith("beta gamma delta")], [])
-
-
-def test_a_wholly_quranic_full_text_aborts_the_build_too(tmp_path):
-    """The variant is checked, not just the primary.
-
-    4575 was caught on its primary, but a cut can leave scripture on either
-    side of itself, and a check that read only `records` would ship the other
-    half. This is the same lesson as `_exact_at_tier`: the last false EXACT on
-    this branch came from a filter applied to one representation and not the
-    other.
-    """
-    from sanad_ingest.build import BuildError, _reject_wholly_quranic_representations
-    conn = _quran_db(tmp_path, [(53, 9, "alpha beta gamma")])
-    with pytest.raises(BuildError, match=r"\(full\)"):
-        _reject_wholly_quranic_representations(
-            conn, _locked_hadith(), [_hadith("a narration")], [_variant("alpha beta")])
-
-
-def test_a_hadith_that_merely_contains_an_ayah_is_not_rejected(tmp_path):
-    """The invariant is WHOLLY, and it has to be.
-
-    Hadith 4250 is one word of address followed by the supplication of Qur'an
-    2:201, and hundreds of narrations quote scripture. Rejecting those would
-    empty the corpus of some of its most quoted records; the defect is a matn
-    that is nothing BUT an ayah.
-    """
-    from sanad_ingest.build import _reject_wholly_quranic_representations
-    conn = _quran_db(tmp_path, [(2, 201, "alpha beta gamma")])
-    _reject_wholly_quranic_representations(
-        conn, _locked_hadith(), [_hadith("he said alpha beta gamma and departed")], [])
-
-
-def test_the_containment_check_falls_on_token_boundaries(tmp_path):
-    """"eta" inside "beta" is not a quotation of anything."""
-    from sanad_ingest.build import _reject_wholly_quranic_representations
-    conn = _quran_db(tmp_path, [(1, 1, "alpha beta gamma")])
-    _reject_wholly_quranic_representations(
-        conn, _locked_hadith(), [_hadith("eta gamm")], [])
-
-
-def test_text_spanning_two_surahs_is_not_a_quranic_quotation(tmp_path):
-    """A string that only appears by reading the end of one surah into the
-    start of the next is not a quotation the reader could have made. 4575's
-    matn was two ayat of ONE surah joined, which is why the per-surah blob is
-    the right unit -- and why the existing ayah-by-ayah sweep missed it.
-    """
-    from sanad_ingest.build import _reject_wholly_quranic_representations
-    conn = _quran_db(tmp_path, [(1, 1, "alpha beta"), (2, 1, "gamma delta")])
-    # within one surah: rejected
-    with pytest.raises(Exception, match="wholly a quotation"):
-        _reject_wholly_quranic_representations(
-            conn, _locked_hadith(), [_hadith("alpha beta")], [])
-    # across the join: allowed
-    _reject_wholly_quranic_representations(
-        conn, _locked_hadith(), [_hadith("beta gamma")], [])
-
-
-def test_an_unscorable_primary_is_not_subject_to_the_invariant(tmp_path):
-    """A record that cannot be matched cannot make a false claim. The check
-    follows scorability rather than existence, so it stays an assertion about
-    what the index can answer with."""
-    from sanad_ingest.build import _reject_wholly_quranic_representations
-    conn = _quran_db(tmp_path, [(1, 1, "alpha beta")])
-    _reject_wholly_quranic_representations(
-        conn, _locked_hadith(),
-        [_hadith("alpha beta", unscorable_reason="editorial pointer")], [])
-
-
-def test_the_invariant_refuses_to_pass_vacuously(tmp_path):
-    """With no Qur'an in the database yet there is nothing to compare against,
-    and a silent pass would be a check that never ran. Pass ordering in
-    `build_corpus` is what guarantees the ayat are there; this is what would
-    notice if that ever changed."""
-    from sanad_ingest.build import BuildError, _reject_wholly_quranic_representations
-    conn = _quran_db(tmp_path, [])
-    with pytest.raises(BuildError, match="pass vacuously"):
-        _reject_wholly_quranic_representations(
-            conn, _locked_hadith(), [_hadith("alpha beta")], [])
-
-
-def test_the_build_itself_runs_the_invariant(tmp_path, monkeypatch, real_corpus):
+def test_materialize_runs_the_quranic_guard(tmp_path, monkeypatch, real_corpus):
     """The wiring, not the rule.
 
-    Every test above calls `_reject_wholly_quranic_representations` directly,
-    so all of them still passed when the call was deleted from `build_corpus`
-    -- a surviving mutant, found by mutation-testing this commit. An
-    invariant nothing invokes is decoration.
+    Every unit test of the guard calls `_reject_wholly_quranic_representations`
+    directly, so all of them would still pass if the call were deleted from
+    `materialize()` -- a surviving mutant. An invariant nothing invokes is
+    decoration.
 
-    The poison is a real ayah, read out of the corpus the Qur'an pass has
-    already built, so no Arabic is typed here and the two sides of the
-    comparison are the same bytes by construction. It is appended AFTER
-    `_hadith_records` returns, which is what makes it a test of pass 2's body
-    rather than of the audit checks inside that function.
+    The poison is a real ayah, read out of the already-built corpus, so no
+    Arabic is typed here and the two sides of the comparison are the same bytes
+    by construction. It is appended AFTER `_hadith_records` returns, which makes
+    this a test of the pipeline wiring rather than of the audit checks inside
+    that function. The build now emits source-only, so the poison passes the
+    build silently and it is materialize() that must halt on it.
     """
     from sanad_ingest import build as build_mod
-    from sanad_ingest.build import BuildError
 
-    real_out, _, _ = real_corpus
+    real_out, _, _ = real_corpus  # materialised; the ayat are present
     ayah = db.connect(real_out).execute(
         "SELECT text_ar FROM records WHERE id = 'quran:53:9'").fetchone()["text_ar"]
     assert ayah, "the poison has to be real scripture or this proves nothing"
@@ -1043,9 +966,12 @@ def test_the_build_itself_runs_the_invariant(tmp_path, monkeypatch, real_corpus)
     unpoisoned = build_mod._hadith_records
 
     def poisoned(parsed, locked):
-        records, variants = unpoisoned(parsed, locked)
-        return [*records, _hadith(ayah, record_id="hadith:bukhari:99999")], variants
+        records = unpoisoned(parsed, locked)
+        return [*records, _source_hadith(ayah, record_id="hadith:bukhari:99999")]
 
     monkeypatch.setattr(build_mod, "_hadith_records", poisoned)
-    with pytest.raises(BuildError, match="wholly a quotation of the Qur'an"):
-        build_corpus(REAL_LOCKFILE, tmp_path / "poisoned.db", REAL_CACHE)
+    src = tmp_path / "poisoned-src.db"
+    # The source-only build accepts the poison: it computes no norms to compare.
+    build_corpus(REAL_LOCKFILE, src, REAL_CACHE)
+    with pytest.raises(MaterializeError, match="wholly a quotation of the Qur'an"):
+        materialize(str(src), str(tmp_path / "poisoned.db"))

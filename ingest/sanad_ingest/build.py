@@ -1,19 +1,18 @@
 from __future__ import annotations
 
 import datetime as _dt
-import hashlib
 import logging
 import sqlite3
 from pathlib import Path
 
-from sanad.arabic.normalize import normalize
 from sanad.corpus import db
-from sanad.corpus.models import FULL_VARIANT, Record, RecordVariant, Source
+from sanad.corpus.models import Record, Source
+from sanad.corpus.schema import SOURCE_SCHEMA_SQL
 from sanad.corpus.surahs import surah_name
 
 from .fetch import fetch_source
 from .lockfile import LockedSource, load_lockfile
-from .openiti import _NEVER_CUT, _UNSCORABLE, ParsedOpeniti, full_text
+from .openiti import _NEVER_CUT, _UNSCORABLE, ParsedOpeniti
 from .tanzil import ParsedTanzil, ParsedTanzilXml, parser_for
 
 log = logging.getLogger(__name__)
@@ -88,16 +87,22 @@ def _reference_display(unit, occurrence: int) -> str:
 
 def _hadith_records(
     parsed: ParsedOpeniti, locked: LockedSource
-) -> tuple[list[Record], list[RecordVariant]]:
-    """The hadith records, and the additional representations of them.
+) -> list[Record]:
+    """The hadith records, as SOURCE-ONLY rows.
 
-    Two lists, because a record has one row in `records` and zero or one in
-    `record_variants`: a cut record is scored both as its primary matn and as
-    the full printed text, so neither an over-cut nor an under-cut costs a
-    verification. See `corpus.models.RecordVariant`.
+    Derived columns (`text_ar_sha256`, the three `norm_*`) are left NULL and
+    the `full` record variant is not constructed here at all: both are
+    recomputable from the source columns, so `sanad_ingest.materialize` derives
+    them from the committed source-only DB instead. See
+    `corpus.models.RecordVariant` for why a cut record still needs a second
+    representation -- it is just built later, not here.
+
+    `reference_display` IS written here (Stage A3 ruling R-A3-6): it depends on
+    `HadithUnit.is_repeat` and a build-time occurrence counter, neither a stored
+    column, so it cannot be recomputed downstream and stays a committed source
+    column. The duplicate-`reference_display` rejection therefore stays here too.
     """
     out: list[Record] = []
-    variants: list[RecordVariant] = []
     seen: dict[str, int] = {}
     for u in parsed.units:
         # text_ar is the PRIMARY MATN: never the isnad in front of it, never
@@ -133,32 +138,13 @@ def _hadith_records(
             # Carried straight through from the audited list in openiti.py.
             # The build never decides this; it only refuses to lose it.
             unscorable_reason=u.unscorable_reason,
-            text_ar_sha256=hashlib.sha256(text.encode("utf-8")).hexdigest(),
-            norm_light=normalize(text, "light"),
-            norm_standard=normalize(text, "standard"),
-            norm_aggressive=normalize(text, "aggressive"),
+            # Derived columns left NULL -- materialize() fills them in.
+            text_ar_sha256=None,
+            norm_light=None,
+            norm_standard=None,
+            norm_aggressive=None,
             reference_display=_reference_display(u, seen[u.hadith_no]),
         ))
-
-        # The second representation, for the records the cut actually split.
-        # NOT skipped for an unscorable record. `unscorable_reason` is a
-        # judgement about one string -- the primary matn, pinned by its
-        # sha256 in `openiti._UNSCORABLE` -- and the full printed text is a
-        # different string that was never judged. Applying the judgement to
-        # both representations took 237's 869-character narration, the
-        # longest addendum in the edition, out of the corpus on the strength
-        # of a ruling about the 40-character fragment in front of it, and
-        # quoting the printed hadith returned NOT_FOUND 0.37.
-        if u.addenda_ar is not None:
-            whole = full_text(u)
-            variants.append(RecordVariant(
-                record_id=u.record_id,
-                variant=FULL_VARIANT,
-                text_ar=whole,
-                norm_light=normalize(whole, "light"),
-                norm_standard=normalize(whole, "standard"),
-                norm_aggressive=normalize(whole, "aggressive"),
-            ))
 
     refs: dict[str, str] = {}
     for r in out:
@@ -188,76 +174,7 @@ def _hadith_records(
                 "stopped producing them, which is a much worse bug. Either way "
                 "the build stops rather than ship an audit that covers less than "
                 "it says it does.")
-    return out, variants
-
-
-# The whole of the invariant: nothing scorable as a hadith may be nothing but
-# the Qur'an. The separator is a newline, which `normalize` never produces, so
-# the surahs cannot be read across -- a string matches only if it sits inside
-# ONE surah, which is what "is a Qur'anic quotation" means. Both sides are
-# padded with spaces so a match has to fall on token boundaries rather than
-# mid-word.
-_SURAH_JOIN = "\n"
-
-
-def _quran_blob(conn: sqlite3.Connection) -> str:
-    rows = conn.execute(
-        "SELECT surah, norm_standard FROM records WHERE kind = 'ayah'"
-        " ORDER BY surah, ayah").fetchall()
-    by_surah: dict[int, list[str]] = {}
-    for row in rows:
-        by_surah.setdefault(row["surah"], []).append(row["norm_standard"])
-    return _SURAH_JOIN.join(f" {' '.join(v)} " for v in by_surah.values())
-
-
-def _reject_wholly_quranic_representations(
-    conn: sqlite3.Connection, locked: LockedSource,
-    records: list[Record], variants: list[RecordVariant],
-) -> None:
-    """A hadith representation may not be, in its entirety, Qur'anic text.
-
-    Record 4575's cut left a primary matn that was verbatim Qur'an 53:9-10, so
-    quoting those two verses returned EXACT / Sahih al-Bukhari 4575, and
-    quoting them with the correct "(53:9)" returned WRONG_REFERENCE. Both
-    directions at once: scripture attributed to a hadith collection, and a
-    reader told their correct citation was a misattribution.
-
-    This is an assertion about the corpus, not a heuristic with a knob. The
-    containment scan over all 7,504 scorable representations finds exactly one
-    hit, and it is the record the audit now leaves uncut, so the check is
-    expected to pass silently forever. If it ever fires, a cut has produced
-    another one and the build stops rather than ship it -- which is the point:
-    `_NEVER_CUT` fixes the record it names, and only this closes the class for
-    the editions still to come, where tafsir-shaped units are far more common.
-
-    Comparison is at the STANDARD tier, not `light`: that is the coarser of
-    the two tiers that can return a verified verdict, so a match here is
-    exactly the set of texts that could be answered EXACT or
-    EXACT_ORTHOGRAPHY. Nothing is normalized in transit -- the stored norms
-    are compared as they were computed.
-    """
-    blob = _quran_blob(conn)
-    if not blob.strip():
-        raise BuildError(
-            f"{locked.id}: no Qur'anic records are in the corpus yet, so the "
-            "wholly-Qur'anic check would pass vacuously. The Qur'an pass must "
-            "run before the hadith pass.")
-    scorable = [(r.id, "primary", r.norm_standard) for r in records
-                if r.unscorable_reason is None]
-    scorable += [(v.record_id, v.variant, v.norm_standard) for v in variants]
-    offenders = [(rid, variant) for rid, variant, norm in scorable
-                 if norm.strip() and f" {norm} " in blob]
-    if offenders:
-        raise BuildError(
-            f"{locked.id}: {', '.join(f'{r} ({v})' for r, v in offenders)} "
-            "is scorable as a hadith and is wholly a quotation of the Qur'an. "
-            "Sanad would answer a reader who quotes those verses with a "
-            "Bukhari citation, and would tell a reader who cites them "
-            "correctly that their reference is wrong. The remedy is a "
-            "judgement about the record -- almost always that the cut is in "
-            "the wrong place and the unit should be left uncut, as "
-            "openiti._NEVER_CUT does for 4575 -- read in the source, not a "
-            "filter applied here.")
+    return out
 
 
 _NOISE_HEADER = """# Hadith OCR noise report
@@ -317,7 +234,9 @@ def build_corpus(lockfile: Path, out_db: Path, cache_dir: Path,
     if out_db.exists():
         out_db.unlink()
 
-    conn = db.connect(out_db, read_only=False)
+    # SOURCE_SCHEMA_SQL only: the committed DB carries no record_variants, no
+    # records_fts and no derived indexes. materialize() re-creates all of them.
+    conn = db.connect(out_db, read_only=False, schema=SOURCE_SCHEMA_SQL)
     today = _dt.datetime.now(tz=_dt.timezone.utc).date().isoformat()
     locked_sources = load_lockfile(lockfile)
 
@@ -341,10 +260,11 @@ def build_corpus(lockfile: Path, out_db: Path, cache_dir: Path,
                 id=f"quran:{surah}:{ayah}", source_id=locked.id, kind="ayah",
                 surah=surah, ayah=ayah, surah_name_ar=name_ar, surah_name_en=name_en,
                 text_ar=text, bismillah=bismillah,
-                text_ar_sha256=hashlib.sha256(text.encode("utf-8")).hexdigest(),
-                norm_light=normalize(text, "light"),
-                norm_standard=normalize(text, "standard"),
-                norm_aggressive=normalize(text, "aggressive"),
+                # Derived columns left NULL -- materialize() fills them in.
+                text_ar_sha256=None,
+                norm_light=None,
+                norm_standard=None,
+                norm_aggressive=None,
                 reference_display=f"{name_en} {surah}:{ayah}",
             ))
         db.insert_records(conn, records)
@@ -362,15 +282,13 @@ def build_corpus(lockfile: Path, out_db: Path, cache_dir: Path,
         parsed = _parse(locked, raw)
         _register_source(conn, locked, parsed, today)
 
-        records, variants = _hadith_records(parsed, locked)
-        # Before anything is written: a representation that is wholly Qur'anic
-        # must never reach the index. Checked against the ayah rows pass 1
-        # already inserted.
-        _reject_wholly_quranic_representations(conn, locked, records, variants)
+        records = _hadith_records(parsed, locked)
+        # The wholly-Qur'anic integrity gate needs norm_standard, which the
+        # source-only build no longer computes; it now runs inside
+        # materialize() over the derived DB. record_variants are derived there
+        # too, so nothing but source rows is written here.
         db.insert_records(conn, records)
-        db.insert_record_variants(conn, variants)
-        log.info("inserted %d records and %d further representations from %s",
-                 len(records), len(variants), locked.id)
+        log.info("inserted %d records from %s", len(records), locked.id)
         if noise_report is not None:
             _write_noise_report(Path(noise_report), locked, parsed, records)
 
@@ -395,7 +313,8 @@ def build_corpus(lockfile: Path, out_db: Path, cache_dir: Path,
         db.insert_translations(conn, translations)
         log.info("inserted %d translations from %s", len(translations), locked.id)
 
-    db.rebuild_fts(conn)
+    # No rebuild_fts here: records_fts is a derived table absent from the
+    # source-only DB. materialize() builds it.
     stats = db.corpus_stats(conn)
     conn.close()
     return stats

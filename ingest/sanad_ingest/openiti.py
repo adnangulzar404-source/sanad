@@ -177,7 +177,7 @@ _STUB_OPENER = ("narrative opener: the primary matn names no act, ruling or "
 # honorific frame, looking for stubs. A primary made of scripture is dense
 # with content words and ranks at the very bottom of that list: the metric was
 # built to find emptiness and cannot see this. The corpus-wide invariant in
-# `build._reject_wholly_quranic_representations` is what closes the class;
+# `materialize._reject_wholly_quranic_representations` is what closes the class;
 # this entry corrects the one record.
 _QURANIC_PRIMARY = ("Qur'anic primary: the cut leaves a matn that is nothing "
                     "but the ayah the chapter comments on, the narration that "

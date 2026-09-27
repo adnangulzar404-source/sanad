@@ -11,11 +11,21 @@ tests assert that the shipped database reflects that.
 See tests/ingest/test_tanzil.py and tests/ingest/test_build.py for the
 equivalent checks against fixtures, independent of this committed database.
 """
+import tempfile
 from pathlib import Path
 
 from sanad.corpus import db
+from sanad_ingest.materialize import materialize
 
-DB_PATH = Path("data/sanad-quran.db")
+# The committed DB is now SOURCE-ONLY (Stage A3 Task 4): no norms, no
+# record_variants, no records_fts. Every test in this file reads derived data,
+# so we materialise the committed source DB once and point DB_PATH at the
+# result. Task 5 will replace this inline materialize with the shared session
+# fixture.
+_SOURCE_DB = Path("data/sanad-quran.db")
+_MATERIALIZED_DIR = Path(tempfile.mkdtemp(prefix="sanad-materialized-"))
+DB_PATH = _MATERIALIZED_DIR / "corpus.db"
+materialize(str(_SOURCE_DB), str(DB_PATH))
 
 # 112:1, "Say: He is Allah, the One" -- built from explicit codepoints,
 # verified against the built database, rather than a literal in the source

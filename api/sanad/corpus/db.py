@@ -21,14 +21,23 @@ _RECORD_COLS = (
 _FTS_UNSAFE = re.compile(r'[^\w؀-ۿ ]', re.UNICODE)
 
 
-def connect(path: str | Path, *, read_only: bool = True) -> sqlite3.Connection:
+def connect(path: str | Path, *, read_only: bool = True,
+            schema: str = SCHEMA_SQL) -> sqlite3.Connection:
+    """Open the corpus DB. Writable connections apply `schema`.
+
+    `schema` defaults to the full `SCHEMA_SQL` so every existing caller is
+    unchanged. `sanad-ingest build` passes `SOURCE_SCHEMA_SQL` instead, so the
+    committed source-only DB carries no `record_variants`, no `records_fts`
+    and none of the derived indexes -- `materialize()` re-creates all of those
+    from the source columns.
+    """
     path = Path(path)
     if read_only:
         conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
     else:
         path.parent.mkdir(parents=True, exist_ok=True)
         conn = sqlite3.connect(path)
-        conn.executescript(SCHEMA_SQL)
+        conn.executescript(schema)
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -221,30 +230,39 @@ FINGERPRINT_TABLES: tuple[tuple[str, tuple[str, ...], str], ...] = (
                      "norm_aggressive", "translation"), "record_id, variant"),
 )
 
+# The SOURCE half of the fingerprint: the tables and columns a source-only DB
+# (Stage A3) actually carries. `records` here lists only its SOURCE columns --
+# the four DERIVED columns (`text_ar_sha256`, `norm_light`, `norm_standard`,
+# `norm_aggressive`) are excluded because a source-only DB leaves them NULL and
+# `materialize()` fills them in, so hashing them would make a source DB and its
+# materialisation fingerprint differently for a reason that says nothing about
+# the source. `reference_display` IS included: it is a committed source column,
+# not derived (Stage A3 ruling R-A3-6). `record_variants` and `records_fts` are
+# absent entirely -- they do not exist in a source-only DB.
+_SOURCE_RECORD_COLS = tuple(
+    c for c in _RECORD_COLS
+    if c not in ("text_ar_sha256", "norm_light", "norm_standard",
+                 "norm_aggressive"))
+
+SOURCE_FINGERPRINT_TABLES: tuple[tuple[str, tuple[str, ...], str], ...] = (
+    ("sources", tuple(c for c in (
+        "id", "kind", "title", "publisher", "edition", "url", "license_id",
+        "license_url", "attribution", "upstream_sha256", "modifications")),
+     "id"),
+    ("records", _SOURCE_RECORD_COLS, "id"),
+    ("translations", _TRANSLATION_COLS, "record_id, source_id"),
+)
+
 # Field and row separators, and a stand-in for SQL NULL. All three are control
 # characters no corpus text contains, so "abc" + NULL and "abc" + "" cannot
 # hash to the same thing -- which they would under a plain str() join.
 _FP_FIELD, _FP_ROW, _FP_NULL = "\x1f", "\x1e", "\x00"
 
 
-def corpus_fingerprint(conn: sqlite3.Connection) -> str:
-    """A content hash over everything `sanad-ingest build` writes.
-
-    CI compares this between the committed `data/sanad-quran.db` and a fresh
-    build, which is the check that stops a hand-edited corpus from shipping.
-    It is deliberately NOT the file's sha256: two byte-different SQLite files
-    can hold identical content (page layout, vacuum state, index ordering),
-    and a check that fails on those is a check people learn to ignore.
-
-    It is equally deliberately not `(id, text_ar_sha256)` over `records`,
-    which is what it used to be. That covered one of the four tables the build
-    populates and none of the columns the matcher actually compares, so the
-    I1 fix's own subject -- `record_variants` and `records_fts` -- was outside
-    it, and deleting a record's variant and index rows left the digest
-    byte-identical. See `FINGERPRINT_TABLES`.
-    """
+def _fingerprint(conn: sqlite3.Connection,
+                 tables: tuple[tuple[str, tuple[str, ...], str], ...]) -> str:
     digest = hashlib.sha256()
-    for table, columns, order in FINGERPRINT_TABLES:
+    for table, columns, order in tables:
         digest.update(f"{_FP_ROW}table:{table}{_FP_FIELD}".encode())
         rows = conn.execute(
             f"SELECT {','.join(columns)} FROM {table} ORDER BY {order}")
@@ -253,6 +271,45 @@ def corpus_fingerprint(conn: sqlite3.Connection) -> str:
                 _FP_NULL if v is None else str(v) for v in row).encode())
             digest.update(_FP_ROW.encode())
     return digest.hexdigest()
+
+
+def corpus_fingerprint(conn: sqlite3.Connection) -> str:
+    """A content hash over everything a FULL (materialised) corpus holds.
+
+    CI compares this between a materialised `data/sanad-quran.db` and a fresh
+    build+materialise, which is the check that stops a hand-edited corpus from
+    shipping. It is deliberately NOT the file's sha256: two byte-different
+    SQLite files can hold identical content (page layout, vacuum state, index
+    ordering), and a check that fails on those is a check people learn to
+    ignore.
+
+    It is equally deliberately not `(id, text_ar_sha256)` over `records`,
+    which is what it used to be. That covered one of the four tables the build
+    populates and none of the columns the matcher actually compares, so the
+    I1 fix's own subject -- `record_variants` and `records_fts` -- was outside
+    it, and deleting a record's variant and index rows left the digest
+    byte-identical. See `FINGERPRINT_TABLES`.
+
+    It covers `record_variants` and `records_fts`, so it can only be taken over
+    a materialised DB; a source-only DB has neither table. Use
+    `corpus_source_fingerprint` for the committed source artifact.
+    """
+    return _fingerprint(conn, FINGERPRINT_TABLES)
+
+
+def corpus_source_fingerprint(conn: sqlite3.Connection) -> str:
+    """A content hash over the SOURCE data only -- what the committed DB carries.
+
+    Identical in construction to `corpus_fingerprint`, but restricted to the
+    tables and columns a source-only DB holds: `sources`, `records` (source
+    columns only -- no `norm_*`, no `text_ar_sha256`, but WITH
+    `reference_display`, which is a committed source column, not derived), and
+    `translations`. It is invariant under `materialize()`: materialisation only
+    adds derived data, so a source DB and its materialisation share this hash
+    even though their full `corpus_fingerprint`s differ. See
+    `SOURCE_FINGERPRINT_TABLES`.
+    """
+    return _fingerprint(conn, SOURCE_FINGERPRINT_TABLES)
 
 
 def corpus_stats(conn: sqlite3.Connection) -> dict[str, int]:

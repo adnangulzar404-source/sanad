@@ -46,6 +46,10 @@ def materialize(src_path: str, out_path: str) -> dict:
         _derive_records(conn)
         _derive_variants(conn)
         db.rebuild_fts(conn)
+        # Halting integrity gate: no scorable hadith representation may be, in
+        # its entirety, a Qur'anic quotation. Runs AFTER the norms and variants
+        # it reads have been derived, alongside the completeness assertion.
+        _reject_wholly_quranic_representations(conn)
         _assert_complete(conn)
         conn.commit()
         return db.corpus_stats(conn)
@@ -82,6 +86,79 @@ def _derive_variants(conn: sqlite3.Connection) -> None:
             (rid, FULL_VARIANT, full, normalize(full, "light"),
              normalize(full, "standard"), normalize(full, "aggressive")),
         )
+
+
+# The whole of the invariant: nothing scorable as a hadith may be nothing but
+# the Qur'an. The separator is a newline, which `normalize` never produces, so
+# the surahs cannot be read across -- a string matches only if it sits inside
+# ONE surah, which is what "is a Qur'anic quotation" means. Both sides are
+# padded with spaces so a match has to fall on token boundaries rather than
+# mid-word.
+_SURAH_JOIN = "\n"
+
+
+def _quran_blob(conn: sqlite3.Connection) -> str:
+    rows = conn.execute(
+        "SELECT surah, norm_standard FROM records WHERE kind = 'ayah'"
+        " ORDER BY surah, ayah").fetchall()
+    by_surah: dict[int, list[str]] = {}
+    for surah, norm_standard in rows:
+        by_surah.setdefault(surah, []).append(norm_standard or "")
+    return _SURAH_JOIN.join(f" {' '.join(v)} " for v in by_surah.values())
+
+
+def _reject_wholly_quranic_representations(conn: sqlite3.Connection) -> None:
+    """A hadith representation may not be, in its entirety, Qur'anic text.
+
+    Record 4575's cut left a primary matn that was verbatim Qur'an 53:9-10, so
+    quoting those two verses returned EXACT / Sahih al-Bukhari 4575, and
+    quoting them with the correct "(53:9)" returned WRONG_REFERENCE. Both
+    directions at once: scripture attributed to a hadith collection, and a
+    reader told their correct citation was a misattribution.
+
+    This is an assertion about the corpus, not a heuristic with a knob. The
+    containment scan over all 7,504 scorable representations finds exactly one
+    hit, and it is the record the audit now leaves uncut, so the check is
+    expected to pass silently forever. If it ever fires, a cut has produced
+    another one and materialisation stops rather than ship it -- which is the
+    point: `_NEVER_CUT` fixes the record it names, and only this closes the
+    class for the editions still to come, where tafsir-shaped units are far
+    more common.
+
+    It moved here from `build` with the derivation it depends on: it reads the
+    `norm_standard` of every scorable hadith primary and every record_variant
+    straight from the DB, so it must run after `_derive_records`,
+    `_derive_variants` and `rebuild_fts`. Comparison is at the STANDARD tier,
+    not `light`: that is the coarser of the two tiers that can return a verified
+    verdict, so a match here is exactly the set of texts that could be answered
+    EXACT or EXACT_ORTHOGRAPHY. Nothing is normalized in transit -- the stored
+    norms are compared as they were derived.
+    """
+    blob = _quran_blob(conn)
+    if not blob.strip():
+        raise MaterializeError(
+            "no Qur'anic records are in the corpus, so the wholly-Qur'anic "
+            "check would pass vacuously. The Qur'an must be present before "
+            "this gate can mean anything.")
+    scorable = conn.execute(
+        "SELECT id, 'primary', norm_standard FROM records"
+        " WHERE kind = 'hadith' AND unscorable_reason IS NULL"
+        " UNION ALL "
+        "SELECT record_id, variant, norm_standard FROM record_variants"
+    ).fetchall()
+    offenders = [(rid, variant) for rid, variant, norm in scorable
+                 if norm and norm.strip() and f" {norm} " in blob]
+    if offenders:
+        raise MaterializeError(
+            f"{', '.join(f'{r} ({v})' for r, v in offenders)} "
+            "is scorable as a hadith and is wholly a quotation of the Qur'an. "
+            "Sanad would answer a reader who quotes those verses with a "
+            "Bukhari citation, and would tell a reader who cites them "
+            "correctly that their reference is wrong. The remedy is a "
+            "judgement about the record -- almost always that the cut is in "
+            "the wrong place and the unit should be left uncut, as "
+            "openiti._NEVER_CUT does for 4575 -- read in the source, not a "
+            "filter applied here.")
 
 
 def _assert_complete(conn: sqlite3.Connection) -> None:

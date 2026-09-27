@@ -38,7 +38,7 @@ CANDIDATE_LIMIT = 50
 #
 # DISCLOSING where the words are is asked at the STANDARD tier -- the coarser
 # of the two tiers that can carry a verified verdict, and the tier
-# `build._reject_wholly_quranic_representations` uses for the same judgement.
+# `materialize._reject_wholly_quranic_representations` uses for the same judgement.
 # That is a statement made to the reader, and this module's founding rule is
 # that an aggressive-tier fold (alef maksura/yeh, teh marbuta/heh) can
 # manufacture an agreement that is not in the letters, so it may never be
@@ -479,7 +479,7 @@ def _ayat_containing(conn: sqlite3.Connection, text: str,
     Substring containment, not equality and not token alignment. The attached
     conjunction is the whole point: `hadith:bukhari:3658`'s entire matn is "the
     moon split" and Qur'an 54:1 ends with the same two words carrying a
-    prefixed waw, so a token-aligned test -- which is what the build's
+    prefixed waw, so a token-aligned test -- which is what materialisation's
     `_reject_wholly_quranic_representations` runs, and rightly -- sees nothing.
 
     The record is legitimate. It is a Companion's report whose matn really is

@@ -1,5 +1,5 @@
 import httpx
-from sanad.agents.claude_client import call_structured, ClaudeError
+from sanad.agents.claude_client import ClaudeError, call_structured
 
 _SCHEMA = {"type": "object", "properties": {"x": {"type": "string"}},
            "required": ["x"], "additionalProperties": False}
@@ -89,7 +89,7 @@ def test_request_body_uses_adaptive_thinking_and_output_config():
             "content": [{"type": "text", "text": '{"x":"1"}'}], "usage": {}})
     call_structured(system_blocks=[{"type": "text", "text": "s"}], user_text="q",
                     schema=_SCHEMA, key="k", client=_client(h))
-    assert seen["model"] == "claude-opus-5"
+    assert seen["model"] == "claude-sonnet-4-6"
     assert seen["thinking"] == {"type": "adaptive"}
     assert seen["output_config"]["format"]["type"] == "json_schema"
     assert seen["output_config"]["effort"] == "high"

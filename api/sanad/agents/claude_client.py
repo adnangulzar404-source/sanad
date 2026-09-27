@@ -23,7 +23,7 @@ import httpx
 
 ANTHROPIC_URL = "https://api.anthropic.com/v1/messages"
 ANTHROPIC_VERSION = "2023-06-01"
-CLAUDE_MODEL = "claude-opus-5"
+CLAUDE_MODEL = "claude-sonnet-4-6"
 _TIMEOUT = 120.0
 _MAX_TOKENS = 16000
 

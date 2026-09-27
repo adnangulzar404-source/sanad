@@ -9,6 +9,7 @@ from pathlib import Path
 from .build import BuildError, build_corpus
 from .fetch import HashMismatch
 from .lockfile import LockfileError
+from .materialize import materialize
 from .tanzil import TanzilParseError
 
 
@@ -33,6 +34,11 @@ def main(argv: list[str] | None = None) -> int:
     e.add_argument("--vectors", type=Path, default=Path("data/sanad-vectors.db"))
     e.add_argument("-v", "--verbose", action="store_true")
 
+    mat = sub.add_parser("materialize", help="derive norms/FTS/indexes from a source-only DB")
+    mat.add_argument("--in", dest="src", required=True)
+    mat.add_argument("--out", dest="out", required=True)
+    mat.add_argument("-v", "--verbose", action="store_true")
+
     args = parser.parse_args(argv)
     logging.basicConfig(
         level=logging.DEBUG if args.verbose else logging.INFO,
@@ -51,6 +57,11 @@ def main(argv: list[str] | None = None) -> int:
         stats = run_embed(args.db, args.vectors, key=key)
         print(f"embedded {stats['embedded']}, skipped {stats['skipped']} "
               f"(total {stats['total']}) -> {args.vectors}")
+        return 0
+
+    if args.command == "materialize":
+        stats = materialize(args.src, args.out)
+        print(f"materialized: {stats}")
         return 0
 
     try:

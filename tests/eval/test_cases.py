@@ -22,9 +22,10 @@ from sanad.corpus import db
 from sanad.corpus.scope import CORPUS_SCOPE
 
 from eval.runner import MISATTRIBUTED, VERIFIED, Case, load_cases, run_eval
+from tests._corpus import MATERIALIZED_DB
 
 CASES = Path("eval/cases")
-DB = "data/sanad-quran.db"
+DB = MATERIALIZED_DB
 
 
 @pytest.fixture(scope="module")

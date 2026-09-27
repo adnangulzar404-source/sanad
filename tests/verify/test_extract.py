@@ -1,6 +1,7 @@
 import pytest
-
 from sanad.verify.extract import extract_spans
+
+from tests._corpus import MATERIALIZED_DB
 
 
 def test_extracts_guillemet_quote():
@@ -108,7 +109,7 @@ def test_wrapped_pattern_contains_every_delimiter(ch):
 
 def test_every_real_record_is_extractable_when_quoted():
     from sanad.corpus import db
-    conn = db.connect("data/sanad-quran.db")
+    conn = db.connect(MATERIALIZED_DB)
     missed = [r.id for r in db.iter_records(conn)
               if r.text_ar and not extract_spans("«" + r.text_ar + "»")]
     assert missed == [], f"{len(missed)} records produce no span: {missed[:10]}"
@@ -116,7 +117,7 @@ def test_every_real_record_is_extractable_when_quoted():
 
 def test_no_record_has_an_empty_scored_text():
     from sanad.corpus import db
-    conn = db.connect("data/sanad-quran.db")
+    conn = db.connect(MATERIALIZED_DB)
     empty = {r.id for r in db.iter_records(conn) if not r.text_ar.strip()}
     assert empty == set()
 
@@ -124,7 +125,7 @@ def test_no_record_has_an_empty_scored_text():
 def test_an_empty_record_cannot_be_matched():
     from sanad.corpus import db
     from sanad.verify.engine import verify_spans
-    conn = db.connect("data/sanad-quran.db")
+    conn = db.connect(MATERIALIZED_DB)
     for quotation in ("«»", "«   »", ""):
         assert verify_spans(conn, quotation) == []
 

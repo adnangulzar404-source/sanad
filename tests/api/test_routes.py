@@ -5,8 +5,9 @@ import sqlite3
 
 import pytest
 from fastapi.testclient import TestClient
-
 from sanad.api.app import create_app
+
+from tests._corpus import MATERIALIZED_DB
 
 # Al-Ikhlas 1 (quran:112:1), written as explicit \\uXXXX escapes, one per
 # codepoint, rather than as a literal glyph run. `text_ar` is Tanzil's
@@ -172,7 +173,7 @@ def test_a_verified_hadith_exposes_its_isnad_and_bukhari_identity(client):
     collection identity -- `isnad_ar` is stored and never scored (Stage A2
     spec sec 7) but was previously invisible to any API caller."""
     from sanad.corpus import db as corpus_db
-    conn = corpus_db.connect("data/sanad-quran.db")
+    conn = corpus_db.connect(MATERIALIZED_DB)
     rec = corpus_db.get_record(conn, "hadith:bukhari:1")
     body = client.post("/api/verify", json={"text": f"«{rec.text_ar}»"}).json()
     out = body["quotations"][0]["record"]
@@ -209,7 +210,7 @@ def test_no_grading_or_authenticity_claim_is_ever_returned(client):
     bytes, not a specific field, so a grading smuggled in anywhere in the
     payload (a new field, a note, a claim label) is still caught."""
     from sanad.corpus import db as corpus_db
-    conn = corpus_db.connect("data/sanad-quran.db")
+    conn = corpus_db.connect(MATERIALIZED_DB)
     rec = corpus_db.get_record(conn, "hadith:bukhari:1")
     body = client.post("/api/verify", json={"text": f"«{rec.text_ar}»"}).text.lower()
     for word in ("da'if", "daif", "hasan", "grading", "authentic", "graded"):
@@ -289,7 +290,7 @@ def test_verify_does_not_echo_text_into_audit_log(client):
 # `api/sanad/api/app.py` (`_open_corpus_conn`, `_open_audit_conn`) and
 # `api/sanad/corpus/schema.py` (`AUDIT_SCHEMA_SQL`).
 
-_CORPUS_PATH = pathlib.Path("data/sanad-quran.db")
+_CORPUS_PATH = pathlib.Path(MATERIALIZED_DB)
 
 
 def test_serving_a_request_does_not_modify_the_corpus_file(client, tmp_path):
@@ -403,7 +404,7 @@ def test_a_verified_hadith_carries_its_appended_narrations(client):
     342 is the Isra'/Mi'raj; the text is read from the corpus, never typed.
     """
     from sanad.corpus import db as corpus_db
-    conn = corpus_db.connect("data/sanad-quran.db")
+    conn = corpus_db.connect(MATERIALIZED_DB)
     rec = corpus_db.get_record(conn, "hadith:bukhari:342")
     assert rec.addenda_ar, "fixture record must carry an addendum"
     body = client.post("/api/verify", json={"text": f"«{rec.text_ar}»"}).json()
@@ -444,7 +445,7 @@ def test_a_hadith_matching_on_both_representations_is_one_search_result(client):
     record. Listing the same hadith twice is not something a reader can make
     sense of."""
     from sanad.corpus import db as corpus_db
-    conn = corpus_db.connect("data/sanad-quran.db")
+    conn = corpus_db.connect(MATERIALIZED_DB)
     rec = corpus_db.get_record(conn, "hadith:bukhari:342")
     body = client.get("/api/search", params={"q": rec.text_ar[:60], "limit": 20}).json()
     ids = [r["id"] for r in body["results"]]

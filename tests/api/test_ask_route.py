@@ -1,10 +1,13 @@
 """Task 11: `POST /api/ask` — SSE route rendering records server-side.
 
 `run_ask` (Task 10) is monkeypatched module-qualified on `sanad.api.routes`
-so these tests need no network access and no real API keys. The shipped
-corpus (`data/sanad-quran.db`, resolved via `SANAD_DB`'s fallback) provides
-the real `quran:2:153` record so the "server renders the record" assertion
-is against real data, not a fake.
+so these tests need no network access and no real API keys. `create_app()`
+resolves its corpus via `SANAD_DB`, which `tests/conftest.py` points at the
+materialized DB (`tests._corpus.MATERIALIZED_DB`) for the whole session --
+the committed `data/sanad-quran.db` is source-only (Stage A3 Task 4) and has
+no derived norms for `Record` to load. That materialized corpus provides the
+real `quran:2:153` record so the "server renders the record" assertion is
+against real data, not a fake.
 """
 from __future__ import annotations
 

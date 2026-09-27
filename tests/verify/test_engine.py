@@ -3,6 +3,8 @@ from sanad.arabic.normalize import normalize
 from sanad.corpus import db
 from sanad.verify.engine import Verdict, verify_spans
 
+from tests._corpus import MATERIALIZED_DB
+
 IKHLAS_1 = "قُلْ هُوَ ٱللَّهُ أَحَدٌ"
 # quran:108:1. The task brief's literal used a bare alef here; the corpus (and
 # correct Uthmani orthography) has ALEF WITH MADDA ABOVE (U+0622), which the
@@ -13,7 +15,7 @@ KAWTHAR_1 = "إِنَّآ أَعْطَيْنَٰكَ ٱلْكَوْثَرَ"
 
 @pytest.fixture(scope="module")
 def conn():
-    return db.connect("data/sanad-quran.db")
+    return db.connect(MATERIALIZED_DB)
 
 
 def _only(matches):

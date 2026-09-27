@@ -4,6 +4,8 @@ import pytest
 from sanad.corpus import db
 from sanad.corpus.models import Record, RecordVariant, Source
 
+from tests._corpus import MATERIALIZED_DB
+
 SRC = Source(
     id="tanzil-uthmani-1.1", kind="quran-arabic", title="Tanzil Uthmani",
     publisher="Tanzil Project", edition="1.1", url="https://tanzil.net/",
@@ -423,7 +425,7 @@ def test_the_fingerprint_covers_every_table_the_build_writes():
     declared = re.findall(r"CREATE (?:VIRTUAL )?TABLE IF NOT EXISTS (\w+)",
                           SCHEMA_SQL)
     assert len(declared) >= 6, declared
-    conn = db.connect("data/sanad-quran.db")
+    conn = db.connect(MATERIALIZED_DB)
     populated = {t for t in declared if _rows_of(conn, t)}
     covered = {t for t, _cols, _order in db.FINGERPRINT_TABLES}
     assert populated - covered == set(), populated - covered

@@ -1,7 +1,9 @@
 from pathlib import Path
 
-from eval.runner import Case, load_cases, run_eval
 from sanad.corpus import db
+
+from eval.runner import Case, load_cases, run_eval
+from tests._corpus import MATERIALIZED_DB
 
 CASES = Path("eval/cases")
 
@@ -13,12 +15,12 @@ def test_loads_every_case_file():
 
 
 def test_full_suite_passes():
-    metrics = run_eval(db.connect("data/sanad-quran.db"), load_cases(CASES))
+    metrics = run_eval(db.connect(MATERIALIZED_DB), load_cases(CASES))
     assert metrics.failures == [], f"failing cases: {metrics.failures}"
 
 
 def test_no_false_verifications():
-    metrics = run_eval(db.connect("data/sanad-quran.db"), load_cases(CASES))
+    metrics = run_eval(db.connect(MATERIALIZED_DB), load_cases(CASES))
     assert metrics.false_verifications == 0
 
 
@@ -26,12 +28,12 @@ def test_no_false_misattributions():
     # The second gated metric: a WRONG_REFERENCE no case licensed. Tracked
     # here beside its sibling because CI reads both, and because the whole
     # point of the addition is that the two are one severity class.
-    metrics = run_eval(db.connect("data/sanad-quran.db"), load_cases(CASES))
+    metrics = run_eval(db.connect(MATERIALIZED_DB), load_cases(CASES))
     assert metrics.false_misattributions == 0
 
 
 def test_a_mutation_case_is_never_verified():
-    conn = db.connect("data/sanad-quran.db")
+    conn = db.connect(MATERIALIZED_DB)
     cases = [c for c in load_cases(CASES) if c.id.startswith("mutation-")]
     assert cases
     metrics = run_eval(conn, cases)
@@ -47,7 +49,7 @@ def test_gate_catches_a_false_verification_in_a_second_span():
     # the old first-span-only check this case would pass silently, hiding a
     # verified quotation the case never claimed to expect. The broadened gate
     # must catch it as a false verification.
-    conn = db.connect("data/sanad-quran.db")
+    conn = db.connect(MATERIALIZED_DB)
     fabricated = "هذا كلام مخترع تماما وليس من القران الكريم ابدا"
     real_verse = db.get_record(conn, "quran:112:1").text_ar
     case = Case(

@@ -7,6 +7,7 @@ import pytest
 from sanad.arabic.normalize import normalize
 from sanad.corpus import db
 from sanad_ingest.build import build_corpus
+from sanad_ingest.lockfile import LockedSource
 from sanad_ingest.materialize import MaterializeError, materialize
 
 FIXTURE = Path("tests/fixtures/tanzil_excerpt.txt")
@@ -673,6 +674,72 @@ def test_reference_display_occurrence_suffix_for_non_bukhari_collection():
     from sanad_ingest.build import _reference_display
     unit = _make_unit("3905", is_repeat=False)
     assert _reference_display("muslim", unit, 2) == "Sahih Muslim 3905 (2)"
+
+
+# --- Task 8 fix round 1 (R-A3-12): collection threaded into the openiti
+# parser, and the build guards the id<->collection invariant ----------------
+#
+# Task 8 wired `collection` into every downstream consumer of `LockedSource`
+# (Record.collection, _reference_display, the audit-list lookups) but left
+# `_parse`'s call to `parser_for(locked.format)(raw)` passing no `collection`
+# at all -- so `parse_openiti` fell back to its own "bukhari" default and
+# every non-Bukhari hadith source (Tasks 11-15) would have minted
+# "hadith:bukhari:N" ids regardless of its real collection. This is the fix.
+
+_MUSLIM_BAA = chr(0x0628)
+_MUSLIM_HADDATHANA = "".join(
+    chr(c) for c in (0x062D, 0x062F, 0x062B, 0x0646, 0x0627))  # حدثنا
+_MUSLIM_AN = "".join(chr(c) for c in (0x0639, 0x0646))          # عن
+
+
+def _openiti_snippet(number: str, matn: str) -> str:
+    """A minimal openiti-markdown unit, same shape as
+    tests/ingest/test_openiti.py's `_muslim_unit` fixture builder."""
+    baa = _MUSLIM_BAA
+    return (f"#META#Header#End#\n### | {baa * 5}\n"
+            f"# {number} {_MUSLIM_HADDATHANA} {baa * 6} {_MUSLIM_AN} "
+            f"{baa * 6} * {matn}\n")
+
+
+def _muslim_locked(**overrides) -> LockedSource:
+    kwargs = dict(
+        id="test-muslim-source", kind="hadith-arabic", format="openiti-markdown",
+        title="Test Muslim Source", url="https://example.invalid/muslim",
+        license_id="public-domain", content_sha256="0" * 64,
+        modifications="none", expected_records=1, collection="muslim")
+    kwargs.update(overrides)
+    return LockedSource(**kwargs)
+
+
+def test_parse_threads_collection_into_the_openiti_parser():
+    """`_parse` must not silently default a non-Bukhari source to Bukhari's
+    "bukhari" collection: the resulting record ids must carry the source's
+    OWN collection, not the parser's fallback."""
+    from sanad_ingest.build import _parse
+    matn = f"{_MUSLIM_BAA * 20} {_MUSLIM_BAA * 20}"
+    raw = _openiti_snippet("1", matn)
+    parsed = _parse(_muslim_locked(), raw)
+    assert len(parsed.units) == 1
+    assert parsed.units[0].record_id == "hadith:muslim:1"
+    assert not parsed.units[0].record_id.startswith("hadith:bukhari:")
+
+
+def test_hadith_records_rejects_a_record_id_that_does_not_match_the_collection():
+    """The fail-loud guard: if a unit's id ever disagreed with its own
+    source's `collection` (a wiring bug, not a data problem), the build must
+    stop rather than silently cite the wrong collection."""
+    from sanad_ingest.build import BuildError, _hadith_records
+    from sanad_ingest.openiti import HadithUnit, ParsedOpeniti
+
+    mismatched = HadithUnit(
+        hadith_no="1", record_id="hadith:bukhari:1", is_repeat=False,
+        kitab_no=1, kitab_ar="k", bab_ar="b", isnad_ar="i", matn_ar="m",
+        addenda_ar=None)
+    parsed = ParsedOpeniti(units=[mismatched], attribution="",
+                           content_sha256="0" * 64, noisy=[])
+    locked = _muslim_locked()
+    with pytest.raises(BuildError, match="hadith:bukhari:1"):
+        _hadith_records(parsed, locked)
 
 
 # --- fix round 1: secondary narrations are stored, not scored --------------

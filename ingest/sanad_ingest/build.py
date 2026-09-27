@@ -45,8 +45,18 @@ def _parse(locked: LockedSource, raw: str) -> _Parsed:
     into a parsed result -- via parser_for, the single place where a
     lockfile format maps to a parser. Do not call parse_tanzil /
     parse_tanzil_xml directly from build_corpus; that duplication is
-    exactly how the translation pass ended up ignoring format entirely."""
-    return parser_for(locked.format)(raw)
+    exactly how the translation pass ended up ignoring format entirely.
+
+    openiti-markdown is special-cased to pass `collection` through: without
+    it, `parse_openiti` falls back to its own "bukhari" default and every
+    non-Bukhari hadith source would mint `hadith:bukhari:N` ids regardless of
+    which collection it actually is (Stage A3 ruling R-A3-12). The Tanzil
+    parsers take no `collection` kwarg, so they are left untouched.
+    """
+    parser = parser_for(locked.format)
+    if locked.format == "openiti-markdown":
+        return parser(raw, collection=locked.collection)
+    return parser(raw)
 
 
 def _as_ayat(parsed: ParsedTanzil | ParsedTanzilXml) -> _Ayat:
@@ -131,6 +141,19 @@ def _hadith_records(
     out: list[Record] = []
     seen: dict[str, int] = {}
     for u in parsed.units:
+        # The id<->collection invariant, made explicit rather than assumed.
+        # `_reference_display` and the audit-list lookups below both key off
+        # `locked.collection`; if the parser ever minted an id under a
+        # different collection (a wiring mistake, not a data problem), every
+        # downstream check would silently pass while citing the wrong
+        # collection. Stage A3 ruling R-A3-12.
+        expected_prefix = f"hadith:{locked.collection}:"
+        if not u.record_id.startswith(expected_prefix):
+            raise BuildError(
+                f"{locked.id}: record id {u.record_id!r} does not start with "
+                f"{expected_prefix!r}, the prefix its own source's collection "
+                f"({locked.collection!r}) requires. The parser and the "
+                "lockfile's collection have drifted apart.")
         # text_ar is the PRIMARY MATN: never the isnad in front of it, never
         # the further narrations the edition appends behind it. This is the
         # whole of spec §7: similarity.ratio scores the entire stored string,

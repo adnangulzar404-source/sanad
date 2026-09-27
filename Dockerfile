@@ -8,17 +8,28 @@ COPY ingest ./ingest
 COPY eval ./eval
 
 # `sanad-ingest` is installed so the corpus can be rebuilt on demand (e.g.
-# `docker run sanad sanad-ingest build --out /tmp/x.db`), but this Dockerfile
-# never invokes it: doing so at build time would need outbound network access
-# to tanzil.net and would make the image non-hermetic. The corpus is
-# committed, content-hash-verified data (see data/sanad-quran.db and
-# ingest/corpus.lock.toml) -- it is copied into the image below, not built.
+# `docker run sanad sanad-ingest build --out /tmp/x.db`). This Dockerfile
+# never invokes `sanad-ingest build`: doing so at build time would need
+# outbound network access to tanzil.net and would make the image
+# non-hermetic. The corpus is committed, content-hash-verified, SOURCE-ONLY
+# data (see data/sanad-quran.db and ingest/corpus.lock.toml) -- it is copied
+# into the image below, not built.
 RUN pip install --no-cache-dir -e "."
 
-# The corpus: shipped, read-only data. Copied verbatim, never rebuilt here.
+# The corpus: shipped, read-only, source-only data. Copied verbatim, never
+# rebuilt here.
 COPY data/sanad-quran.db /app/data/sanad-quran.db
 
-ENV SANAD_DB=/app/data/sanad-quran.db
+# `sanad-ingest materialize` IS invoked here, unlike `build` above: it is
+# network-free by design (see Task 3/5) -- it only derives norms, FTS, and
+# indexes from the already-committed source-only DB, touching no external
+# service. The runtime app must never open the source-only DB directly (it
+# lacks FTS/derived tables), so the full, materialized DB is what
+# `SANAD_DB` points at below. The derived DB is never committed (R-A3-7);
+# it exists only in this image's layer.
+RUN sanad-ingest materialize --in /app/data/sanad-quran.db --out /app/data/sanad-full.db
+
+ENV SANAD_DB=/app/data/sanad-full.db
 
 # The audit log is generated, writable state -- never the corpus above,
 # which the API opens with SQLite's `mode=ro` and must never be written to

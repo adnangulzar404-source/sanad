@@ -1,6 +1,9 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "cd web && npm ci && npm run build",
+  "buildCommand": "cd web && npm ci && npm run build && cd .. && python3 -m pip install -e . && sanad-ingest materialize --in data/sanad-quran.db --out data/sanad-full.db",
+  "env": {
+    "SANAD_DB": "data/sanad-full.db"
+  },
   "functions": {
     "app.py": {
       "excludeFiles": "{tests/**,eval/**,docs/**,web/node_modules/**,web/src/**,web/tests/**,.venv/**,.superpowers/**,.github/**,**/__pycache__/**,**/*.pyc,*.egg-info/**}"

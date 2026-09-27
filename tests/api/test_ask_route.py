@@ -38,7 +38,7 @@ def test_ask_streams_events_and_renders_records(monkeypatch, tmp_path):
     from sanad.api import routes
     from sanad.pipeline.types import StageEvent
 
-    def fake_run(cc, vc, q, *, anthropic_key, voyage_key, deps=None):
+    def fake_run(cc, vc, q, *, anthropic_key, voyage_key, corpus_scope=None, deps=None):
         yield StageEvent("router", {"risk": "GENERAL", "requires_handoff": False})
         yield StageEvent("final", {
             "status": "published", "question_language": "en",
@@ -81,7 +81,7 @@ def test_reverent_transforms_prose_but_never_the_record(monkeypatch, tmp_path):
     from sanad.pipeline.types import StageEvent
     from sanad.text.reverent import ALAYHI_SALAM, SALLALLAHU
 
-    def fake_run(cc, vc, q, *, anthropic_key, voyage_key, deps=None):
+    def fake_run(cc, vc, q, *, anthropic_key, voyage_key, corpus_scope=None, deps=None):
         yield StageEvent("router", {"risk": "GENERAL", "requires_handoff": False})
         yield StageEvent("final", {
             "status": "published", "question_language": "en",
@@ -147,7 +147,7 @@ def test_ask_midstream_claude_error_becomes_error_event(monkeypatch, tmp_path):
     # client-facing SSE stream.
     SECRET_FRAGMENT = "sk-ant-should-never-leave-the-server"
 
-    def fake_run(cc, vc, q, *, anthropic_key, voyage_key, deps=None):
+    def fake_run(cc, vc, q, *, anthropic_key, voyage_key, corpus_scope=None, deps=None):
         from sanad.pipeline.types import StageEvent
         yield StageEvent("router", {"risk": "GENERAL", "requires_handoff": False})
         raise ClaudeError(f"boom: transport failed ({SECRET_FRAGMENT})")

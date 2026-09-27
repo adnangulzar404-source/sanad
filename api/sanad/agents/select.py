@@ -20,23 +20,29 @@ from ..corpus import db
 from ..pipeline.types import RetrievalHit, SelectedItem, Selection
 from . import claude_client
 
-SELECT_SYSTEM = (
-    "You build an EVIDENCE BRIEF from a fixed candidate set of Qur'an verses "
-    "and Sahih al-Bukhari hadith. Rules, all mandatory:\n"
-    "1. You may ONLY cite record_ids that appear in the candidate set below.\n"
-    "2. You write PROSE ONLY. Never output Arabic script — not a word, not a "
-    "letter. The server renders the Arabic from the database by id.\n"
-    "3. Choose only candidates genuinely relevant to the question. Omit the "
-    "rest. Selecting nothing is a valid, honest outcome.\n"
-    "4. For each chosen record write ONE framing line, at most 25 words, "
-    "describing what the passage says. For a hadith this is your labelled "
-    "explanation, NOT a translation.\n"
-    "5. Write a neutral summary of at most 80 words of what the sources cover. "
-    "Do not rule, do not grade authenticity, do not claim consensus.\n"
-    "6. Write the summary and every framing in the question's own language.\n"
-    "7. Refer to the one God as 'Allah', never 'God'.\n"
-    "Return ONLY the structured object."
-)
+# The system prompt used to hardcode "Qur'an verses and Sahih al-Bukhari
+# hadith" -- a description of the corpus that Stage A3 makes false the moment
+# another hadith collection is ingested (Stage A3 ruling R-A3-17).
+# `corpus_scope` is `corpus.scope.corpus_scope(conn)`'s output, carried in by
+# the caller (`pipeline.orchestrate.run_ask`) rather than queried here.
+def _select_system(corpus_scope: str) -> str:
+    return (
+        "You build an EVIDENCE BRIEF from a fixed candidate set drawn from "
+        f"this corpus. {corpus_scope} Rules, all mandatory:\n"
+        "1. You may ONLY cite record_ids that appear in the candidate set below.\n"
+        "2. You write PROSE ONLY. Never output Arabic script — not a word, not a "
+        "letter. The server renders the Arabic from the database by id.\n"
+        "3. Choose only candidates genuinely relevant to the question. Omit the "
+        "rest. Selecting nothing is a valid, honest outcome.\n"
+        "4. For each chosen record write ONE framing line, at most 25 words, "
+        "describing what the passage says. For a hadith this is your labelled "
+        "explanation, NOT a translation.\n"
+        "5. Write a neutral summary of at most 80 words of what the sources cover. "
+        "Do not rule, do not grade authenticity, do not claim consensus.\n"
+        "6. Write the summary and every framing in the question's own language.\n"
+        "7. Refer to the one God as 'Allah', never 'God'.\n"
+        "Return ONLY the structured object."
+    )
 
 SELECT_SCHEMA = {
     "type": "object",
@@ -68,10 +74,11 @@ def build_evidence_block(corpus_conn, hits: list[RetrievalHit]) -> str:
 
 
 def select_and_frame(corpus_conn, question: str, hits: list[RetrievalHit], *,
-                     key: str, client=None, feedback: str | None = None) -> Selection:
+                     key: str, corpus_scope: str, client=None,
+                     feedback: str | None = None) -> Selection:
     evidence = build_evidence_block(corpus_conn, hits)
     system_blocks = [
-        {"type": "text", "text": SELECT_SYSTEM},
+        {"type": "text", "text": _select_system(corpus_scope)},
         {"type": "text", "text": evidence, "cache_control": {"type": "ephemeral"}},
     ]
     user = f"Question: {question}"

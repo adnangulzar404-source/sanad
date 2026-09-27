@@ -59,26 +59,57 @@ _CLAIM_RULES: list[tuple[str, re.Pattern[str], str, str]] = [
     ),
     (
         "hadith_unverifiable",
+        # This regex already names all six Kutub al-Sittah collections (plus
+        # the bare word "hadith") -- the exact universe
+        # `sanad.corpus.collections.COLLECTION_ORDER` covers. It fires the
+        # SAME `hadith_unverifiable` claim regardless of WHICH of the six is
+        # named, whether or not that particular collection happens to be
+        # ingested yet; `verify.engine.verify_spans` (elsewhere) is what
+        # actually resolves a specific citation against the DB. Nothing here
+        # needs to change when Stage A3 ingests the other five -- the note
+        # text below is what goes stale, not this pattern. Do not duplicate
+        # this collection list elsewhere; see `_hadith_note` below for how it
+        # gets the CURRENT scope instead.
         re.compile(
             "\\b(bukhari|muslim|tirmidhi|abu dawud|nasa" + _APOSTROPHES + "?i|ibn majah)\\s*"
             "[#no.]*\\s*\\d+|\\bhadith\\b",
             re.IGNORECASE,
         ),
         "Hadith citation",
-        # This note used to read "No licensed Hadith edition is bundled in this
-        # corpus. Treat as unverified." That was true until Sahih al-Bukhari
-        # was ingested and is now false: it was being printed beside a hadith
-        # this corpus had just verified word for word, contradicting Sanad's
-        # own result. What is still true, and is what a reader needs, is the
-        # scope limit and the refusal to grade -- the same two points the
-        # corpus-scope caveat makes, said about the citation in front of them.
-        (
-            "This corpus contains Sahih al-Bukhari and no other collection, so a "
-            "citation of any other source cannot be checked here. Sanad compares "
-            "wording against a printed edition; it does not grade authenticity."
-        ),
+        # Placeholder -- `detect_claims` overwrites this entry's note via
+        # `_hadith_note(corpus_scope)` at call time. Kept as a real, honest
+        # string (never blank) so a code path that somehow skipped the
+        # override still prints something true rather than an empty note.
+        None,
     ),
 ]
+
+# This note used to read "No licensed Hadith edition is bundled in this
+# corpus. Treat as unverified." That was true until Sahih al-Bukhari was
+# ingested and became false: it was being printed beside a hadith this
+# corpus had just verified word for word, contradicting Sanad's own result.
+# Then it read "This corpus contains Sahih al-Bukhari and no other
+# collection..." -- true only until Stage A3 ingests a second collection.
+# What is actually needed here is the CURRENT scope limit and the refusal to
+# grade -- the same two points the corpus-scope caveat makes, said about the
+# citation in front of the reader. `detect_claims` is called from contexts
+# with no DB connection in hand (many call sites here and in `eval/runner.py`
+# just want the claim KIND, not this note's text), so `corpus_scope` is an
+# OPTIONAL kwarg: passed, the note restates the real, current corpus_scope();
+# omitted, this generic-but-always-true fallback runs instead -- it commits
+# to neither what IS nor is NOT in the corpus, so it can never go stale.
+_GENERIC_HADITH_NOTE = (
+    "A citation of a hadith collection can only be checked here if that "
+    "collection is part of this corpus. Sanad compares wording against a "
+    "printed edition; it does not grade authenticity."
+)
+
+
+def _hadith_note(corpus_scope: str | None) -> str:
+    if corpus_scope is None:
+        return _GENERIC_HADITH_NOTE
+    return (f"{corpus_scope} Sanad compares wording against a printed "
+            "edition; it does not grade authenticity.")
 
 # First-person marker: direct references to asker
 _FIRST_PERSON = re.compile(r"\b(I|me|my|mine)\b|for me\b", re.IGNORECASE)
@@ -167,10 +198,20 @@ _DISPUTED = re.compile(
 )
 
 
-def detect_claims(text: str) -> list[Claim]:
-    return [Claim(kind, label, note)
-            for kind, pattern, label, note in _CLAIM_RULES
-            if pattern.search(text)]
+def detect_claims(text: str, *, corpus_scope: str | None = None) -> list[Claim]:
+    """`corpus_scope`, when given, is `corpus.scope.corpus_scope(conn)`'s
+    output -- production callers (`api.routes.verify`, `eval.runner.run_eval`)
+    pass it so the `hadith_unverifiable` note names the CURRENT corpus
+    contents. Callers with no DB connection in hand may omit it and get the
+    generic, always-true fallback; see `_hadith_note`."""
+    claims = []
+    for kind, pattern, label, note in _CLAIM_RULES:
+        if not pattern.search(text):
+            continue
+        if kind == "hadith_unverifiable":
+            note = _hadith_note(corpus_scope)
+        claims.append(Claim(kind, label, note))
+    return claims
 
 
 def route_risk(text: str) -> RiskCode:

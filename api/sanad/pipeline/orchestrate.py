@@ -17,7 +17,6 @@ from ..agents import audit as _audit
 from ..agents import expand as _expand
 from ..agents import select as _select
 from ..agents.claude_client import ClaudeError
-from ..corpus.scope import CORPUS_SCOPE
 from ..verify.claims import requires_handoff, route_risk
 from . import guards as _guards
 from .adjudicate import Decision, adjudicate
@@ -83,18 +82,24 @@ def _final(*, status, question_language, summary, items, reached,
 
 
 def run_ask(corpus_conn, vectors_conn, question, *, anthropic_key,
-            voyage_key, deps=None) -> Iterator[StageEvent]:
+            voyage_key, corpus_scope, deps=None) -> Iterator[StageEvent]:
+    """`corpus_scope` is the caveat text from `corpus.scope.corpus_scope`,
+    computed once at API startup and carried in by the caller (Task 10's
+    carry-forward rule, same as `anthropic_key`/`voyage_key`) -- `run_ask`
+    never queries the DB for it itself, so every call site states the scope
+    it is answering against rather than this module importing a constant
+    that could go stale the moment a new hadith collection ships."""
     deps = deps or (DEFAULT_DEPS if DEFAULT_DEPS.retrieve else _bind_retrieve())
 
     risk = route_risk(question)
     if requires_handoff(risk):
         yield StageEvent("router", {"risk": risk.value, "requires_handoff": True,
-                                    "corpus_scope": CORPUS_SCOPE})
+                                    "corpus_scope": corpus_scope})
         return
     yield StageEvent("router", {"risk": risk.value, "requires_handoff": False})
 
     try:
-        expansion = deps.expand(question, key=anthropic_key)
+        expansion = deps.expand(question, key=anthropic_key, corpus_scope=corpus_scope)
     except ClaudeError as exc:
         yield _error_event("expand_failed", exc)
         yield _final(status="abstained", question_language=None, summary=None,
@@ -116,7 +121,7 @@ def run_ask(corpus_conn, vectors_conn, question, *, anthropic_key,
                      question_language=expansion.question_language, summary=None,
                      items=[], reached=result.reached,
                      unreached_reason=result.unreached_reason, risk=risk.value,
-                     abstain_reason=CORPUS_SCOPE)
+                     abstain_reason=corpus_scope)
         return
 
     # candidate_ids is the set of record_ids actually retrieved (spec §5): this
@@ -126,7 +131,8 @@ def run_ask(corpus_conn, vectors_conn, question, *, anthropic_key,
     for attempt in (0, 1):  # 0-indexed: 0 = first pass, 1 = the single retry.
         try:
             selection = deps.select(corpus_conn, question, result.hits,
-                                    key=anthropic_key, feedback=feedback)
+                                    key=anthropic_key, feedback=feedback,
+                                    corpus_scope=corpus_scope)
         except ClaudeError as exc:
             yield _error_event("select_failed", exc)
             yield _final(status="abstained",

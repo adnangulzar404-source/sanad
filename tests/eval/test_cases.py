@@ -19,7 +19,7 @@ from pathlib import Path
 
 import pytest
 from sanad.corpus import db
-from sanad.corpus.scope import CORPUS_SCOPE
+from sanad.corpus.scope import corpus_scope
 
 from eval.runner import MISATTRIBUTED, VERIFIED, Case, load_cases, run_eval
 from tests._corpus import MATERIALIZED_DB
@@ -262,16 +262,18 @@ def test_expect_scope_caveat_fails_when_the_text_resolves(conn):
                for f in run_eval(conn, [case]).failures)
 
 
-def test_scope_caveat_still_says_both_things_it_has_to_say():
+def test_scope_caveat_still_says_both_things_it_has_to_say(conn):
     """Guarded here as well as in the runner, in plain sight.
 
     "Not in this corpus" is only honest next to a statement of what the corpus
-    is. Drop either half -- the fact that Sahih al-Bukhari is the only
-    collection here, or the fact that absence proves nothing -- and NOT_FOUND
-    on a hadith starts reading as an accusation.
+    is. Drop either half -- the fact that Sahih al-Bukhari is actually present,
+    or the fact that absence proves nothing -- and NOT_FOUND on a hadith
+    starts reading as an accusation. Reads the REAL derived caveat off the
+    materialized DB (Stage A3 ruling R-A3-17), not a hardcoded constant.
     """
-    assert "Sahih al-Bukhari" in CORPUS_SCOPE
-    assert "does not establish that a quotation is fabricated" in CORPUS_SCOPE
+    scope = corpus_scope(conn)
+    assert "Sahih al-Bukhari" in scope
+    assert "does not establish that a quotation is fabricated" in scope
 
 
 def test_no_claim_note_denies_that_a_hadith_corpus_is_bundled(conn):
@@ -285,7 +287,8 @@ def test_no_claim_note_denies_that_a_hadith_corpus_is_bundled(conn):
     beside it.
     """
     from sanad.verify.claims import detect_claims
-    notes = " ".join(c.note for c in detect_claims("See Bukhari 2866 for this hadith."))
+    notes = " ".join(c.note for c in detect_claims(
+        "See Bukhari 2866 for this hadith.", corpus_scope=corpus_scope(conn)))
     assert notes, "the hadith claim rule stopped firing"
     for denial in ("no licensed hadith", "no hadith corpus", "not bundled",
                    "is bundled in this corpus"):

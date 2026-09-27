@@ -12,6 +12,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.types import Scope
 
 from ..corpus.schema import AUDIT_SCHEMA_SQL
+from ..corpus.scope import corpus_scope
 from ..retrieve.vector_store import connect_vectors
 from ..settings import (
     file_sha256,
@@ -132,7 +133,14 @@ def create_app() -> FastAPI:
     app.state.audit_lock = threading.Lock()
     app.state.db_path = corpus_path
     app.state.db_sha256 = file_sha256(corpus_path)
+    # Computed once at startup, not per request: `corpus_scope` runs a couple
+    # of `SELECT DISTINCT` queries over `records`, and the answer cannot
+    # change without restarting on a different (or rebuilt) corpus file. See
+    # `corpus.scope` for why this replaced the old hardcoded `CORPUS_SCOPE`
+    # constant (Stage A3 ruling R-A3-17).
+    app.state.corpus_scope = corpus_scope(app.state.conn)
     log.info("corpus %s sha256=%s (read-only)", corpus_path, app.state.db_sha256)
+    log.info("corpus scope: %s", app.state.corpus_scope)
     log.info("audit log %s", audit_path)
 
     # The vectors sidecar is optional (spec's Availability note): Ask degrades

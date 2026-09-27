@@ -13,7 +13,6 @@ from ..agents.claude_client import ClaudeError, resolve_anthropic_key
 from ..arabic.normalize import normalize
 from ..corpus import db
 from ..corpus.models import Record
-from ..corpus.scope import CORPUS_SCOPE
 from ..pipeline.orchestrate import run_ask
 from ..retrieve.voyage import VoyageError, resolve_voyage_key
 from ..text.reverent import reverent
@@ -35,11 +34,16 @@ from .schemas import (
 
 router = APIRouter(prefix="/api")
 
-# `CORPUS_SCOPE` is imported from `corpus.scope` and re-exported here under its
-# original name: it is a fact about the corpus, not about the HTTP layer, and
-# the evaluation harness asserts it without importing FastAPI. Named in
-# `__all__` so the re-export is deliberate rather than an unused import.
-__all__ = ["CORPUS_SCOPE", "router"]
+# There used to be a `CORPUS_SCOPE` constant re-exported here (`corpus.scope`
+# is a fact about the corpus, not about the HTTP layer, and the evaluation
+# harness asserted it without importing FastAPI). Stage A3 ruling R-A3-17
+# replaced that constant with `corpus.scope.corpus_scope(conn)`, computed
+# once at startup and stored on `request.app.state.corpus_scope` (see
+# `api.app.create_app`) -- a module-level constant cannot depend on which
+# collections a given running server's corpus file actually contains, so
+# re-exporting one here would reintroduce exactly the staleness hazard this
+# task exists to remove. Every route below reads `request.app.state.corpus_scope`
+# instead.
 
 # Tanzil's own accuracy disclaimer for en.pickthall, per the spec sec 5.2 item 4:
 # it must accompany every rendered translation, not live only in a licence file.
@@ -93,6 +97,12 @@ def _conn(request: Request) -> sqlite3.Connection:
 def _audit_conn(request: Request) -> sqlite3.Connection:
     """The writable audit-log connection, a separate database from the corpus."""
     return request.app.state.audit_conn
+
+
+def _scope(request: Request) -> str:
+    """The corpus-scope caveat, computed once at startup from the corpus
+    actually loaded -- see `api.app.create_app` and `corpus.scope.corpus_scope`."""
+    return request.app.state.corpus_scope
 
 
 def _fetch_translation(conn: sqlite3.Connection, record_id: str) -> tuple[str | None, str | None]:
@@ -149,7 +159,7 @@ def verify(payload: VerifyRequest, request: Request) -> VerifyResponse:
         for m in matches
     ]
     claims = [ClaimOut(kind=c.kind, label=c.label, note=c.note)
-              for c in detect_claims(payload.text)]
+              for c in detect_claims(payload.text, corpus_scope=_scope(request))]
     risk = route_risk(payload.text)
     handoff = requires_handoff(risk)
 
@@ -185,7 +195,7 @@ def verify(payload: VerifyRequest, request: Request) -> VerifyResponse:
         quotations=quotations, claims=claims, risk=risk.value,
         requires_handoff=handoff,
         overall=_overall(quotations, claims, handoff),
-        corpus_scope=CORPUS_SCOPE,
+        corpus_scope=_scope(request),
     )
 
 
@@ -199,7 +209,7 @@ def verify(payload: VerifyRequest, request: Request) -> VerifyResponse:
 _GENERIC_MIDSTREAM_ERROR_MESSAGE = "An internal error occurred while processing the request."
 
 
-def _abstain_payload(*, risk: str, abstain_reason: str) -> dict:
+def _abstain_payload(*, risk: str, abstain_reason: str, corpus_scope: str) -> dict:
     """The shared shape of an abstained `final` event's payload.
 
     Both the missing-key path and the mid-stream-error path in `ask()` need
@@ -214,7 +224,7 @@ def _abstain_payload(*, risk: str, abstain_reason: str) -> dict:
         "unreached_reason": None, "risk": risk,
         "requires_handoff": False,
         "abstain_reason": abstain_reason,
-        "corpus_scope": CORPUS_SCOPE,
+        "corpus_scope": corpus_scope,
     }
 
 
@@ -272,6 +282,7 @@ def ask(payload: AskRequest, request: Request) -> StreamingResponse:
     vectors_conn = getattr(request.app.state, "vectors_conn", None)
     anthropic_key = resolve_anthropic_key()
     voyage_key = resolve_voyage_key()
+    scope = _scope(request)
 
     def _sse():
         record_ids: list[str] = []
@@ -284,14 +295,16 @@ def ask(payload: AskRequest, request: Request) -> StreamingResponse:
             final = {"stage": "final", "payload": _abstain_payload(
                 risk="GENERAL",
                 abstain_reason=("Ask needs an Anthropic API key, which is "
-                                "not configured. Verification is unaffected."))}
+                                "not configured. Verification is unaffected."),
+                corpus_scope=scope)}
             yield f"data: {json.dumps(final)}\n\n"
             _write_ask_audit(request, "abstained", "GENERAL", [], reached)
             return
 
         try:
             for event in run_ask(conn, vectors_conn, payload.question,
-                                 anthropic_key=anthropic_key, voyage_key=voyage_key):
+                                 anthropic_key=anthropic_key, voyage_key=voyage_key,
+                                 corpus_scope=scope):
                 payload_out = dict(event.payload)
                 if event.stage == "router":
                     risk = payload_out.get("risk", risk)
@@ -313,7 +326,7 @@ def ask(payload: AskRequest, request: Request) -> StreamingResponse:
                             "record": _record_out(conn, rec).model_dump() if rec else None})
                     payload_out["items"] = items
                     payload_out["summary"] = reverent(payload_out.get("summary"))
-                    payload_out["corpus_scope"] = CORPUS_SCOPE
+                    payload_out["corpus_scope"] = scope
                     record_ids = [it["record_id"] for it in items]
                     status = payload_out.get("status", "abstained")
                     risk = payload_out.get("risk", risk)
@@ -341,7 +354,8 @@ def ask(payload: AskRequest, request: Request) -> StreamingResponse:
             status = "abstained"
             final = {"stage": "final", "payload": _abstain_payload(
                 risk=risk,
-                abstain_reason="The Ask pipeline encountered an error and could not complete.")}
+                abstain_reason="The Ask pipeline encountered an error and could not complete.",
+                corpus_scope=scope)}
             yield f"data: {json.dumps(final)}\n\n"
             reached = {"quran": False, "hadith": False}
 
@@ -409,7 +423,7 @@ def corpus(request: Request) -> CorpusResponse:
         db_sha256=request.app.state.db_sha256,
         db_path=str(request.app.state.db_path),
         stats=CorpusStatsOut(**db.corpus_stats(conn)),
-        scope=CORPUS_SCOPE,
+        scope=_scope(request),
         sources=[CorpusSourceOut(**dict(r)) for r in conn.execute("SELECT * FROM sources")],
     )
 

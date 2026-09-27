@@ -3,7 +3,11 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Ask } from "../../src/screens/Ask";
 
-const SCOPE = "This corpus contains the Qur'an and Sahih al-Bukhari. It does not contain Sahih Muslim, the four Sunan, or any other collection, so absence from this corpus does not establish that a quotation is fabricated.";
+// Stage A3 ruling R-A3-17: the backend now DERIVES this caveat from what the
+// corpus actually contains (sanad.corpus.scope.corpus_scope), so it no
+// longer names specific absent collections -- the absent half is generic and
+// stays true regardless of how many more collections Stage A3 ingests.
+const SCOPE = "This corpus contains the Qur'an and Sahih al-Bukhari. It does not contain any other hadith collection. Absence from this corpus does not establish that a quotation is fabricated.";
 
 // Any Arabic-script codepoint (blocks + presentation forms).
 const ARABIC = /[؀-ۿݐ-ݿﭐ-﷿ﹰ-﻿]/;
@@ -63,7 +67,7 @@ describe("Ask screen", () => {
     expect(screen.getByTestId("ask-isnad")).toBeInTheDocument();
     // hadith shown -> the does-not-grade note appears once
     expect(screen.getAllByTestId("no-grading")).toHaveLength(1);
-    expect(screen.getByTestId("ask-scope")).toHaveTextContent(/does not contain Sahih Muslim/i);
+    expect(screen.getByTestId("ask-scope")).toHaveTextContent(/does not contain any other hadith collection/i);
   });
 
   it("shows the abstain reason honestly, not a fabricated answer", async () => {

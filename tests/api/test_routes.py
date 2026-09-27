@@ -137,18 +137,17 @@ def test_verify_english_only_prose_returns_empty_quotations(client):
 
 
 
-# The corpus now holds two collections, not one -- Task 7. The old scope
-# string ("the Qur'an only") became false the moment Bukhari was ingested;
-# these tests pin the exact replacement wording rather than a loose
-# substring match, since the phrasing itself was chosen deliberately (naming
-# the ABSENT collections is what stops a reader from assuming completeness)
-# and a substring check could pass on a rewritten sentence that lost that
-# property.
+# The scope caveat is now DERIVED from the corpus (`corpus.scope.corpus_scope`,
+# Stage A3 ruling R-A3-17), computed once at startup from whatever the test
+# fixture's MATERIALIZED_DB actually contains (Qur'an + Sahih al-Bukhari,
+# nothing else, as of this suite). These tests pin the exact expected output
+# rather than a loose substring match -- a rewritten sentence that quietly
+# dropped either the PRESENT half or the generic "absence does not establish
+# fabrication" half would still pass a substring check but not this one.
 CORPUS_SCOPE = (
     "This corpus contains the Qur'an and Sahih al-Bukhari. It does not "
-    "contain Sahih Muslim, the four Sunan, or any other collection, so "
-    "absence from this corpus does not establish that a quotation is "
-    "fabricated."
+    "contain any other hadith collection. Absence from this corpus does "
+    "not establish that a quotation is fabricated."
 )
 
 

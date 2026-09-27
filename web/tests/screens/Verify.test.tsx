@@ -3,7 +3,11 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi, afterEach } from "vitest";
 import { Verify } from "../../src/screens/Verify";
 
-const SCOPE = "This corpus contains the Qur'an and Sahih al-Bukhari. It does not contain Sahih Muslim, the four Sunan, or any other collection, so absence from this corpus does not establish that a quotation is fabricated.";
+// Stage A3 ruling R-A3-17: the backend now DERIVES this caveat from what the
+// corpus actually contains (sanad.corpus.scope.corpus_scope), so it no
+// longer names specific absent collections -- the absent half is generic and
+// stays true regardless of how many more collections Stage A3 ingests.
+const SCOPE = "This corpus contains the Qur'an and Sahih al-Bukhari. It does not contain any other hadith collection. Absence from this corpus does not establish that a quotation is fabricated.";
 
 function reply(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });

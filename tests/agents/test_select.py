@@ -1,6 +1,10 @@
 from sanad.agents import select
 from sanad.pipeline.types import RetrievalHit, Selection
 
+_SCOPE = ("This corpus contains the Qur'an and Sahih al-Bukhari. It does not "
+         "contain any other hadith collection. Absence from this corpus "
+         "does not establish that a quotation is fabricated.")
+
 class _Rec:
     def __init__(self, rid, ref, text): self.id, self.reference_display, self.text_ar = rid, ref, text
 
@@ -21,12 +25,15 @@ def test_select_builds_cached_evidence_and_parses(monkeypatch):
                            "framing": "Fasting is prescribed, as it was for those before."}]}
     monkeypatch.setattr(select.claude_client, "call_structured", fake)
     hits = [RetrievalHit("quran:2:183", 0.5, True, False)]
-    out = select.select_and_frame(object(), "fasting?", hits, key="k")
+    out = select.select_and_frame(object(), "fasting?", hits, key="k", corpus_scope=_SCOPE)
     assert isinstance(out, Selection)
     assert out.items[0].record_id == "quran:2:183"
     # evidence block is a cached system block
     assert any(b.get("cache_control") for b in captured["blocks"])
     assert "quran:2:183" in captured["blocks"][-1]["text"]
+    # Stage A3 ruling R-A3-17: the system prompt states the CALLER's derived
+    # scope, not a hardcoded "Qur'an verses and Sahih al-Bukhari hadith".
+    assert _SCOPE in captured["blocks"][0]["text"]
 
 def test_retry_feedback_reaches_the_prompt(monkeypatch):
     recs = {"quran:2:183": _Rec("quran:2:183", "Al-Baqarah 2:183", "x")}
@@ -37,7 +44,8 @@ def test_retry_feedback_reaches_the_prompt(monkeypatch):
         return {"summary": "s", "items": []}
     monkeypatch.setattr(select.claude_client, "call_structured", fake)
     select.select_and_frame(object(), "q", [RetrievalHit("quran:2:183",0.1,True,False)],
-                            key="k", feedback="Do not cite IDs outside the candidate set.")
+                            key="k", feedback="Do not cite IDs outside the candidate set.",
+                            corpus_scope=_SCOPE)
     assert "candidate set" in seen["user"]
 
 def test_select_propagates_claude_error(monkeypatch):
@@ -48,7 +56,7 @@ def test_select_propagates_claude_error(monkeypatch):
     monkeypatch.setattr(select.claude_client, "call_structured", boom)
     try:
         select.select_and_frame(object(), "q", [RetrievalHit("quran:2:183", 0.1, True, False)],
-                                key="k")
+                                key="k", corpus_scope=_SCOPE)
         assert False
     except ClaudeError:
         pass

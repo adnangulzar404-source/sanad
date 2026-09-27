@@ -49,13 +49,16 @@ def _assert_no_leak(events, secret=None):
                     f"secret leaked into a streamed '{e.stage}' event: {s!r}")
 
 
+_TEST_SCOPE = "TEST_SCOPE"
+
+
 def _deps(**over):
     base = dict(
-        expand=lambda q, *, key, client=None: Expansion("en", ["صبر"]),
+        expand=lambda q, *, key, client=None, corpus_scope=None: Expansion("en", ["صبر"]),
         retrieve=lambda cc, vc, *, arabic_terms, question, voyage_key, embed_fn=None:
             RetrievalResult([RetrievalHit("quran:2:183", 0.5, True, False)],
                             {"quran": True, "hadith": False}, None, 1),
-        select=lambda cc, q, hits, *, key, client=None, feedback=None:
+        select=lambda cc, q, hits, *, key, client=None, feedback=None, corpus_scope=None:
             Selection("Summary.", [SelectedItem("quran:2:183", "Framing.")]),
         guards=lambda sel, cands: [GuardResult("g", True, "")],
         audit=lambda cc, sel, *, key, client=None: AuditVerdict(False, []),
@@ -64,13 +67,14 @@ def _deps(**over):
     return SimpleNamespace(**base)
 
 
-def _run(question, deps, risk="GENERAL"):
+def _run(question, deps, risk="GENERAL", corpus_scope=_TEST_SCOPE):
     import sanad.pipeline.orchestrate as o
     orig_route_risk = o.route_risk
     o.route_risk = lambda t: __import__("sanad.verify.claims", fromlist=["RiskCode"]).RiskCode(risk)
     try:
         return list(orchestrate.run_ask(object(), object(), question,
-                                        anthropic_key="a", voyage_key=None, deps=deps))
+                                        anthropic_key="a", voyage_key=None,
+                                        corpus_scope=corpus_scope, deps=deps))
     finally:
         o.route_risk = orig_route_risk
 
@@ -105,16 +109,23 @@ def test_second_failure_abstains():
     assert events[-1].payload["abstain_reason"]
 
 def test_no_candidates_abstains_with_scope():
-    from sanad.corpus.scope import CORPUS_SCOPE
+    # `run_ask` no longer imports a hardcoded CORPUS_SCOPE constant (Stage A3
+    # ruling R-A3-17 removed it) -- it carries in whatever `corpus_scope` the
+    # caller passed and uses THAT verbatim as the abstain reason. This proves
+    # the threading, not a particular collection's name.
+    scope_text = ("This corpus contains the Qur'an, Sahih al-Bukhari, and "
+                 "Sahih Muslim. It does not contain any other hadith "
+                 "collection. Absence from this corpus does not "
+                 "establish that a quotation is fabricated.")
     empty = lambda cc, vc, *, arabic_terms, question, voyage_key, embed_fn=None: \
         RetrievalResult([], {"quran": False, "hadith": False}, "nada", 0)
-    events = _run("q", _deps(retrieve=empty))
+    events = _run("q", _deps(retrieve=empty), corpus_scope=scope_text)
     p = events[-1].payload
-    assert p["status"] == "abstained" and "Sahih al-Bukhari" in p["abstain_reason"]
+    assert p["status"] == "abstained" and p["abstain_reason"] == scope_text
 
 def test_claude_error_in_expand_abstains_not_raises():
     from sanad.agents.claude_client import ClaudeError
-    def boom(q, *, key, client=None): raise ClaudeError("refused")
+    def boom(q, *, key, client=None, corpus_scope=None): raise ClaudeError("refused")
     events = _run("q", _deps(expand=boom))
     assert events[-1].stage in ("error", "final")
     assert events[-1].payload.get("status") == "abstained" or events[-1].stage == "error"
@@ -150,7 +161,7 @@ def test_feedback_flows_into_retry_select_call():
         return [GuardResult("g", calls["n"] > 1, "specific failure detail"
                              if calls["n"] == 1 else "")]
 
-    def recording_select(cc, q, hits, *, key, client=None, feedback=None):
+    def recording_select(cc, q, hits, *, key, client=None, feedback=None, corpus_scope=None):
         feedback_seen.append(feedback)
         return Selection("Summary.", [SelectedItem("quran:2:183", "Framing.")])
 
@@ -165,7 +176,7 @@ def test_persistent_failure_calls_select_at_most_twice():
     exactly one retry — select_and_frame called at most twice."""
     calls = {"n": 0}
 
-    def counting_select(cc, q, hits, *, key, client=None, feedback=None):
+    def counting_select(cc, q, hits, *, key, client=None, feedback=None, corpus_scope=None):
         calls["n"] += 1
         return Selection("Summary.", [SelectedItem("quran:2:183", "Framing.")])
 
@@ -181,7 +192,7 @@ def test_fabricated_id_drives_retry_then_abstain_via_real_guards():
     from sanad.pipeline.guards import check as real_check
 
     events = _run("q", _deps(
-        select=lambda cc, q, hits, *, key, client=None, feedback=None:
+        select=lambda cc, q, hits, *, key, client=None, feedback=None, corpus_scope=None:
             Selection("Summary.", [SelectedItem("quran:99:99-fabricated", "Framing.")]),
         guards=real_check,
     ))
@@ -195,7 +206,7 @@ def test_claude_error_in_select_abstains_and_skips_later_stages():
     let guards/audit run on a selection that was never produced."""
     from sanad.agents.claude_client import ClaudeError
 
-    def boom(cc, q, hits, *, key, client=None, feedback=None):
+    def boom(cc, q, hits, *, key, client=None, feedback=None, corpus_scope=None):
         raise ClaudeError("refused")
 
     guard_calls, audit_calls = [], []
@@ -316,7 +327,7 @@ def test_run_helper_restores_route_risk_after_disputed_call():
 
     events = list(orchestrate.run_ask(object(), object(), "Can I divorce my wife?",
                                       anthropic_key="a", voyage_key=None,
-                                      deps=_deps()))
+                                      corpus_scope=_TEST_SCOPE, deps=_deps()))
     assert [e.stage for e in events] == ["router"], (
         "route_risk leaked from the prior DISPUTED _run() call instead of "
         "being restored -- the real router never got to classify this "
@@ -384,7 +395,7 @@ def test_arabic_in_framing_never_streamed_across_guard_fail_then_retry_publish()
 
     calls = {"n": 0}
 
-    def flaky_select(cc, q, hits, *, key, client=None, feedback=None):
+    def flaky_select(cc, q, hits, *, key, client=None, feedback=None, corpus_scope=None):
         calls["n"] += 1
         framing = "It reads كتب عليكم." if calls["n"] == 1 else "Clean framing."
         return Selection("Summary.", [SelectedItem("quran:2:183", framing)])
@@ -406,7 +417,7 @@ def test_arabic_in_framing_never_streamed_when_persistent_abstains():
     reach any streamed event, all the way to the final abstain."""
     from sanad.pipeline.guards import check as real_check
 
-    def always_arabic_select(cc, q, hits, *, key, client=None, feedback=None):
+    def always_arabic_select(cc, q, hits, *, key, client=None, feedback=None, corpus_scope=None):
         return Selection("Summary.", [SelectedItem("quran:2:183", "It reads كتب عليكم.")])
 
     events = _run("q", _deps(select=always_arabic_select, guards=real_check))
@@ -458,7 +469,7 @@ def test_provider_secret_never_streamed_on_expand_failure():
 
     SECRET = "sk-ant-super-secret-leak-marker-should-never-stream"
 
-    def boom(q, *, key, client=None):
+    def boom(q, *, key, client=None, corpus_scope=None):
         raise ClaudeError(f"transport failed, response body: {SECRET}")
 
     events = _run("q", _deps(expand=boom))
@@ -476,7 +487,7 @@ def test_provider_secret_never_streamed_on_select_failure():
 
     SECRET = "sk-ant-super-secret-leak-marker-should-never-stream"
 
-    def boom(cc, q, hits, *, key, client=None, feedback=None):
+    def boom(cc, q, hits, *, key, client=None, feedback=None, corpus_scope=None):
         raise ClaudeError(f"transport failed, response body: {SECRET}")
 
     events = _run("q", _deps(select=boom))

@@ -6,6 +6,7 @@ import sqlite3
 from pathlib import Path
 
 from sanad.corpus import db
+from sanad.corpus.collections import COLLECTION_TITLES
 from sanad.corpus.models import Record, Source
 from sanad.corpus.schema import SOURCE_SCHEMA_SQL
 from sanad.corpus.surahs import surah_name
@@ -75,23 +76,6 @@ def _as_ayat(parsed: ParsedTanzil | ParsedTanzilXml) -> _Ayat:
 # "619 م" says twenty-five.
 _MUKARRAR = "م"
 
-# The display title for each collection's citations, plain ASCII with
-# hamza/'ayn dropped -- the house style already used for surah names
-# (surah_name_en renders "Al-Fatihah", "An-Nisa", ...; see
-# sanad.corpus.surahs). Only "bukhari" is in the lockfile today; the other
-# five are dormant until their own sources are added in later Stage A3 tasks,
-# but the titles are fixed now so a future addition is a lockfile edit, not a
-# code change.
-_COLLECTION_TITLE = {
-    "bukhari": "Sahih al-Bukhari",
-    "muslim": "Sahih Muslim",
-    "abudawud": "Sunan Abi Dawud",
-    "tirmidhi": "Jami at-Tirmidhi",
-    "nasai": "Sunan an-Nasai",
-    "ibnmajah": "Sunan Ibn Majah",
-}
-
-
 def _reference_display(collection: str, unit, occurrence: int) -> str:
     """A citation a reader can look up, and that no other record shares.
 
@@ -107,11 +91,16 @@ def _reference_display(collection: str, unit, occurrence: int) -> str:
     `collection` only changes the title prefix -- the mukarrar miim and the
     occurrence suffix are properties of the edition's numbering, not of which
     collection it belongs to, so they apply identically to every collection.
+
+    The title map itself lives in `sanad.corpus.collections.COLLECTION_TITLES`
+    (Stage A3 ruling R-A3-16), not here -- `corpus.scope.corpus_scope` needs
+    the same map to render the corpus-scope caveat, and `api` cannot import
+    from `ingest`.
     """
-    title = _COLLECTION_TITLE.get(collection)
+    title = COLLECTION_TITLES.get(collection)
     if title is None:
         raise BuildError(
-            f"{collection!r} has no display title in _COLLECTION_TITLE. "
+            f"{collection!r} has no display title in COLLECTION_TITLES. "
             "Add one rather than let a citation render with the wrong name.")
     ref = f"{title} {unit.hadith_no}"
     if unit.is_repeat:

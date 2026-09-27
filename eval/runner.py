@@ -25,7 +25,7 @@ from pathlib import Path
 
 import yaml
 from sanad.corpus import db
-from sanad.corpus.scope import CORPUS_SCOPE
+from sanad.corpus.scope import corpus_scope
 from sanad.verify.claims import detect_claims, requires_handoff, route_risk
 from sanad.verify.engine import Verdict, verify_spans
 
@@ -39,11 +39,13 @@ MISATTRIBUTED = {Verdict.WRONG_REFERENCE.value}
 # What `expect_scope_caveat: true` is actually asserting about the caveat that
 # accompanies a NOT_FOUND. Absence from this corpus is not evidence of
 # anything, so the caveat has to say two things or it is an accusation by
-# omission: that Sahih al-Bukhari is the ONLY collection here, and that not
-# finding a text does not make it fabricated. Both are substrings of the
-# single wording chosen in R22, so a reworded caveat that quietly drops either
-# half fails the cases that depend on it rather than passing on the strength
-# of the field merely existing.
+# omission: that Sahih al-Bukhari is actually PRESENT here, and that not
+# finding a text does not make it fabricated. Both are substrings of
+# `corpus.scope.corpus_scope(conn)`'s real, DB-derived output (Stage A3
+# ruling R-A3-17 replaced the old hardcoded R22 constant this used to check
+# against), so a reworded or regressed caveat that quietly drops either half
+# fails the cases that depend on it rather than passing on the strength of
+# the field merely existing.
 _SCOPE_CAVEAT_MUST_CONTAIN = (
     "Sahih al-Bukhari",
     "does not establish that a quotation is fabricated",
@@ -209,6 +211,7 @@ def load_cases(directory: Path) -> list[Case]:
 
 def run_eval(conn, cases: list[Case]) -> Metrics:
     m = Metrics(total=len(cases))
+    scope = corpus_scope(conn)
 
     for case in cases:
         problems: list[str] = []
@@ -272,7 +275,7 @@ def run_eval(conn, cases: list[Case]) -> Metrics:
                 problems.append(f"record: expected {case.expect_record}, got {got}")
 
         if case.expect_claim is not None:
-            kinds = {c.kind for c in detect_claims(case.text)}
+            kinds = {c.kind for c in detect_claims(case.text, corpus_scope=scope)}
             if case.expect_claim not in kinds:
                 problems.append(f"claim: expected {case.expect_claim}, got {sorted(kinds)}")
 
@@ -320,7 +323,7 @@ def run_eval(conn, cases: list[Case]) -> Metrics:
                 problems.append(
                     f"scope caveat: expected an unresolved quotation, got "
                     f"{top.record.id}")
-            missing = [s for s in _SCOPE_CAVEAT_MUST_CONTAIN if s not in CORPUS_SCOPE]
+            missing = [s for s in _SCOPE_CAVEAT_MUST_CONTAIN if s not in scope]
             if missing:
                 problems.append(f"scope caveat no longer states: {missing}")
 

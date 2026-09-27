@@ -58,19 +58,19 @@ describe("App / #provenance", () => {
     ).toBeInTheDocument();
   });
 
-  it("switches from Verify to the Ask screen via the tabs", async () => {
+  it("switches from Ask to the Verify screen via the tabs", async () => {
     stubCorpusFetch();
     const user = userEvent.setup();
     render(<App />);
 
-    // Landing tab is Verify (its heading is "Sanad").
-    expect(screen.getByRole("heading", { name: /^Sanad$/ })).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: /^Ask$/ })).toBeNull();
-
-    await user.click(screen.getByRole("tab", { name: "Ask" }));
-
+    // Landing tab is Ask (its heading is "Ask").
     expect(screen.getByRole("heading", { name: /^Ask$/ })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: /^Sanad$/ })).toBeNull();
+
+    await user.click(screen.getByRole("tab", { name: "Verify" }));
+
+    expect(screen.getByRole("heading", { name: /^Sanad$/ })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: /^Ask$/ })).toBeNull();
   });
 
   it("reopens after being closed, so the link is not dead on a second click", async () => {

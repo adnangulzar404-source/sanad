@@ -23,9 +23,9 @@ export default function App() {
   const [showProvenance, setShowProvenance] = useState(
     () => window.location.hash === PROVENANCE_HASH
   );
-  // Verify is the landing tab: it is the established primary and needs no API
-  // key. Ask is one click away. Tab state is local -- no router dependency.
-  const [tab, setTab] = useState<Tab>("verify");
+  // Ask is the landing tab: it is the primary experience. Verify is one click
+  // away. Tab state is local -- no router dependency.
+  const [tab, setTab] = useState<Tab>("ask");
 
   useEffect(() => {
     const openOnHash = () => {
@@ -58,12 +58,12 @@ export default function App() {
         display: "flex", gap: "0.5rem", maxWidth: "72rem",
         margin: "0 auto", padding: "1rem 1.5rem 0",
       }}>
-        <button role="tab" id="tab-verify" aria-controls="mode-panel"
-                aria-selected={tab === "verify"} onClick={() => setTab("verify")}
-                style={tabStyle(tab === "verify")}>Verify</button>
         <button role="tab" id="tab-ask" aria-controls="mode-panel"
                 aria-selected={tab === "ask"} onClick={() => setTab("ask")}
                 style={tabStyle(tab === "ask")}>Ask</button>
+        <button role="tab" id="tab-verify" aria-controls="mode-panel"
+                aria-selected={tab === "verify"} onClick={() => setTab("verify")}
+                style={tabStyle(tab === "verify")}>Verify</button>
       </nav>
 
       <div role="tabpanel" id="mode-panel"

@@ -354,6 +354,20 @@ def _split_secondary(matn: str, record_id: str) -> tuple[str, str | None]:
     return matn, None
 
 
+def full_text_from_parts(matn_ar: str, addenda_ar: str | None) -> str:
+    """The string-level join `full_text` delegates to.
+
+    Exists separately from `full_text` so that `sanad_ingest.materialize` --
+    which works from DB columns, not `HadithUnit` objects, because a
+    source-only DB carries no units -- can rejoin a record's primary matn and
+    addendum without reconstructing a `HadithUnit` just to read two fields
+    off it.
+    """
+    if addenda_ar is None:
+        return matn_ar
+    return f"{matn_ar} {addenda_ar}"
+
+
 def full_text(unit: HadithUnit) -> str:
     """The unit's matn as the edition prints it: primary plus every addendum.
 
@@ -364,9 +378,7 @@ def full_text(unit: HadithUnit) -> str:
     restores the source byte for byte. `test_nothing_is_lost_when_an_addendum_
     is_cut_away` proves that against the raw file, not against the parser.
     """
-    if unit.addenda_ar is None:
-        return unit.matn_ar
-    return f"{unit.matn_ar} {unit.addenda_ar}"
+    return full_text_from_parts(unit.matn_ar, unit.addenda_ar)
 
 
 # --- matns that are editorial apparatus, not quotable text -----------------

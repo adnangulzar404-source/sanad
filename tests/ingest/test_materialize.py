@@ -125,13 +125,17 @@ def test_materialize_is_deterministic(tmp_path):
 
 
 def test_materialize_rejects_incomplete(tmp_path):
-    """A genuinely un-derivable row (NULL text_ar) must fail loudly.
+    """A genuinely un-derivable row (blank text_ar) must fail loudly.
 
-    An empty string normalises to '' -- still non-NULL -- so that would pass
-    right through and prove nothing. The real gap is a NULL that no
-    normalization tier can turn into a value, forced onto one scorable row
-    here so the test can actually fail if the guard in `_assert_complete`
-    is ever weakened or removed.
+    `text_ar` is `NOT NULL` in the schema -- it is the canonical Arabic matn,
+    a source column that is never stripped -- so a NULL can never reach this
+    code in the first place. An empty string is the real gap: it is legal
+    under `NOT NULL`, normalises to '' (still non-NULL, so the norm_standard
+    completeness check alone would not catch it), and is exactly the "live
+    verification hazard" `build.py`'s own empty-scored-text guard rejects at
+    build time. Forced onto one scorable row here so the test can actually
+    fail if the blank-text_ar guard in `_assert_complete` is ever weakened
+    or removed.
     """
     src = str(tmp_path / "src.db")
     _strip_to_source(COMMITTED, src)
@@ -139,7 +143,7 @@ def test_materialize_rejects_incomplete(tmp_path):
     (victim,) = c.execute(
         "SELECT id FROM records WHERE unscorable_reason IS NULL LIMIT 1"
     ).fetchone()
-    c.execute("UPDATE records SET text_ar=NULL WHERE id=?", (victim,))
+    c.execute("UPDATE records SET text_ar='' WHERE id=?", (victim,))
     c.commit()
     c.close()
 

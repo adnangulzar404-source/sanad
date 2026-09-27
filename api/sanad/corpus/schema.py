@@ -26,19 +26,17 @@ CREATE TABLE IF NOT EXISTS sources (
   modifications   TEXT NOT NULL
 );
 
--- text_ar, text_ar_sha256, norm_light, norm_standard and norm_aggressive
--- carry NO `NOT NULL` here, even though every row `build_corpus` ever writes
--- populates all five: a source-only DB (Stage A3) commits `records` with the
--- three norm_* columns and text_ar_sha256 unpopulated -- `materialize()`
--- fills them in, and `_assert_complete` there is the real completeness gate,
--- not this constraint. `text_ar` is nullable for the same reason
--- `materialize`'s own test suite needs it to be: a record whose canonical
--- text a source-only DB failed to carry must be representable as a row
--- (NULL), so that failure can be asserted on with a real query rather than
--- constructed out of reach. `reference_display` is the one column of this
--- group that keeps `NOT NULL`: it is a committed source column at every
--- stage (see Stage A3 ruling R-A3-3, `sanad_ingest.materialize` docstring),
--- never blanked and never derived here.
+-- text_ar_sha256, norm_light, norm_standard and norm_aggressive carry NO
+-- `NOT NULL` here, even though every row `build_corpus` ever writes
+-- populates all four: a source-only DB (Stage A3) commits `records` with
+-- these DERIVED columns unpopulated -- `materialize()` fills them in, and
+-- `_assert_complete` there is the real completeness gate, not this
+-- constraint. `text_ar` keeps `NOT NULL`: it is the canonical Arabic matn, a
+-- SOURCE column that is never stripped and must never be null -- the same
+-- invariant `build.py`'s "empty scored text" check enforces at build time.
+-- `reference_display` also keeps `NOT NULL`: it is a committed source column
+-- at every stage (see Stage A3 ruling R-A3-3, `sanad_ingest.materialize`
+-- docstring), never blanked and never derived here.
 CREATE TABLE IF NOT EXISTS records (
   id                TEXT PRIMARY KEY,
   source_id         TEXT NOT NULL REFERENCES sources(id),
@@ -52,7 +50,7 @@ CREATE TABLE IF NOT EXISTS records (
   chapter_ar        TEXT,
   hadith_no         TEXT,
   numbering_scheme  TEXT,
-  text_ar           TEXT,
+  text_ar           TEXT NOT NULL,
   text_ar_sha256    TEXT,
   bismillah         TEXT,
   isnad_ar          TEXT,

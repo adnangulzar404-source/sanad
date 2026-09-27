@@ -85,6 +85,20 @@ def _derive_variants(conn: sqlite3.Connection) -> None:
 
 
 def _assert_complete(conn: sqlite3.Connection) -> None:
+    # Mirrors build.py:112's BuildError: an empty (or all-whitespace) scored
+    # text is a live verification hazard on its own, independent of whether
+    # normalization later produced a value for it. `text_ar` is `NOT NULL` in
+    # the schema, so this cannot fire on a NULL -- only on a blank string,
+    # which the constraint permits and this check exists to catch.
+    blank = conn.execute(
+        "SELECT COUNT(*) FROM records WHERE unscorable_reason IS NULL "
+        "AND TRIM(text_ar) = ''"
+    ).fetchone()[0]
+    if blank:
+        raise MaterializeError(
+            f"{blank} scorable record(s) have an empty or blank text_ar; "
+            "an empty scored text is a live verification hazard")
+
     n = conn.execute(
         "SELECT COUNT(*) FROM records WHERE unscorable_reason IS NULL "
         "AND norm_standard IS NULL"

@@ -59,6 +59,11 @@ class LockedSource:
     publisher: str | None = None
     edition: str | None = None
     license_url: str | None = None
+    # Hadith-only: which named collection ("bukhari", "muslim", ...) a source
+    # belongs to. The two Qur'an sources have none -- there is no collection
+    # to a mus'haf -- so this stays optional rather than required for every
+    # source kind.
+    collection: str | None = None
 
 
 def load_lockfile(path: str | Path) -> list[LockedSource]:
@@ -94,7 +99,8 @@ def load_lockfile(path: str | Path) -> list[LockedSource]:
         out.append(LockedSource(**{k: entry.get(k) for k in
                                    list(_REQUIRED) +
                                    ["expected_lines", "expected_records", "commit",
-                                    "publisher", "edition", "license_url"]}))
+                                    "publisher", "edition", "license_url",
+                                    "collection"]}))
 
     if not out:
         # A lockfile with zero [[source]] entries parses "successfully" and

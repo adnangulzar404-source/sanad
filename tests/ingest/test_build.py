@@ -617,9 +617,62 @@ def test_duplicate_reference_display_aborts_the_build():
     locked = LockedSource(
         id="x", kind="hadith-arabic", format="openiti-markdown", title="X",
         url="https://example.invalid/x", license_id="public-domain",
-        content_sha256="0" * 64, modifications="none", expected_records=2)
+        content_sha256="0" * 64, modifications="none", expected_records=2,
+        collection="bukhari")
     with pytest.raises(BuildError, match="Sahih al-Bukhari 7"):
         _hadith_records(parsed, locked)
+
+
+# --- Task 8: _reference_display is collection-aware -------------------------
+#
+# The title prefix ("Sahih al-Bukhari", "Sahih Muslim", ...) is the ONLY thing
+# that changes with `collection`. is_repeat's mukarrar miim and the
+# occurrence-counter suffix are unrelated to which collection a hadith belongs
+# to and must keep working identically for every collection (ruling R-A3-10).
+
+def _make_unit(hadith_no="1", is_repeat=False):
+    from sanad_ingest.openiti import HadithUnit
+    return HadithUnit(hadith_no=hadith_no, record_id=f"hadith:x:{hadith_no}",
+                      is_repeat=is_repeat, kitab_no=1, kitab_ar="k", bab_ar="b",
+                      isnad_ar="i", matn_ar="m", addenda_ar=None)
+
+
+def test_reference_display_bukhari_is_unchanged():
+    from sanad_ingest.build import _reference_display
+    assert _reference_display("bukhari", _make_unit("1"), 1) == "Sahih al-Bukhari 1"
+
+
+def test_reference_display_maps_each_collection_to_its_title():
+    from sanad_ingest.build import _reference_display
+    unit = _make_unit("1")
+    expected = {
+        "bukhari": "Sahih al-Bukhari 1",
+        "muslim": "Sahih Muslim 1",
+        "abudawud": "Sunan Abi Dawud 1",
+        "tirmidhi": "Jami at-Tirmidhi 1",
+        "nasai": "Sunan an-Nasai 1",
+        "ibnmajah": "Sunan Ibn Majah 1",
+    }
+    for collection, want in expected.items():
+        assert _reference_display(collection, unit, 1) == want
+
+
+def test_reference_display_unknown_collection_raises():
+    from sanad_ingest.build import BuildError, _reference_display
+    with pytest.raises(BuildError):
+        _reference_display("no-such-collection", _make_unit("1"), 1)
+
+
+def test_reference_display_mukarrar_miim_for_non_bukhari_collection():
+    from sanad_ingest.build import _reference_display
+    unit = _make_unit("619", is_repeat=True)
+    assert _reference_display("muslim", unit, 1) == f"Sahih Muslim 619 {_MIIM}"
+
+
+def test_reference_display_occurrence_suffix_for_non_bukhari_collection():
+    from sanad_ingest.build import _reference_display
+    unit = _make_unit("3905", is_repeat=False)
+    assert _reference_display("muslim", unit, 2) == "Sahih Muslim 3905 (2)"
 
 
 # --- fix round 1: secondary narrations are stored, not scored --------------
@@ -781,7 +834,8 @@ def test_an_empty_scored_text_aborts_the_build():
     locked = LockedSource(
         id="x", kind="hadith-arabic", format="openiti-markdown", title="X",
         url="https://example.invalid/x", license_id="public-domain",
-        content_sha256="0" * 64, modifications="none", expected_records=1)
+        content_sha256="0" * 64, modifications="none", expected_records=1,
+        collection="bukhari")
     with pytest.raises(BuildError, match="empty scored text"):
         _hadith_records(parsed, locked)
 
@@ -884,7 +938,8 @@ def test_a_missing_audited_record_aborts_the_build():
     locked = LockedSource(
         id="x", kind="hadith-arabic", format="openiti-markdown", title="X",
         url="https://example.invalid/x", license_id="public-domain",
-        content_sha256="0" * 64, modifications="none", expected_records=1)
+        content_sha256="0" * 64, modifications="none", expected_records=1,
+        collection="bukhari")
     with pytest.raises(BuildError, match="hadith:bukhari:1379"):
         _hadith_records(parsed, locked)
 
@@ -919,7 +974,8 @@ def test_a_missing_do_not_cut_record_aborts_the_build():
     locked = LockedSource(
         id="x", kind="hadith-arabic", format="openiti-markdown", title="X",
         url="https://example.invalid/x", license_id="public-domain",
-        content_sha256="0" * 64, modifications="none", expected_records=len(ids))
+        content_sha256="0" * 64, modifications="none", expected_records=len(ids),
+        collection="bukhari")
     with pytest.raises(BuildError, match="hadith:bukhari:632"):
         _hadith_records(parsed, locked)
 

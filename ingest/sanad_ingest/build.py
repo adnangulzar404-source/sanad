@@ -65,8 +65,24 @@ def _as_ayat(parsed: ParsedTanzil | ParsedTanzilXml) -> _Ayat:
 # "619 م" says twenty-five.
 _MUKARRAR = "م"
 
+# The display title for each collection's citations, plain ASCII with
+# hamza/'ayn dropped -- the house style already used for surah names
+# (surah_name_en renders "Al-Fatihah", "An-Nisa", ...; see
+# sanad.corpus.surahs). Only "bukhari" is in the lockfile today; the other
+# five are dormant until their own sources are added in later Stage A3 tasks,
+# but the titles are fixed now so a future addition is a lockfile edit, not a
+# code change.
+_COLLECTION_TITLE = {
+    "bukhari": "Sahih al-Bukhari",
+    "muslim": "Sahih Muslim",
+    "abudawud": "Sunan Abi Dawud",
+    "tirmidhi": "Jami at-Tirmidhi",
+    "nasai": "Sunan an-Nasai",
+    "ibnmajah": "Sunan Ibn Majah",
+}
 
-def _reference_display(unit, occurrence: int) -> str:
+
+def _reference_display(collection: str, unit, occurrence: int) -> str:
     """A citation a reader can look up, and that no other record shares.
 
     Five numbers are printed twice in this edition. Rendering both of a pair
@@ -77,8 +93,17 @@ def _reference_display(unit, occurrence: int) -> str:
     printed twice with no marker at all; there is nothing in the source to
     render, so the ordinal from the record id is shown instead, plainly
     enough that a reader can see it is ours and not the edition's.
+
+    `collection` only changes the title prefix -- the mukarrar miim and the
+    occurrence suffix are properties of the edition's numbering, not of which
+    collection it belongs to, so they apply identically to every collection.
     """
-    ref = f"Sahih al-Bukhari {unit.hadith_no}"
+    title = _COLLECTION_TITLE.get(collection)
+    if title is None:
+        raise BuildError(
+            f"{collection!r} has no display title in _COLLECTION_TITLE. "
+            "Add one rather than let a citation render with the wrong name.")
+    ref = f"{title} {unit.hadith_no}"
     if unit.is_repeat:
         return f"{ref} {_MUKARRAR}"
     if occurrence > 1:
@@ -128,7 +153,7 @@ def _hadith_records(
             id=u.record_id,
             source_id=locked.id,
             kind="hadith",
-            collection="bukhari",
+            collection=locked.collection,
             book_no=u.kitab_no,
             chapter_ar=u.bab_ar,
             hadith_no=u.hadith_no,
@@ -144,7 +169,8 @@ def _hadith_records(
             norm_light=None,
             norm_standard=None,
             norm_aggressive=None,
-            reference_display=_reference_display(u, seen[u.hadith_no]),
+            reference_display=_reference_display(
+                locked.collection, u, seen[u.hadith_no]),
         ))
 
     refs: dict[str, str] = {}
@@ -164,8 +190,8 @@ def _hadith_records(
     # "hadith:bukhari:" ids, so this is the one ingest path the list belongs
     # to and the check needs no source-specific guard.
     present = {r.id for r in out}
-    for list_name, audited in (("unscorable", UNSCORABLE["bukhari"]),
-                               ("do-not-cut", NEVER_CUT["bukhari"])):
+    for list_name, audited in (("unscorable", UNSCORABLE.get(locked.collection, {})),
+                               ("do-not-cut", NEVER_CUT.get(locked.collection, {}))):
         missing = sorted(set(audited) - present)
         if missing:
             raise BuildError(

@@ -377,16 +377,17 @@ def parse_openiti(
     unscorable: dict[str, tuple[str, str]] | None = None,
 ) -> ParsedOpeniti:
     # None-then-resolve rather than a mutable dict default, and resolved
-    # against the Bukhari entry specifically (not `collection`): today the
-    # only caller that omits these is the Bukhari build, so this is what
-    # keeps that call site's behaviour unchanged. A future collection is
-    # expected to pass its own never_cut/unscorable explicitly -- lookups
-    # are keyed by the full record id, so an unrelated collection's ids
-    # simply never match an inherited Bukhari list.
+    # against `collection`: NEVER_CUT/UNSCORABLE are keyed by collection, so
+    # Bukhari (whose collection is "bukhari") gets exactly the dict it always
+    # got. A future collection with no audit list yet gets an empty dict
+    # instead of silently inheriting Bukhari's entries -- lookups are keyed
+    # by the full record id, so an unrelated collection's ids would simply
+    # never match an inherited Bukhari list, but an empty dict says so
+    # honestly rather than by accident.
     if never_cut is None:
-        never_cut = audit_lists.NEVER_CUT["bukhari"]
+        never_cut = audit_lists.NEVER_CUT.get(collection, {})
     if unscorable is None:
-        unscorable = audit_lists.UNSCORABLE["bukhari"]
+        unscorable = audit_lists.UNSCORABLE.get(collection, {})
 
     end = raw.find(_HEADER_END)
     if end == -1:

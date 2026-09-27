@@ -142,11 +142,43 @@ def _valid(surah: int, ayah: int | None) -> bool:
 # names are rejected by requiring the number, mirroring the surah-name rule:
 # a spurious reference produces an actively wrong WRONG_REFERENCE, whereas a
 # missed one only downgrades to a correct plain match.
+#
+# Six collections, canonical ids: bukhari, muslim, abudawud, tirmidhi, nasai,
+# ibnmajah. Keys are `_slug` output for every alias below -- confirmed by
+# running `_slug` on each alias rather than hand-computed, since slugging
+# folds "-"/" " away and a wrong guess here would silently miss a real
+# citation (a safe failure) or, worse, collide two different aliases onto the
+# same slug (it does not, but the check is what makes that a fact rather than
+# an assumption). "muslim" is a common English word, but -- like "Bukhari" --
+# it is only ever looked up as `m.group("name")` from `_HADITH_CITE`, which
+# requires a following number; a bare "muslim" in prose never reaches this
+# dict at all, so the bare-name-doesn't-resolve rule is unaffected.
 _COLLECTIONS = {
     "bukhari": "bukhari",
     "albukhari": "bukhari",
     "sahihbukhari": "bukhari",
     "sahihalbukhari": "bukhari",
+    "muslim": "muslim",
+    "sahihmuslim": "muslim",
+    "abudawud": "abudawud",
+    "abidawud": "abudawud",
+    "sunanabidawud": "abudawud",
+    "sunanabudawud": "abudawud",
+    "tirmidhi": "tirmidhi",
+    "altirmidhi": "tirmidhi",
+    "attirmidhi": "tirmidhi",
+    "jamitirmidhi": "tirmidhi",
+    "jamiattirmidhi": "tirmidhi",
+    "sunantirmidhi": "tirmidhi",
+    "nasai": "nasai",
+    "alnasai": "nasai",
+    "annasai": "nasai",
+    "sunannasai": "nasai",
+    "sunanannasai": "nasai",
+    "ibnmajah": "ibnmajah",
+    "ibnmaja": "ibnmajah",
+    "sunanibnmajah": "ibnmajah",
+    "sunanibnmaja": "ibnmajah",
 }
 
 # BOOK-RELATIVE CITATIONS ARE RECOGNISED AND DELIBERATELY NOT RESOLVED.
@@ -178,11 +210,26 @@ _COLLECTIONS = {
 # a citation that had previously produced a different wrong reference, which
 # is no improvement at all.
 #
-# Separator as in `_NUMERIC` above -- the ASCII colon plus the fullwidth colon
-# (U+FF1A) written as an explicit backslash-u escape, never as a literal
-# glyph, per this module's character-safety rule.
+# The six-way alternation below. Each branch is the same shape as the
+# original bukhari-only branch: an optional collection-specific prefix
+# ("sahih", "sunan", "jami") and/or definite-article variant, then the stem.
+# Branches never share a stem, so alternation order cannot make one branch
+# shadow another's match -- confirmed by running the pattern against every
+# alias in `_COLLECTIONS` above plus the existing Bukhari forms (see the
+# task-9 report). "Muslim 2:255" is deliberately still captured whole by this
+# same pattern (name=Muslim, number=2, second=255): the `second` group makes
+# `_collect_hadith_citations` refuse it below, exactly like "Bukhari 1:2:13"
+# -- see the long comment above about book-relative citations, which applies
+# unchanged to all six collections now that they share this one pattern.
 _HADITH_CITE = re.compile(
-    r"\b(?P<name>(?:sahih\s+)?(?:al[-\s]?)?bukhari)\b"
+    r"\b(?P<name>"
+    r"(?:sahih\s+)?(?:al[-\s]?)?bukhari"
+    r"|(?:sahih\s+)?muslim"
+    r"|(?:sunan\s+)?ab[iu]\s+dawud"
+    r"|(?:(?:jami\s+)?(?:al[-\s]?|at[-\s]?)?|sunan\s+)tirmidhi"
+    r"|(?:sunan\s+)?(?:al[-\s]?|an[-\s]?)?nasai"
+    r"|(?:sunan\s+)?ibn\s+maj(?:ah|a)"
+    r")\b"
     r"(?:\s*,)?\s*"
     r"(?P<book>(?:book|kitab)\s*\d+\s*,?\s*)?"
     r"(?:(?:hadith|hadeeth|no\.?|number|#)\s*)?"
@@ -214,13 +261,77 @@ _HADITH_CITE = re.compile(
 # (U+06F0-06F9) digits as `\d`, and `int()` already parses them (see
 # `test_arabic_indic_digits_parse_correctly`, which exercises this on the
 # Qur'an path) -- so no separate digit-normalizing routine is written here.
+# The five new collections' Arabic names, added for Task 9. Every literal
+# below is composed from small fragments, each an explicit backslash-u
+# escape verified against `unicodedata.name()` -- never a typed glyph -- and
+# each fragment is used both in `_COLLECTIONS_AR` (as an exact-string dict
+# key) and in `_HADITH_CITE_AR` (as a regex alternative), so the two cannot
+# drift out of correspondence with each other. Full verification output
+# (codepoint -> `unicodedata.name()`) is in the task-9 report. In order:
+#
+#   muslim (U+0645 U+0633 U+0644 U+0645, MEEM SEEN LAM MEEM)
+#   abu    (U+0623 U+0628 U+0648, ALEF WITH HAMZA ABOVE, BEH, WAW)
+#   abi    (U+0623 U+0628 U+064A, ALEF WITH HAMZA ABOVE, BEH, YEH)
+#   dawud  (U+062F U+0627 U+0648 U+062F, DAL ALEF WAW DAL)
+#   sunan  (U+0633 U+0646 U+0646, SEEN NOON NOON)
+#   jami   (U+062C U+0627 U+0645 U+0639, JEEM ALEF MEEM AIN)
+#   al-tirmidhi (U+0627 U+0644 U+062A U+0631 U+0645 U+0630 U+064A,
+#                ALEF LAM TEH REH MEEM THAL YEH)
+#   al-nasai (U+0627 U+0644 U+0646 U+0633 U+0627 U+0626 U+064A, ALEF LAM
+#             NOON SEEN ALEF YEH-WITH-HAMZA-ABOVE YEH)
+#   ibn    (U+0627 U+0628 U+0646, ALEF BEH NOON)
+#   majah, heh spelling  (U+0645 U+0627 U+062C U+0647, MEEM ALEF JEEM HEH)
+#   majah, taa-marbuta spelling (U+0645 U+0627 U+062C U+0629, MEEM ALEF
+#             JEEM TEH MARBUTA)
+#
+# Note the hamza forms (alef-with-hamza-above, U+0623, in abu/abi) and the
+# heh (U+0647) vs taa-marbuta (U+0629) distinction in the two Ibn Majah
+# spellings -- both flagged explicitly per this module's character-safety
+# rule, since either would be a silent, plausible-looking substitution.
+_ABU_AR = "\u0623\u0628\u0648"
+_ABI_AR = "\u0623\u0628\u064A"
+_DAWUD_AR = "\u062F\u0627\u0648\u062F"
+_SUNAN_AR = "\u0633\u0646\u0646"
+_JAMI_AR = "\u062C\u0627\u0645\u0639"
+_AL_TIRMIDHI_AR = "\u0627\u0644\u062A\u0631\u0645\u0630\u064A"
+_AL_NASAI_AR = "\u0627\u0644\u0646\u0633\u0627\u0626\u064A"
+_IBN_AR = "\u0627\u0628\u0646"
+_MAJAH_HEH_AR = "\u0645\u0627\u062C\u0647"
+_MAJAH_TAA_AR = "\u0645\u0627\u062C\u0629"
+
 _COLLECTIONS_AR = {
     "\u0627\u0644\u0628\u062E\u0627\u0631\u064A": "bukhari",  # al-bukhari
     "\u0628\u062E\u0627\u0631\u064A": "bukhari",  # bukhari, no article
+    "\u0645\u0633\u0644\u0645": "muslim",  # muslim
+    f"{_ABU_AR} {_DAWUD_AR}": "abudawud",  # abu dawud
+    f"{_ABI_AR} {_DAWUD_AR}": "abudawud",  # abi dawud
+    f"{_SUNAN_AR} {_ABI_AR} {_DAWUD_AR}": "abudawud",  # sunan abi dawud
+    _AL_TIRMIDHI_AR: "tirmidhi",  # al-tirmidhi
+    f"{_JAMI_AR} {_AL_TIRMIDHI_AR}": "tirmidhi",  # jami al-tirmidhi
+    f"{_SUNAN_AR} {_AL_TIRMIDHI_AR}": "tirmidhi",  # sunan al-tirmidhi
+    _AL_NASAI_AR: "nasai",  # al-nasai
+    f"{_SUNAN_AR} {_AL_NASAI_AR}": "nasai",  # sunan al-nasai
+    f"{_IBN_AR} {_MAJAH_HEH_AR}": "ibnmajah",  # ibn majah (heh)
+    f"{_IBN_AR} {_MAJAH_TAA_AR}": "ibnmajah",  # ibn majah (taa marbuta)
+    f"{_SUNAN_AR} {_IBN_AR} {_MAJAH_HEH_AR}": "ibnmajah",  # sunan ibn majah
 }
 _HADITH_CITE_AR = re.compile(
     r"\b(?:\u0635\u062D\u064A\u062D\s+|\u0631\u0648\u0627\u0647\s+)?"
-    r"(?P<name>(?:\u0627\u0644)?\u0628\u062E\u0627\u0631\u064A)\b"
+    r"(?P<name>"
+    r"(?:\u0627\u0644)?\u0628\u062E\u0627\u0631\u064A"  # (al-)bukhari
+    r"|\u0645\u0633\u0644\u0645"  # muslim
+    rf"|{_ABU_AR}\s+{_DAWUD_AR}"  # abu dawud
+    rf"|{_ABI_AR}\s+{_DAWUD_AR}"  # abi dawud
+    rf"|{_SUNAN_AR}\s+{_ABI_AR}\s+{_DAWUD_AR}"  # sunan abi dawud
+    rf"|{_JAMI_AR}\s+{_AL_TIRMIDHI_AR}"  # jami al-tirmidhi
+    rf"|{_SUNAN_AR}\s+{_AL_TIRMIDHI_AR}"  # sunan al-tirmidhi
+    rf"|{_AL_TIRMIDHI_AR}"  # al-tirmidhi
+    rf"|{_SUNAN_AR}\s+{_AL_NASAI_AR}"  # sunan al-nasai
+    rf"|{_AL_NASAI_AR}"  # al-nasai
+    rf"|{_SUNAN_AR}\s+{_IBN_AR}\s+{_MAJAH_HEH_AR}"  # sunan ibn majah
+    rf"|{_IBN_AR}\s+{_MAJAH_HEH_AR}"  # ibn majah (heh)
+    rf"|{_IBN_AR}\s+{_MAJAH_TAA_AR}"  # ibn majah (taa marbuta)
+    r")\b"
     r"\s*"
     r"(?:(?:\u062D\u062F\u064A\u062B|\u0631\u0642\u0645)\s*)?"
     r"(?P<number>\d+)"

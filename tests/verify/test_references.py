@@ -334,10 +334,23 @@ def test_arabic_out_of_range_number_is_not_a_hadith_reference():
     assert not any(isinstance(r, Reference) for r in refs)
 
 
-def test_other_arabic_collection_name_is_not_parsed():
-    """Only Bukhari exists in the corpus so far (see _COLLECTIONS/_COLLECTIONS_AR);
-    a citation naming a different collection must not be mistaken for it."""
-    text = "مسلم ١٢"  # مسلم ١٢ (Muslim 12)
+def test_an_unsupported_collection_name_is_not_parsed():
+    """This corpus recognises six collections (Task 9): bukhari, muslim,
+    abudawud, tirmidhi, nasai, ibnmajah -- see `_COLLECTIONS`/
+    `_COLLECTIONS_AR`. Previously this test used muslim as the example
+    unsupported name; muslim is now supported (see
+    `test_parses_all_six_collections_in_arabic_script` below), so this
+    is updated to a real seventh collection, al-Darimi, that this corpus
+    still does not ship -- a citation naming it must not be mistaken for
+    one of the six that resolve.
+
+    Codepoints verified with `unicodedata.name()`: U+0627 ARABIC LETTER
+    ALEF, U+0644 ARABIC LETTER LAM, U+062F ARABIC LETTER DAL, U+0627
+    ARABIC LETTER ALEF, U+0631 ARABIC LETTER REH, U+0645 ARABIC LETTER
+    MEEM, U+064A ARABIC LETTER YEH (al-darimi).
+    """
+    al_darimi = ("\u0627\u0644\u062F\u0627\u0631\u0645\u064A")
+    text = f"{al_darimi} \u0661\u0662"  # al-darimi 12
     assert parse_references(text) == []
 
 
@@ -523,3 +536,125 @@ def test_a_run_of_non_ascii_zeros_is_not_a_reference_to_hadith_zero():
     """
     for zero in ("\u0660", "\u06F0", "0"):
         assert parse_references(f"{_AL_BUKHARI} {zero * 3}") == []
+
+
+# --- Task 9: six-collection citation grammar --------------------------------
+#
+# Bukhari was the only collection this grammar recognised. These tests add
+# the other five: muslim, abudawud, tirmidhi, nasai, ibnmajah (the canonical
+# ids used throughout, matching `_COLLECTIONS`/`_COLLECTIONS_AR`). Every
+# Arabic literal below is an explicit backslash-u escape verified against
+# `unicodedata.name()` in the task-9 report -- never a typed glyph -- per
+# this module's character-safety rule (see `_AL_BUKHARI` above).
+
+# Arabic fragments, independently spelled out and verified here rather than
+# imported from the module under test. In order: muslim (U+0645 U+0633
+# U+0644 U+0645, MEEM SEEN LAM MEEM), sahih (U+0635 U+062D U+064A U+062D,
+# already used literally elsewhere in this file), abi (U+0623 U+0628 U+064A,
+# ALEF WITH HAMZA ABOVE, BEH, YEH), dawud (U+062F U+0627 U+0648 U+062F, DAL
+# ALEF WAW DAL), sunan (U+0633 U+0646 U+0646, SEEN NOON NOON), al-tirmidhi
+# (U+0627 U+0644 U+062A U+0631 U+0645 U+0630 U+064A, ALEF LAM TEH REH MEEM
+# THAL YEH), al-nasai (U+0627 U+0644 U+0646 U+0633 U+0627 U+0626 U+064A,
+# ALEF LAM NOON SEEN ALEF YEH-WITH-HAMZA-ABOVE YEH), ibn (U+0627 U+0628
+# U+0646, ALEF BEH NOON), majah with heh (U+0645 U+0627 U+062C U+0647, MEEM
+# ALEF JEEM HEH). Arabic-Indic digit one is U+0661 (verified: ARABIC-INDIC
+# DIGIT ONE).
+_MUSLIM_AR = "\u0645\u0633\u0644\u0645"
+_SAHIH_AR = "\u0635\u062D\u064A\u062D"
+_ABI_AR = "\u0623\u0628\u064A"
+_DAWUD_AR = "\u062F\u0627\u0648\u062F"
+_SUNAN_AR = "\u0633\u0646\u0646"
+_AL_TIRMIDHI_AR = "\u0627\u0644\u062A\u0631\u0645\u0630\u064A"
+_AL_NASAI_AR = "\u0627\u0644\u0646\u0633\u0627\u0626\u064A"
+_IBN_AR = "\u0627\u0628\u0646"
+_MAJAH_HEH_AR = "\u0645\u0627\u062C\u0647"
+_ARABIC_ONE = "\u0661"
+_ABI_DAWUD_AR = f"{_ABI_AR} {_DAWUD_AR}"
+_IBN_MAJAH_AR = f"{_IBN_AR} {_MAJAH_HEH_AR}"
+
+
+@pytest.mark.parametrize("text,collection,hadith_no", [
+    ("Muslim 1", "muslim", "1"),
+    ("Sahih Muslim 1", "muslim", "1"),
+    ("Sunan Abi Dawud 100", "abudawud", "100"),
+    ("Abu Dawud 100", "abudawud", "100"),
+    ("Tirmidhi 1", "tirmidhi", "1"),
+    ("Jami at-Tirmidhi 1", "tirmidhi", "1"),
+    ("An-Nasai 1", "nasai", "1"),
+    ("Sunan an-Nasai 1", "nasai", "1"),
+    ("Ibn Majah 1", "ibnmajah", "1"),
+    ("Sunan Ibn Majah 1", "ibnmajah", "1"),
+])
+def test_parses_all_six_collections_in_latin_script(text, collection, hadith_no):
+    refs = [r for r in parse_references(text) if isinstance(r, HadithReference)]
+    assert len(refs) == 1
+    assert refs[0].collection == collection
+    assert refs[0].hadith_no == hadith_no
+
+
+@pytest.mark.parametrize("text,collection", [
+    (f"{_SAHIH_AR} {_MUSLIM_AR} {_ARABIC_ONE}", "muslim"),
+    (f"{_MUSLIM_AR} {_ARABIC_ONE}", "muslim"),
+    (f"{_ABI_DAWUD_AR} {_ARABIC_ONE}", "abudawud"),
+    (f"{_SUNAN_AR} {_ABI_DAWUD_AR} {_ARABIC_ONE}", "abudawud"),
+    (f"{_AL_TIRMIDHI_AR} {_ARABIC_ONE}", "tirmidhi"),
+    (f"{_AL_NASAI_AR} {_ARABIC_ONE}", "nasai"),
+    (f"{_IBN_MAJAH_AR} {_ARABIC_ONE}", "ibnmajah"),
+])
+def test_parses_all_six_collections_in_arabic_script(text, collection):
+    refs = [r for r in parse_references(text) if isinstance(r, HadithReference)]
+    assert len(refs) == 1
+    assert refs[0].collection == collection
+    assert refs[0].hadith_no == "1"
+
+
+def test_bare_nasai_with_no_number_is_not_a_reference():
+    """Same rule as bare 'Bukhari'/'Maryam': a collection name alone names a
+    collection, not a text."""
+    assert not [r for r in parse_references("as Nasai reports")
+                if isinstance(r, HadithReference)]
+
+
+def test_muslim_colon_pair_reads_as_collection_governed_not_a_verse():
+    """R-A3-14: 'Muslim 2:255' is claimed by the hadith grammar (so the
+    verse-numeric pass can never re-read it as surah 2, ayah 255) and then
+    refused -- there is no kitab:hadith numbering map for this corpus, and
+    inventing one would fabricate a resolution. Same semantics as the
+    existing 'Bukhari 1:1' case above, extended to the new collections.
+    """
+    refs = parse_references("Muslim 2:255")
+    assert not any(isinstance(r, Reference) and r.surah == 2 and r.ayah == 255
+                   for r in refs)
+    assert not any(isinstance(r, HadithReference) for r in refs)
+    assert refs == []
+
+
+@pytest.mark.parametrize("text", [
+    "Muslim, Book 1, Hadith 1",
+    "Sunan Abi Dawud, Book 1, Hadith 1",
+    "Jami at-Tirmidhi, Book 1, Hadith 1",
+    "Sunan an-Nasai, Book 1, Hadith 1",
+    "Sunan Ibn Majah, Book 1, Hadith 1",
+])
+def test_book_relative_citations_refuse_for_the_new_collections_too(text):
+    """The book-relative refusal (see the long comment above `_HADITH_CITE`)
+    is not a Bukhari-specific carve-out -- it applies to every collection
+    sharing this grammar, because none of them ship a book-relative numbering
+    scheme in this corpus either."""
+    assert parse_references(text) == []
+
+
+def _tirmidhi_and_verse_refs():
+    """A Tirmidhi hadith citation at 0 and a verse citation at 500 -- the
+    same shape as `_mixed_refs` above, extended to a non-Bukhari collection
+    so the cross-kind proximity rule (Task 6, D1) demonstrably applies to it
+    too. This is the mechanism the engine's cross-kind WRONG_REFERENCE check
+    depends on: an ayah quoted near "(Tirmidhi 1)" must draw that citation,
+    not silence, so the engine can flag the mismatch."""
+    return [HadithReference("tirmidhi", "1", "Tirmidhi 1", 0),
+            Reference(112, 1, "112:1", 500)]
+
+
+def test_nearest_reference_crosses_kinds_for_a_non_bukhari_collection():
+    assert nearest_reference(_tirmidhi_and_verse_refs(), 10).collection == "tirmidhi"
+    assert nearest_reference(_tirmidhi_and_verse_refs(), 490).surah == 112

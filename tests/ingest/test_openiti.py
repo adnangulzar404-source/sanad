@@ -9,7 +9,8 @@ import re
 from pathlib import Path
 
 import pytest
-from sanad_ingest.openiti import parse_openiti
+from sanad_ingest import audit_lists
+from sanad_ingest.openiti import _split_secondary, parse_openiti
 
 FIXTURE = Path(__file__).parent.parent / "fixtures" / "bukhari_sample.txt"
 FULL = Path("/tmp/bukhari.txt")   # the real download; see Task 2 Step 1
@@ -17,6 +18,16 @@ FULL = Path("/tmp/bukhari.txt")   # the real download; see Task 2 Step 1
 # sha256 of the sorted, comma-joined ids of every record the secondary-narration
 # rule cuts. Measured, not chosen; see test_exactly_the_measured_records_are_cut.
 _CUT_ID_DIGEST = "9ab1428bd9299eaa9b6354cbf6f650589a74a790b41071085c0f0c01e9fbaae3"
+
+
+def _split(matn: str, record_id: str) -> tuple[str, str | None]:
+    """`_split_secondary` bound to the Bukhari tuning/audit values, so the
+    white-box tests below keep exercising exactly the behaviour they always
+    have now that the parser takes these as parameters instead of module
+    globals."""
+    return _split_secondary(
+        matn, record_id, audit_lists.ATTRIBUTION_WINDOW,
+        audit_lists.MAX_ADDENDUM, audit_lists.NEVER_CUT["bukhari"])
 
 
 @pytest.fixture(scope="module")
@@ -525,11 +536,8 @@ def test_the_attribution_window_bounds_the_distance_in_characters():
     the window on a synthetic input rather than leaving the constant
     untested. An untested constant is one a later edit widens quietly.
     """
-    from sanad_ingest.openiti import (
-        _ATTRIBUTION_WINDOW,
-        _NARRATION_VERBS,
-        _split_secondary,
-    )
+    from sanad_ingest.openiti import _NARRATION_VERBS
+    _ATTRIBUTION_WINDOW = audit_lists.ATTRIBUTION_WINDOW
     verb = _NARRATION_VERBS[0]
     baa = chr(0x0628)                       # a bare Arabic letter, no meaning
     primary = f"{baa * 20} {baa * 20}"
@@ -537,7 +545,7 @@ def test_the_attribution_window_bounds_the_distance_in_characters():
         name = baa * name_len
         matn = f"{primary} {_QAL} {name} {verb} {baa * 20}"
         assert (len(_QAL) + 1 + name_len + 1 > _ATTRIBUTION_WINDOW) is not expect_cut
-        got_primary, addenda = _split_secondary(matn, "hadith:bukhari:synthetic")
+        got_primary, addenda = _split(matn, "hadith:bukhari:synthetic")
         if expect_cut:
             assert addenda == f"{_QAL} {name} {verb} {baa * 20}"
             assert got_primary == primary
@@ -600,13 +608,12 @@ def test_an_object_pronoun_directly_after_the_verb_is_not_a_chain():
     """"akhbirni 'an al-islam" is "tell me ABOUT islam", not "X told me from
     Y". A chain always names its narrator first, so "'an" flush against the
     verb is the one position where it cannot be a chain link."""
-    from sanad_ingest.openiti import _split_secondary
     baa = chr(0x0628)
     body = f"{baa * 20} {baa * 20}"
     said = f"{body} {_AKHBARANI} {_AN} {body}"
-    assert _split_secondary(said, "hadith:bukhari:synthetic") == (said, None)
+    assert _split(said, "hadith:bukhari:synthetic") == (said, None)
     chain = f"{body} {_AKHBARANI} {baa * 6} {_AN} {baa * 6}"
-    primary, addenda = _split_secondary(chain, "hadith:bukhari:synthetic")
+    primary, addenda = _split(chain, "hadith:bukhari:synthetic")
     assert addenda == f"{_AKHBARANI} {baa * 6} {_AN} {baa * 6}"
     assert primary == body
 
@@ -688,17 +695,16 @@ def test_an_attribution_reported_by_a_speech_verb_is_not_a_boundary():
     and so would be held back by the size cap alone. A guard whose only real
     example is covered twice is a guard no test can see fail.
     """
-    from sanad_ingest.openiti import _split_secondary
     baa = chr(0x0628)
     lii = "".join(chr(c) for c in (0x0644, 0x064A))           # "li" -- to me
     fa_qal = chr(0x0641) + _QAL                               # "fa-qala"
     body = f"{baa * 20} {baa * 20}"
     said = (f"{body} {fa_qal} {lii} {_QAL} {baa * 6} "
             f"{_HADDATHANA} {baa * 6} {_AN} {baa * 6}")
-    assert _split_secondary(said, "hadith:bukhari:synthetic") == (said, None)
+    assert _split(said, "hadith:bukhari:synthetic") == (said, None)
     # the same string without the addressee IS a boundary
     told = said.replace(f"{fa_qal} {lii} ", "")
-    primary, addenda = _split_secondary(told, "hadith:bukhari:synthetic")
+    primary, addenda = _split(told, "hadith:bukhari:synthetic")
     assert addenda == f"{_QAL} {baa * 6} {_HADDATHANA} {baa * 6} {_AN} {baa * 6}"
     assert primary == body
 
@@ -728,13 +734,12 @@ def test_a_one_token_primary_is_not_a_boundary():
     text and moves the narration out of reach; leaving it whole keeps the
     narration searchable. Same reasoning as the empty-matn guard.
     """
-    from sanad_ingest.openiti import _split_secondary
     baa = chr(0x0628)
     # One token before the chain: the length of that token is irrelevant
     # (40 characters here), because what makes this unsafe to cut is that
     # nothing but a single word would be left standing for the hadith.
     stub = f"{baa * 40} {_HADDATHANA} {baa * 6} {_AN} {baa * 6}"
-    assert _split_secondary(stub, "hadith:bukhari:synthetic") == (stub, None)
+    assert _split(stub, "hadith:bukhari:synthetic") == (stub, None)
 
 
 # --- fix round 3: editorial pointers are not quotable text -----------------
@@ -830,11 +835,10 @@ def test_a_two_token_primary_is_cut_however_short_it_is():
     have rejected, and the cut is still made, because the boundary the
     edition marks is the only thing that decides.
     """
-    from sanad_ingest.openiti import _split_secondary
     baa = chr(0x0628)
     tail = f"{_QAL} {baa * 6} {_HADDATHANA} {baa * 6} {_AN} {baa * 6}"
     tiny = f"{baa * 3} {baa * 3}"
-    assert _split_secondary(f"{tiny} {tail}", "hadith:bukhari:x") == (tiny, tail)
+    assert _split(f"{tiny} {tail}", "hadith:bukhari:x") == (tiny, tail)
 
 
 # --- fix round 5: the audited do-not-cut list ------------------------------
@@ -866,21 +870,19 @@ def test_the_do_not_cut_list_is_checked_against_the_text_it_audited():
     """Same contract as the unscorable audit: the entry pins the sha256 of
     the matn that was read, so a changed text stops the build instead of
     inheriting a judgement made about a different string."""
-    from sanad_ingest.openiti import _split_secondary
     baa = chr(0x0628)
     tail = f"{_QAL} {baa * 6} {_HADDATHANA} {baa * 6} {_AN} {baa * 6}"
     with pytest.raises(ValueError, match="632"):
-        _split_secondary(f"{baa * 20} {baa * 20} {tail}", "hadith:bukhari:632")
+        _split(f"{baa * 20} {baa * 20} {tail}", "hadith:bukhari:632")
 
 
 def test_the_do_not_cut_list_only_binds_the_records_it_names():
     """A record not on the list is cut on the same input that the list
     refuses, so the list -- and not some other guard -- is what stops it."""
-    from sanad_ingest.openiti import _split_secondary
     baa = chr(0x0628)
     tail = f"{_QAL} {baa * 6} {_HADDATHANA} {baa * 6} {_AN} {baa * 6}"
     body = f"{baa * 20} {baa * 20}"
-    primary, addenda = _split_secondary(f"{body} {tail}", "hadith:bukhari:999999")
+    primary, addenda = _split(f"{body} {tail}", "hadith:bukhari:999999")
     assert primary == body
     assert addenda == tail
 
@@ -913,3 +915,71 @@ def test_the_quranic_primary_is_never_cut(full):
     assert u.matn_ar == raw_matn, "the stored matn is the whole printed matn"
     # and it is longer than the ayah alone -- the narration is what was at risk
     assert len(u.matn_ar) > 60
+
+
+# --- task 7: the parser is collection-agnostic ------------------------------
+
+
+def _muslim_unit(number: str, matn: str) -> str:
+    baa = chr(0x0628)
+    return (f"{_HEADER}\n### | {baa * 5}\n"
+            f"# {number} {_HADDATHANA} {baa * 6} {_AN} {baa * 6} * {matn}\n")
+
+
+def test_collection_param_prefixes_the_record_id():
+    """A source other than Bukhari must not come out stamped "hadith:bukhari:"
+    -- that is the whole defect this task removes. `parse_openiti(raw)` with
+    no `collection` keyword still means Bukhari, so the build call site in
+    `build.py` is untouched; every other collection has to say so."""
+    baa = chr(0x0628)
+    unit = _muslim_unit("1", f"{baa * 20} {baa * 20}")
+    parsed = parse_openiti(unit, collection="muslim")
+    assert len(parsed.units) == 1
+    assert parsed.units[0].record_id == "hadith:muslim:1"
+    assert not parsed.units[0].record_id.startswith("hadith:bukhari:")
+
+
+def test_a_passed_in_never_cut_list_is_honoured_for_a_non_bukhari_record():
+    """The audit lists are parameters now, not module globals keyed only to
+    Bukhari's numbering: a caller building a different collection must be
+    able to supply its OWN hand-read do-not-cut entries, keyed under that
+    collection's record ids, and have the parser obey them.
+
+    Without an override the cut fires (this is the same rule Bukhari uses);
+    passing a `never_cut` entry for this exact matn suppresses it -- proving
+    the argument reaches the cut logic and is not just accepted and ignored.
+    """
+    baa = chr(0x0628)
+    tail = f"{_QAL} {baa * 6} {_HADDATHANA} {baa * 6} {_AN} {baa * 6}"
+    body = f"{baa * 20} {baa * 20}"
+    matn = f"{body} {tail}"
+    unit = _muslim_unit("900", matn)
+
+    cut = parse_openiti(unit, collection="muslim")
+    assert cut.units[0].addenda_ar == tail
+    assert cut.units[0].matn_ar == body
+
+    digest = hashlib.sha256(matn.encode("utf-8")).hexdigest()
+    reason = "test-only: this matn is audited whole for this test"
+    never_cut = {"hadith:muslim:900": (digest, reason)}
+    uncut = parse_openiti(unit, collection="muslim", never_cut=never_cut)
+    assert uncut.units[0].addenda_ar is None
+    assert uncut.units[0].matn_ar == matn
+
+
+def test_a_passed_in_unscorable_list_is_honoured_for_a_non_bukhari_record():
+    """Same argument-reaches-the-logic proof as the never_cut test, for the
+    other audit list."""
+    baa = chr(0x0628)
+    matn = f"{baa * 20} {baa * 20}"
+    unit = _muslim_unit("901", matn)
+
+    default = parse_openiti(unit, collection="muslim")
+    assert default.units[0].unscorable_reason is None
+
+    digest = hashlib.sha256(matn.encode("utf-8")).hexdigest()
+    reason = "test-only: this matn is audited as apparatus for this test"
+    unscorable = {"hadith:muslim:901": (digest, reason)}
+    marked = parse_openiti(unit, collection="muslim", unscorable=unscorable)
+    assert marked.units[0].unscorable_reason == reason
+    assert marked.units[0].matn_ar == matn

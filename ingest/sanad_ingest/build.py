@@ -10,9 +10,10 @@ from sanad.corpus.models import Record, Source
 from sanad.corpus.schema import SOURCE_SCHEMA_SQL
 from sanad.corpus.surahs import surah_name
 
+from .audit_lists import NEVER_CUT, UNSCORABLE
 from .fetch import fetch_source
 from .lockfile import LockedSource, load_lockfile
-from .openiti import _NEVER_CUT, _UNSCORABLE, ParsedOpeniti
+from .openiti import ParsedOpeniti
 from .tanzil import ParsedTanzil, ParsedTanzilXml, parser_for
 
 log = logging.getLogger(__name__)
@@ -163,7 +164,8 @@ def _hadith_records(
     # "hadith:bukhari:" ids, so this is the one ingest path the list belongs
     # to and the check needs no source-specific guard.
     present = {r.id for r in out}
-    for list_name, audited in (("unscorable", _UNSCORABLE), ("do-not-cut", _NEVER_CUT)):
+    for list_name, audited in (("unscorable", UNSCORABLE["bukhari"]),
+                               ("do-not-cut", NEVER_CUT["bukhari"])):
         missing = sorted(set(audited) - present)
         if missing:
             raise BuildError(

@@ -899,9 +899,10 @@ def test_a_missing_do_not_cut_record_aborts_the_build():
     entry that names a record the corpus no longer has is an audit quietly
     covering less than it claims, whichever list it sits on.
     """
+    from sanad_ingest.audit_lists import NEVER_CUT, UNSCORABLE
     from sanad_ingest.build import BuildError, _hadith_records
     from sanad_ingest.lockfile import LockedSource
-    from sanad_ingest.openiti import _NEVER_CUT, _UNSCORABLE, HadithUnit, ParsedOpeniti
+    from sanad_ingest.openiti import HadithUnit, ParsedOpeniti
 
     def _unit(record_id: str) -> HadithUnit:
         no = record_id.rsplit(":", 1)[1]
@@ -910,7 +911,8 @@ def test_a_missing_do_not_cut_record_aborts_the_build():
                           isnad_ar="i", matn_ar="m", addenda_ar=None)
 
     # everything on both lists except hadith 632, which this corpus has lost
-    ids = sorted(set(_UNSCORABLE) | (set(_NEVER_CUT) - {"hadith:bukhari:632"}))
+    ids = sorted(set(UNSCORABLE["bukhari"]) |
+                (set(NEVER_CUT["bukhari"]) - {"hadith:bukhari:632"}))
     assert "hadith:bukhari:6136" in ids, "only 632 may be missing"
     parsed = ParsedOpeniti(units=[_unit(i) for i in ids], attribution="",
                            content_sha256="0" * 64, noisy=[])

@@ -124,6 +124,63 @@ The committed `data/sanad-quran.db` holds 20,825 records: 6,236 ayat (Tanzil Uth
 
 **Product constraint, stated here because it follows directly from the bases above.** Sanad ships no hadith gradings — modern authenticity gradings are copyrighted scholarly work, and authenticity is not Sanad's to assert. Sanad may say "this text is in Sahih al-Bukhari" or "this text is in Sahih Muslim"; it must never say or imply "this hadith is sahih."
 
+## Sunan Abi Dawud: the licensing basis
+
+The third collection ingested (Task 12), on the same basis as Sahih al-Bukhari and Sahih Muslim above, with its own numbering-scheme distinction recorded per source rather than assumed: Muhammad Muhyi al-Din 'Abd al-Hamid's edition numbering is `numbering_scheme = "abdalhamid"`, distinct from Bukhari's `bugha-1987` and Muslim's `abdalbaqi`.
+
+### The file
+
+`data/0275AbuDawudSijistani/0275AbuDawudSijistani.Sunan/0275AbuDawudSijistani.Sunan.JK000142-ara1` in `github.com/OpenITI/0275AH`. The file's own `#META#` header records the edition:
+
+```
+010.AuthorNAME  :: سليمان بن الأشعث أبو داود السجستاني الأزدي
+011.AuthorDIED  :: 275                        (AH)
+020.BookTITLE   :: سنن أبي داود
+040.EdEDITOR    :: محمد محيي الدين عبد الحميد  (Muhammad Muhyi al-Din 'Abd al-Hamid)
+043.EdPUBLISHER :: دار الفكر                   (Dar al-Fikr)
+```
+
+Selected the same way the Bukhari and Muslim files were: the JK-prefixed curated OpenITI version, not a `Shamela*`/`ShamAY*`/`Shia*` scrape.
+
+**Recorded honestly, not papered over:** this edition's `#META#` header leaves `041.EdNUMBER`, `044.EdPLACE`, and `045.EdYEAR` as `NODATA`/`-` — the edition's print run number, place of publication, and year are not recorded in OpenITI's transcription, unlike the Sahih al-Bukhari and Sahih Muslim files above, which carry a place and (implicitly, via the edition line) a year. This does not affect the licensing basis below, which rests on the author's death date rather than on any fact about the printing — but it is a real gap in this file's own provenance metadata, shipped anyway under Stage A3's relaxed-bar SHIP ruling (R-A3-1), and it is recorded here, beside the corpus it describes, rather than silently completed or guessed.
+
+### Why we may ship it — the legal basis
+
+**Basis: the work's own public-domain status.** Abu Dawud al-Sijistani (Sulayman ibn al-Ash'ath) died in 275 AH (889 CE). The matn and the isnad are public domain in every jurisdiction, without qualification — the identical basis Sahih al-Bukhari and Sahih Muslim ship on above, restated here rather than assumed, because a basis recorded once is not automatically a basis for a third work by a third author.
+
+**Not an OpenITI licence grant, and the distinction is load-bearing here for exactly the reason it was for the first two collections.** OpenITI is the transcriber, not the rights holder of anything requiring a grant: what they contribute is transcription and structural markup, and a faithful mechanical transcription of a public-domain text attracts no new copyright. Their markup (mARkdown structural markers, page/volume anchors) is not carried into the corpus — the parser consumes it and discards it. 'Abd al-Hamid's editorial apparatus — his introductions, footnotes, and the vowelling/typesetting choices of his edition — is likewise not carried into the corpus; what is ingested is matn and isnad. His **numbering** is a separate matter from his apparatus: a sequential count of units is a fact about how the edition is organized, not a copyrightable expression, and it is recorded as `numbering_scheme = "abdalhamid"` precisely so it is never confused with al-Bugha's or 'Abd al-Baqi's numbering or presented as if it were.
+
+**Attribution to OpenITI is given as credit, not as licence compliance**, on the same terms as the Bukhari and Muslim entries: recorded in `sources` with file, edition, commit and retrieval date, and shown in the provenance panel.
+
+### The pinned commit and hash
+
+```toml
+[[source]]
+id               = "openiti-abudawud-jk000142"
+kind             = "hadith-arabic"
+collection       = "abudawud"
+numbering_scheme = "abdalhamid"
+format           = "openiti-markdown"
+title            = "سنن أبي داود (Sunan Abi Dawud)"
+publisher        = "OpenITI (transcription); Dar al-Fikr (edition)"
+edition          = "ed. Muhammad Muhyi al-Din Abd al-Hamid; OpenITI JK000142, ara1"
+url              = "https://raw.githubusercontent.com/OpenITI/0275AH/44e1c36738a2bf5c14dafa232a6ae1891e6171cd/data/0275AbuDawudSijistani/0275AbuDawudSijistani.Sunan/0275AbuDawudSijistani.Sunan.JK000142-ara1"
+commit           = "44e1c36738a2bf5c14dafa232a6ae1891e6171cd"
+license_id       = "public-domain"
+license_url      = "https://github.com/OpenITI/0275AH"
+content_sha256   = "94d6fe547384efd2f8b369879775f617cb6283053482dc672ff04fbb5454292e"
+expected_records = 5274
+modifications    = "mARkdown structural markers parsed and discarded; no text altered"
+```
+
+`commit` is pinned for the same reason as the Bukhari and Muslim entries: OpenITI is a live git repository whose files are re-OCRed in place, and this is the same commit both of those sources are pinned to. `content_sha256` covers the complete raw file, computed by the build itself (`sanad-ingest build`, measured-then-pinned per the project's build-measured-placeholder convention) and re-verified green on every subsequent build. `expected_records` (5,274) is one fewer than the raw file's own count of numbered units: unit "1" in the raw text is a mis-wrapped kitab heading ("kitab al-tahara") that the parser now recognizes as a heading rather than a hadith (see the `_KITAB_WORD` branch in `ingest/sanad_ingest/openiti.py`'s `flush()`). See `ingest/corpus.lock.toml` for the authoritative, machine-checked copy of this entry.
+
+### The built corpus
+
+The committed `data/sanad-quran.db` now holds 26,099 records: 6,236 ayat (Tanzil Uthmani, CC BY 3.0) + 7,129 Sahih al-Bukhari hadith + 7,460 Sahih Muslim hadith + 5,274 Sunan Abi Dawud hadith (public-domain bases above). Its whole-file SHA-256 is verified at build time and printed by `sanad-ingest build`; see `README.md` for the currently-committed value and the reproducibility check. Adding this third collection was proven not to perturb either of the first two: the Bukhari and Muslim record sets are byte-identical, across every stored column, before and after Task 12.
+
+**Product constraint, stated here because it follows directly from the bases above.** Sanad ships no hadith gradings — modern authenticity gradings are copyrighted scholarly work, and authenticity is not Sanad's to assert. Sanad may say "this text is in Sahih al-Bukhari", "this text is in Sahih Muslim", or "this text is in Sunan Abi Dawud"; it must never say or imply "this hadith is sahih."
+
 ## Source decisions
 
 | Source | Decision | Reason |
@@ -135,6 +192,7 @@ The committed `data/sanad-quran.db` holds 20,825 records: 6,236 ayat (Tanzil Uth
 | OpenITI (general) | Discovery only | Texts have mixed provenance and fidelity; review per text |
 | OpenITI `0275AH`, JK000110 (Sahih al-Bukhari) | **Shipped** | Complete, internally-consistent per-file metadata; public-domain basis for the matn (see below), independent of OpenITI's own (absent) repository licence |
 | OpenITI `0275AH`, JK000109 (Sahih Muslim) | **Shipped** | Same basis as Sahih al-Bukhari above: author's death (261 AH) is the public-domain basis, not any OpenITI grant; JK-prefixed curated version |
+| OpenITI `0275AH`, JK000142 (Sunan Abi Dawud) | **Shipped** | Same basis as the two collections above: author's death (275 AH) is the public-domain basis, not any OpenITI grant; JK-prefixed curated version; per-file metadata incomplete (EdNUMBER/EdPLACE/EdYEAR unfilled) but shipped under the Stage A3 relaxed-bar ruling (R-A3-1) |
 
 ## Review checklist
 

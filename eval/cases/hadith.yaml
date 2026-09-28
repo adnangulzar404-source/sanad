@@ -238,12 +238,18 @@
 - id: hadith-arabic-citation-disagrees
   text: '«الحرب خدعة» صحيح البخاري ٣٤٢'
   expect_verdict: WRONG_REFERENCE
-  expect_record: hadith:bukhari:2866
+  expect_record: hadith:abudawud:2636
   rationale: >-
     Same Arabic-script citation, wrong number. Cased alongside the agreeing one because
     a parser that merely FINDS the citation and never compares its number would pass
     hadith-arabic-citation-agrees and fail here -- and a citation that is parsed but not
     checked is worse than one that is not parsed at all.
+
+    `expect_record` moved from hadith:bukhari:2866 to hadith:abudawud:2636 in Task 12,
+    when Sunan Abi Dawud's own byte-identical copy of this saying (2636) joined the tie
+    and became the new tie-break winner (see
+    test_a_famous_short_hadith_still_verifies_exactly). The disagreement asserted here
+    -- that "342" matches none of the tied ids -- is unaffected by which one wins.
 - id: hadith-arabic-citation-alone-is-not-a-quotation
   text: 'صحيح البخاري ٣٤٢'
   expect_no_quotation: true
@@ -267,7 +273,7 @@
 - id: hadith-book-relative-citation-is-not-a-misattribution
   text: 'The Prophet said «الحرب خدعة» (Sahih al-Bukhari, Book 52, Hadith 268).'
   expect_verdict: EXACT
-  expect_record: hadith:bukhari:2866
+  expect_record: hadith:abudawud:2636
   forbid_verdict: WRONG_REFERENCE
   rationale: >-
     "Book 52, Hadith 268" is USC-MSA / sunnah.com numbering -- the form most people
@@ -276,22 +282,34 @@
     number, so the reader was told their correct citation was wrong. This corpus ships
     one numbering scheme and has no USC-MSA mapping, so the honest answer is no
     reference: the quotation is verified and nothing is said about the citation.
+
+    `expect_record` moved from hadith:bukhari:2866 to hadith:abudawud:2636 in Task 12
+    for the same reason as hadith-arabic-citation-disagrees above: Abu Dawud 2636 is
+    now the tie-break winner for this saying, and Bukhari 2866 moved into `also_at`.
+    The book-relative citation still resolves to no reference either way, so EXACT is
+    still the answer -- only the winning record id changed.
 - id: hadith-colon-pair-citation-is-not-a-misattribution
   text: '«الحرب خدعة» (Bukhari 1:2:13)'
   expect_verdict: EXACT
-  expect_record: hadith:bukhari:2866
+  expect_record: hadith:abudawud:2636
   forbid_verdict: WRONG_REFERENCE
   rationale: >-
     The same scheme written as numbers: volume, book, hadith. It used to be read as
     "Bukhari 1:2", hadith 2, and answered WRONG_REFERENCE. Cased separately from the
     spelt-out form because the two are different branches of the pattern and a fix to
     one would not touch the other.
+
+    `expect_record` moved to hadith:abudawud:2636 for the same Task 12 tie-break reason
+    given above.
 - id: hadith-overlong-number-is-not-a-misattribution
   text: '«الحرب خدعة» (Bukhari 12345)'
   expect_verdict: EXACT
-  expect_record: hadith:bukhari:2866
+  expect_record: hadith:abudawud:2636
   forbid_verdict: WRONG_REFERENCE
   rationale: >-
+    `expect_record` moved to hadith:abudawud:2636 for the same Task 12 tie-break reason
+    given above.
+
     A mistyped or foreign number, silently truncated to its first four digits by a
     digit pattern with no trailing boundary: 12345 became 1234, and a correctly quoted
     hadith beside it was called a misattribution. The number is out of range and must
@@ -456,3 +474,90 @@
     change ever lets a bare citation surface a verdict on its own, this case
     is what would catch a reader being told something about "the muslim 5
     pillars" that nobody quoted.
+
+# --- Task 12: Sunan Abi Dawud, the third hadith collection -------------------
+#
+# Same gate, same rules, applied to a third collection sharing this file and
+# this corpus. Every text below is either extracted byte-exact from the
+# MATERIALISED database (cases a, b, e) or built from explicit \u codepoints
+# and never hand-pasted (the fabricated saying and the editorial pointer in
+# c and d) -- the project's standing char-safety convention.
+
+- id: hadith-abudawud-famous-matn-bare
+  text: 'إنما الأعمال بالنيات وإنما لكل امرئ ما نوى فمن كانت هجرته إلى الله ورسوله فهجرته إلى الله ورسوله ومن كانت هجرته لدنيا يصيبها أو امرأة يتزوجها فهجرته إلى ما هاجر إليه'
+  expect_verdict: EXACT
+  expect_record: hadith:abudawud:2201
+  rationale: >-
+    "Actions are but by intentions" -- Islam's single most quoted hadith,
+    opening line of countless sermons and books, Sunan Abi Dawud's own
+    printing of it at 2201, quoted the bare way people actually quote it: no
+    chain, no citation, no book number. The first Abu Dawud case, deliberately
+    the same shape as hadith-famous-matn-bare and hadith-muslim-famous-matn-bare:
+    a third collection must clear the identical bar the first two did.
+    MEASURED EXACT against hadith:abudawud:2201 with an empty `also_at` --
+    this edition's wording ("innama") does not happen to be byte-identical to
+    how Bukhari or Muslim print the same hadith elsewhere in the corpus.
+- id: hadith-abudawud-wrong-number
+  text: 'إنما الأعمال بالنيات وإنما لكل امرئ ما نوى فمن كانت هجرته إلى الله ورسوله فهجرته إلى الله ورسوله ومن كانت هجرته لدنيا يصيبها أو امرأة يتزوجها فهجرته إلى ما هاجر إليه (Abu Dawud 999)'
+  expect_verdict: WRONG_REFERENCE
+  expect_record: hadith:abudawud:2201
+  rationale: >-
+    The same genuine wording as the case above, cited under a number that is
+    not its own. MEASURED: WRONG_REFERENCE against hadith:abudawud:2201,
+    the text is verbatim so the only thing wrong is the citation, and that is
+    exactly what must be reported. Paired with hadith-right-text-wrong-number
+    and hadith-muslim-wrong-number, which case the identical defect class
+    against the other two collections.
+- id: hadith-abudawud-fabricated-attribution
+  text: 'طلب العلم فريضة على كل مسلم ومسلمة'
+  expect_verdict: NOT_FOUND
+  expect_scope_caveat: true
+  rationale: >-
+    "Seeking knowledge is an obligation upon every Muslim, male and female" --
+    the same widely-circulated saying hadith-muslim-fabricated-attribution
+    cases against Sahih Muslim (it is usually traced to Ibn Majah), and
+    equally absent, byte-for-byte, from this edition of Sunan Abi Dawud.
+    MEASURED: NOT_FOUND at 0.367, with and without a fabricated "(Abu Dawud
+    224)" citation attached -- an invented citation must never manufacture a
+    match. Absence from Sunan Abi Dawud is a statement about a database, not
+    a grading of the saying, hence the scope caveat.
+- id: hadith-abudawud-editorial-pointer-is-not-a-text
+  text: '«مثله»'
+  expect_verdict: NOT_FOUND
+  rationale: >-
+    "mithlahu" -- "the like of it" -- Sunan Abi Dawud's single most common
+    editorial back-reference in this edition, printed in place of a narration
+    that appears in full elsewhere under a different chain (16 records print
+    exactly this one-word string). The Abu Dawud analogue of
+    hadith-editorial-pointer-is-not-a-text and hadith-muslim-editorial-pointer-is-not-a-text:
+    a false EXACT here would be Sanad telling a reader that a one-word
+    editorial gloss is a hadith of the Prophet. All 103 records on
+    `UNSCORABLE["abudawud"]` are excluded by the same mechanism that excludes
+    this one.
+- id: hadith-abudawud-quranic-fragment-is-not-a-false-attribution
+  text: '«من ضعف»'
+  forbid_verdict: WRONG_REFERENCE
+  expect_no_other_record: hadith:abudawud:3979
+  rationale: >-
+    "min da'f" -- "from weakness" -- a two-word qira'a-variant reading Ibn
+    'Umar reports of a phrase inside Qur'an 30:54, printed at 3979 as this
+    edition's ENTIRE matn with no narrative content and no addendum. This is
+    Abu Dawud's own instance of the hazard class Bukhari 4575 and Muslim 1473
+    were built to catch (memory sanad-hadith-quranic-matn-hazard), but unlike
+    1473 -- which is a partial Qur'an quotation inside a longer narration and
+    stays scorable -- 3979 is wholly the Qur'an's own wording with nothing
+    else, so `_reject_wholly_quranic_representations` correctly forced it
+    onto `UNSCORABLE["abudawud"]` at the first measured build (Abu Dawud's
+    only genuine member of that 23-record flag; the other 22 are short
+    editorial pointers coincidentally also substrings of the Qur'an -- see
+    audit_lists.py's "abudawud" section, `_QURANIC_QUOTE` vs `_POINTER`).
+    MEASURED: NOT_FOUND at 0.13, with or without a citation attached -- the
+    fix must not manufacture an EXACT against hadith:abudawud:3979 (the
+    Bukhari-4575 defect this whole hazard class exists to prevent) and must
+    not manufacture a WRONG_REFERENCE either (the Bukhari-4575 defect's
+    mirror image, cased directly by quran-ayat-cited-correctly-are-not-a-wrong-reference).
+    No genuine Qur'an-primary Abu Dawud record survives the audit scorable
+    (unlike Muslim's 1473), so this case substitutes the "not falsely
+    attributed" half of the pattern rather than the "verifies as printed"
+    half -- per the brief's own instruction for a collection with no
+    surviving scorable case of that second shape.

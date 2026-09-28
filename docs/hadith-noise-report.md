@@ -23,7 +23,8 @@ Flagged: every character in a record's **matn** outside the Arabic block
 scanned -- neither is ever scored or searched, so damage there cannot mislead
 an eval case.
 
-Source: `openiti-bukhari-jk000110` (al-Bugha, 3rd ed., 1407/1987; OpenITI JK000110, ara1.completed)
+
+## Source: `openiti-bukhari-jk000110` (al-Bugha, 3rd ed., 1407/1987; OpenITI JK000110, ara1.completed)
 
 Records ingested: 7129 &nbsp;&nbsp; Records flagged: 71
 
@@ -100,3 +101,85 @@ Records ingested: 7129 &nbsp;&nbsp; Records flagged: 71
 | `hadith:bukhari:6804` | Sahih al-Bukhari 6804 | `%()` | U+0025 U+0028 U+0029 |
 | `hadith:bukhari:6965` | Sahih al-Bukhari 6965 | `()` | U+0028 U+0029 |
 | `hadith:bukhari:6966` | Sahih al-Bukhari 6966 | `()` | U+0028 U+0029 |
+
+## Source: `openiti-muslim-jk000109` (ed. Muhammad Fu'ad 'Abd al-Baqi; OpenITI JK000109, ara1)
+
+Records ingested: 7460 &nbsp;&nbsp; Records flagged: 48
+
+| Record | Citation | Characters | Codepoints |
+| --- | --- | --- | --- |
+| `hadith:muslim:16-4` | Sahih Muslim 16 (4) | `6` | U+0036 |
+| `hadith:muslim:19-3` | Sahih Muslim 19 (3) | `8` | U+0038 |
+| `hadith:muslim:23-2` | Sahih Muslim 23 (2) | `9` | U+0039 |
+| `hadith:muslim:43-3` | Sahih Muslim 43 (3) | `16` | U+0031 U+0036 |
+| `hadith:muslim:48` | Sahih Muslim 48 | `02` | U+0030 U+0032 |
+| `hadith:muslim:134` | Sahih Muslim 134 | `4` | U+0034 |
+| `hadith:muslim:143-2` | Sahih Muslim 143 (2) | `5` | U+0035 |
+| `hadith:muslim:296` | Sahih Muslim 296 | `3` | U+0033 |
+| `hadith:muslim:524` | Sahih Muslim 524 | `%(` | U+0025 U+0028 |
+| `hadith:muslim:822` | Sahih Muslim 822 | `<>` | U+003C U+003E |
+| `hadith:muslim:843-2` | Sahih Muslim 843 (2) | `2|` | U+0032 U+007C |
+| `hadith:muslim:844-3` | Sahih Muslim 844 (3) | `5` | U+0035 |
+| `hadith:muslim:1060` | Sahih Muslim 1060 | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:muslim:1510-2` | Sahih Muslim 1510 (2) | `3|` | U+0033 U+007C |
+| `hadith:muslim:1714-4` | Sahih Muslim 1714 (4) | `5` | U+0035 |
+| `hadith:muslim:1746-2` | Sahih Muslim 1746 (2) | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:muslim:1769-4` | Sahih Muslim 1769 (4) | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:muslim:1776` | Sahih Muslim 1776 | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:muslim:1776-2` | Sahih Muslim 1776 (2) | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:muslim:1776-3` | Sahih Muslim 1776 (3) | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:muslim:1796` | Sahih Muslim 1796 | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:muslim:1802` | Sahih Muslim 1802 | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:muslim:1802-2` | Sahih Muslim 1802 (2) | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:muslim:1803` | Sahih Muslim 1803 | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:muslim:1804` | Sahih Muslim 1804 | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:muslim:1805` | Sahih Muslim 1805 | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:muslim:1805-2` | Sahih Muslim 1805 (2) | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:muslim:1805-3` | Sahih Muslim 1805 (3) | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:muslim:1805-4` | Sahih Muslim 1805 (4) | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:muslim:1806` | Sahih Muslim 1806 | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:muslim:1807` | Sahih Muslim 1807 | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:muslim:1979` | Sahih Muslim 1979 | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:muslim:1979-3` | Sahih Muslim 1979 (3) | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:muslim:1992-2` | Sahih Muslim 1992 (2) | `*` | U+002A |
+| `hadith:muslim:1998-3` | Sahih Muslim 1998 (3) | `*` | U+002A |
+| `hadith:muslim:2256` | Sahih Muslim 2256 | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:muslim:2256-2` | Sahih Muslim 2256 (2) | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:muslim:2256-3` | Sahih Muslim 2256 (3) | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:muslim:2256-4` | Sahih Muslim 2256 (4) | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:muslim:2256-5` | Sahih Muslim 2256 (5) | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:muslim:2380-5` | Sahih Muslim 2380 (5) | `<>` | U+003C U+003E |
+| `hadith:muslim:2391` | Sahih Muslim 2391 | `4` | U+0034 |
+| `hadith:muslim:2488` | Sahih Muslim 2488 | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:muslim:2489` | Sahih Muslim 2489 | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:muslim:2490` | Sahih Muslim 2490 | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:muslim:2770-2` | Sahih Muslim 2770 (2) | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:muslim:2879` | Sahih Muslim 2879 | `*-` | U+002A U+002D |
+| `hadith:muslim:3028` | Sahih Muslim 3028 | `%()` | U+0025 U+0028 U+0029 |
+
+## Source: `openiti-abudawud-jk000142` (ed. Muhammad Muhyi al-Din Abd al-Hamid; OpenITI JK000142, ara1)
+
+Records ingested: 5274 &nbsp;&nbsp; Records flagged: 20
+
+| Record | Citation | Characters | Codepoints |
+| --- | --- | --- | --- |
+| `hadith:abudawud:453` | Sunan Abi Dawud 453 | `%(` | U+0025 U+0028 |
+| `hadith:abudawud:660` | Sunan Abi Dawud 660 | `59` | U+0035 U+0039 |
+| `hadith:abudawud:720` | Sunan Abi Dawud 720 | `(17` | U+0028 U+0031 U+0037 |
+| `hadith:abudawud:1160` | Sunan Abi Dawud 1160 | `259` | U+0032 U+0035 U+0039 |
+| `hadith:abudawud:1197` | Sunan Abi Dawud 1197 | `127` | U+0031 U+0032 U+0037 |
+| `hadith:abudawud:1303` | Sunan Abi Dawud 1303 | `037` | U+0030 U+0033 U+0037 |
+| `hadith:abudawud:1387` | Sunan Abi Dawud 1387 | `236` | U+0032 U+0033 U+0036 |
+| `hadith:abudawud:1720` | Sunan Abi Dawud 1720 | `5` | U+0035 |
+| `hadith:abudawud:2476` | Sunan Abi Dawud 2476 | `9` | U+0039 |
+| `hadith:abudawud:2787` | Sunan Abi Dawud 2787 | `01` | U+0030 U+0031 |
+| `hadith:abudawud:2986` | Sunan Abi Dawud 2986 | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:abudawud:3088` | Sunan Abi Dawud 3088 | `15` | U+0031 U+0035 |
+| `hadith:abudawud:3632` | Sunan Abi Dawud 3632 | `13` | U+0031 U+0033 |
+| `hadith:abudawud:3640` | Sunan Abi Dawud 3640 | `02` | U+0030 U+0032 |
+| `hadith:abudawud:3968` | Sunan Abi Dawud 3968 | `25` | U+0032 U+0035 |
+| `hadith:abudawud:3993` | Sunan Abi Dawud 3993 | `<>` | U+003C U+003E |
+| `hadith:abudawud:4000` | Sunan Abi Dawud 4000 | `<>` | U+003C U+003E |
+| `hadith:abudawud:4004` | Sunan Abi Dawud 4004 | `<>` | U+003C U+003E |
+| `hadith:abudawud:4213` | Sunan Abi Dawud 4213 | `29` | U+0032 U+0039 |
+| `hadith:abudawud:4239` | Sunan Abi Dawud 4239 | `03` | U+0030 U+0033 |

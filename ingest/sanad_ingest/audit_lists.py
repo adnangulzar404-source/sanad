@@ -182,6 +182,23 @@ _TRUNCATED_STUB = ("truncated narrative frame: the reported speech is the "
                     "the source ends the record here, with nothing following "
                     "to reattach")
 
+# Abu Dawud-specific reasons (Task 12). Three new phenomena not seen in
+# Bukhari or Muslim, each individually reasoned, not pattern-matched:
+_LEXICAL_GLOSS = ("lexical gloss: a narrator's explanation of a word's "
+                   "meaning used in an earlier, separately-numbered hadith, "
+                   "not a report of the Prophet's own words")
+_ISNAD_COMMENT = ("isnad-quality remark: one narrator's comparison of two "
+                   "transmitters' reliability or memory, not a report of "
+                   "the Prophet's words")
+_EDITORIAL_DISCUSSION = ("editorial discussion: Abu Dawud's own numbered "
+                          "remark about how a hadith's isnad or wording was "
+                          "transmitted differently by other narrators, not "
+                          "itself a narration")
+_QURANIC_QUOTE = ("wholly Qur'anic matn: the unit reports a Qur'an-reading "
+                   "(qira'a) variant, but the entire printed matn is nothing "
+                   "but the ayah's own wording, with no narrative content of "
+                   "its own and no addendum to reattach")
+
 UNSCORABLE: dict[str, dict[str, tuple[str, str]]] = {
     "bukhari": {
         # Pointer only -- "bi-dhalika", "bi-hadha", "mithlahu", "nahwahu",
@@ -1214,5 +1231,241 @@ UNSCORABLE: dict[str, dict[str, tuple[str, str]]] = {
         'hadith:muslim:142-8': ("76d549465aafab4d14b57bf519e4d1e25f316d69313db4f34eab7696205eb0e4", _POINTER),
         # 'يقول فذكر بمثله' (1 record)
         'hadith:muslim:2671-3': ("dc3f8465471a490603837d07a0bf56f2d5927537d0a458f12969d573d7b876f3", _POINTER),
+    },
+    "abudawud": {
+        # Methodology (Task 12): every matn of 30 characters or fewer was
+        # read for meaning against its raw-file context -- 267 records / 218
+        # distinct strings. Two further records (2331, 4817) were added
+        # after being found, while reading context for a candidate already
+        # inside that 30-character net, to carry the SAME editorial pattern
+        # at slightly greater length (mirrors Task 11's own note that its
+        # 31-60 character band was not exhaustively read; this task's
+        # 30-character boundary is the same kind of stated scope limit, not
+        # a silent one). 103 records / 6 reasons total. Every sha256 below
+        # is computed directly from `parse_openiti(raw, collection="abudawud")`'s
+        # matn (never hand-typed), the same value build.py stores as text_ar
+        # before materialize hashes it -- none of these 103 records carry an
+        # addendum, so text_ar == matn_ar for all of them.
+        #
+        # 23 of the 85 _POINTER entries below are load-bearing, not merely
+        # editorial: `materialize._reject_wholly_quranic_representations`
+        # raised MaterializeError for all 23 before this list existed,
+        # because a short pointer word ("مثله", "مثل ذلك", "بهذا الحديث")
+        # is trivially a substring of *some* ayah once reduced to bare
+        # letters -- the guard cannot tell a false collision from a real
+        # one, so the record must be marked unscorable on its own editorial
+        # merits (which it independently has) before the guard is satisfied.
+        # _POINTER group (85 records)
+        "hadith:abudawud:34":
+            ("c62d9ff34bb102eff56b0eb3aadfa788def273b576972b6983018a65cc6efbae", _POINTER),
+        "hadith:abudawud:99":
+            ("da5b06f32a8be960e4896498557c3a5abf0318f6aa354cf9a2f1cdff8bc7dcbe", _POINTER),
+        "hadith:abudawud:174":
+            ("4987e970bbba69c24ba678fb498a4987180f72759e1bb3dc86882b42ef3652d5", _POINTER),
+        "hadith:abudawud:183":
+            ("562bd1fb62bb39003928fbb19c6e2d6bcd804359beaabf3fc822bd700a8cc39c", _POINTER),
+        "hadith:abudawud:387":
+            ("c62d9ff34bb102eff56b0eb3aadfa788def273b576972b6983018a65cc6efbae", _POINTER),
+        "hadith:abudawud:390":
+            ("7ef13e9272e4017b6ad7f5c37f8a48959a514678ee0290e347680879d5889e69", _POINTER),
+        "hadith:abudawud:463":
+            ("f7ad27f58ecd8feb1f0191fca64c47d0358735d09c6fff4cae679228ec47e73d", _POINTER),
+        "hadith:abudawud:476":
+            ("960f14283ed989f42a5548aa5680943afff5f4cf5397c8aa4927161a323060a8", _POINTER),
+        "hadith:abudawud:483":
+            ("1e919fee2fe220e6794c016f24ebb380ccaf0bf537d5598abc51e30524167196", _POINTER),
+        "hadith:abudawud:518":
+            ("314cca838007660a1698a16457b10ca72a652448eb8fbf995ad46bf924011bcd", _POINTER),
+        "hadith:abudawud:546":
+            ("dc1e0c484c2c70fa0bd9beeb65693afd93fecb6cb65d45c0b131fc2bae48f273", _POINTER),
+        "hadith:abudawud:865":
+            ("836f144960a6a13399d667fd9bbbc4f02fcf5f21465d6261bcf0ee4ef02eb8ff", _POINTER),
+        "hadith:abudawud:895":
+            ("da5b06f32a8be960e4896498557c3a5abf0318f6aa354cf9a2f1cdff8bc7dcbe", _POINTER),
+        "hadith:abudawud:1103":
+            ("06cdc939309c2c2733561594395473f43dad501f28bdc2b33b24bf04ac6ed9a2", _POINTER),
+        "hadith:abudawud:1470":
+            ("314cca838007660a1698a16457b10ca72a652448eb8fbf995ad46bf924011bcd", _POINTER),
+        "hadith:abudawud:1553":
+            ("59276395eab845e9666188597474d1730fe7167d893ff55dae8645efd2356b21", _POINTER),
+        "hadith:abudawud:1577":
+            ("314cca838007660a1698a16457b10ca72a652448eb8fbf995ad46bf924011bcd", _POINTER),
+        "hadith:abudawud:1654":
+            ("011c8c4f11804f7caa3847fb88f6384aed645b0e9b248cb7a74ec1453e9dd12f", _POINTER),
+        "hadith:abudawud:1666":
+            ("314cca838007660a1698a16457b10ca72a652448eb8fbf995ad46bf924011bcd", _POINTER),
+        "hadith:abudawud:1680":
+            ("da5b06f32a8be960e4896498557c3a5abf0318f6aa354cf9a2f1cdff8bc7dcbe", _POINTER),
+        "hadith:abudawud:1824":
+            ("c62d9ff34bb102eff56b0eb3aadfa788def273b576972b6983018a65cc6efbae", _POINTER),
+        "hadith:abudawud:1839":
+            ("2e7ada394e710687300baa23caa51ff5d56288fdaa3b409b3db1a90546ed05da", _POINTER),
+        "hadith:abudawud:1908":
+            ("171e40f4d98dc34ea3d52604cfe7cbb4db5e476b15149653757a5eca9fcfd9ec", _POINTER),
+        "hadith:abudawud:1918":
+            ("c62d9ff34bb102eff56b0eb3aadfa788def273b576972b6983018a65cc6efbae", _POINTER),
+        "hadith:abudawud:2077":
+            ("c62d9ff34bb102eff56b0eb3aadfa788def273b576972b6983018a65cc6efbae", _POINTER),
+        "hadith:abudawud:2091":
+            ("4ae17f52150046848fd2ef021532f96a5c88d465e869ad22873ccbaff647f2e4", _POINTER),
+        "hadith:abudawud:2127":
+            ("314cca838007660a1698a16457b10ca72a652448eb8fbf995ad46bf924011bcd", _POINTER),
+        "hadith:abudawud:2207":
+            ("2e7ada394e710687300baa23caa51ff5d56288fdaa3b409b3db1a90546ed05da", _POINTER),
+        "hadith:abudawud:2220":
+            ("314cca838007660a1698a16457b10ca72a652448eb8fbf995ad46bf924011bcd", _POINTER),
+        "hadith:abudawud:2223":
+            ("f985d6cb15daee1b15c477afdbe417d30f8df090d7b3d1a3f6c37900f1cf67d5", _POINTER),
+        "hadith:abudawud:2224":
+            ("b9ebbe78cd59dc81a6adf2ce4a9d540e3613418b875beede54ba136b6e83cd39", _POINTER),
+        "hadith:abudawud:2242":
+            ("c62d9ff34bb102eff56b0eb3aadfa788def273b576972b6983018a65cc6efbae", _POINTER),
+        "hadith:abudawud:2368":
+            ("da5b06f32a8be960e4896498557c3a5abf0318f6aa354cf9a2f1cdff8bc7dcbe", _POINTER),
+        "hadith:abudawud:2621":
+            ("c62d9ff34bb102eff56b0eb3aadfa788def273b576972b6983018a65cc6efbae", _POINTER),
+        "hadith:abudawud:2657":
+            ("769ce066220566f0a2b9bab157034b61d51fba37d4b148d41a2b26ee7756f3b0", _POINTER),
+        "hadith:abudawud:2720":
+            ("da5b06f32a8be960e4896498557c3a5abf0318f6aa354cf9a2f1cdff8bc7dcbe", _POINTER),
+        "hadith:abudawud:2754":
+            ("7c27ebbd459940143d35e6dd7a50f902bdbb974b7380d1f824e89ba9f78b4f72", _POINTER),
+        "hadith:abudawud:2908":
+            ("314cca838007660a1698a16457b10ca72a652448eb8fbf995ad46bf924011bcd", _POINTER),
+        "hadith:abudawud:2989":
+            ("3154d5d06ed75a0395800ee89174508258aa58dc83e9e7ddf422b1e944617091", _POINTER),
+        "hadith:abudawud:3031":
+            ("9a3f7958e121b8d9140d0dde1e31d3eb1d62023b538738307b40cd5449bac618", _POINTER),
+        "hadith:abudawud:3039":
+            ("314cca838007660a1698a16457b10ca72a652448eb8fbf995ad46bf924011bcd", _POINTER),
+        "hadith:abudawud:3059":
+            ("314cca838007660a1698a16457b10ca72a652448eb8fbf995ad46bf924011bcd", _POINTER),
+        "hadith:abudawud:3217":
+            ("2e7ada394e710687300baa23caa51ff5d56288fdaa3b409b3db1a90546ed05da", _POINTER),
+        "hadith:abudawud:3240":
+            ("34d9ecf6cebb537239f918181d5720d6fa3cb2ec129e6ac0ba2689705695a9a2", _POINTER),
+        "hadith:abudawud:3260":
+            ("314cca838007660a1698a16457b10ca72a652448eb8fbf995ad46bf924011bcd", _POINTER),
+        "hadith:abudawud:3294":
+            ("7c27ebbd459940143d35e6dd7a50f902bdbb974b7380d1f824e89ba9f78b4f72", _POINTER),
+        "hadith:abudawud:3324":
+            ("314cca838007660a1698a16457b10ca72a652448eb8fbf995ad46bf924011bcd", _POINTER),
+        "hadith:abudawud:3385":
+            ("f0117b02a79b48c1ba9fb868397fb56bf4205cae7e6aa1fd0b3815a01abf137e", _POINTER),
+        "hadith:abudawud:3396":
+            ("129d0229f2453d0b382440f6f3c5cd164354f09b13098d67a24a180475997af4", _POINTER),
+        "hadith:abudawud:3419":
+            ("2e7ada394e710687300baa23caa51ff5d56288fdaa3b409b3db1a90546ed05da", _POINTER),
+        "hadith:abudawud:3431":
+            ("da5b06f32a8be960e4896498557c3a5abf0318f6aa354cf9a2f1cdff8bc7dcbe", _POINTER),
+        "hadith:abudawud:3432":
+            ("314cca838007660a1698a16457b10ca72a652448eb8fbf995ad46bf924011bcd", _POINTER),
+        "hadith:abudawud:3549":
+            ("314cca838007660a1698a16457b10ca72a652448eb8fbf995ad46bf924011bcd", _POINTER),
+        "hadith:abudawud:3554":
+            ("25ceb28df0ffd5bf83fb0e2de8e885e9c633293c3e5df6cd7bb335ec475b22ea", _POINTER),
+        "hadith:abudawud:3564":
+            ("bd241fabc40159813339dbc5f40ab0ed37b13709c579c4f1fde719fca9da15e8", _POINTER),
+        "hadith:abudawud:3614":
+            ("7c27ebbd459940143d35e6dd7a50f902bdbb974b7380d1f824e89ba9f78b4f72", _POINTER),
+        "hadith:abudawud:3642":
+            ("c62d9ff34bb102eff56b0eb3aadfa788def273b576972b6983018a65cc6efbae", _POINTER),
+        "hadith:abudawud:3739":
+            ("7c27ebbd459940143d35e6dd7a50f902bdbb974b7380d1f824e89ba9f78b4f72", _POINTER),
+        "hadith:abudawud:3775":
+            ("2e7ada394e710687300baa23caa51ff5d56288fdaa3b409b3db1a90546ed05da", _POINTER),
+        "hadith:abudawud:3843":
+            ("2b4686b26cc4202cf7a22de5fc105b1785b5d9aae6c667e54d6f260baa4a9a46", _POINTER),
+        "hadith:abudawud:3939":
+            ("230dcebff35520a3dc5fa98de41d45942d5cda9a3a62e158a294280800fa5398", _POINTER),
+        "hadith:abudawud:3944":
+            ("7d2d60d378a9809fddd99e366d826228d50d80dde313972d18f8b46102eedf5a", _POINTER),
+        "hadith:abudawud:4007":
+            ("314cca838007660a1698a16457b10ca72a652448eb8fbf995ad46bf924011bcd", _POINTER),
+        "hadith:abudawud:4021":
+            ("da5b06f32a8be960e4896498557c3a5abf0318f6aa354cf9a2f1cdff8bc7dcbe", _POINTER),
+        "hadith:abudawud:4046":
+            ("839ea07db23450e0db1aed334b3e385e94da9a1e7f93749a8eebc7fc2a9cf59b", _POINTER),
+        "hadith:abudawud:4053":
+            ("f2dbb8f214752f88be9563cadb3f2c50eb9bd59d39540201b8e509cbfd6993e0", _POINTER),
+        "hadith:abudawud:4103":
+            ("7c27ebbd459940143d35e6dd7a50f902bdbb974b7380d1f824e89ba9f78b4f72", _POINTER),
+        "hadith:abudawud:4108":
+            ("c62d9ff34bb102eff56b0eb3aadfa788def273b576972b6983018a65cc6efbae", _POINTER),
+        "hadith:abudawud:4234":
+            ("c62d9ff34bb102eff56b0eb3aadfa788def273b576972b6983018a65cc6efbae", _POINTER),
+        "hadith:abudawud:4269":
+            ("43fe57a28c9bd7b6ad824cebeaa9d16a9d430d12b08b9bcc4832ad65c4e6a417", _POINTER),
+        "hadith:abudawud:4288":
+            ("ee3d3e414ba5622f39572107003dd7c445dd0774a79dfcf490ba76df3e677568", _POINTER),
+        "hadith:abudawud:4436":
+            ("112c317e8aaf5a973cc9e9bff9f41cae2614e19b8d246a09905b23a1ccd4c56b", _POINTER),
+        "hadith:abudawud:4454":
+            ("cf1eee3eda8aa1c5c95acb0c8cc64387011dc721d91ea17f8711d3a570239723", _POINTER),
+        "hadith:abudawud:4500":
+            ("7c27ebbd459940143d35e6dd7a50f902bdbb974b7380d1f824e89ba9f78b4f72", _POINTER),
+        "hadith:abudawud:4665":
+            ("c62d9ff34bb102eff56b0eb3aadfa788def273b576972b6983018a65cc6efbae", _POINTER),
+        "hadith:abudawud:4724":
+            ("7c27ebbd459940143d35e6dd7a50f902bdbb974b7380d1f824e89ba9f78b4f72", _POINTER),
+        "hadith:abudawud:4725":
+            ("4a33bbd4fec648e3c3d33d97525be97d819ae524286c33009e39ece02d567d07", _POINTER),
+        "hadith:abudawud:4816":
+            ("e18fe8efa200a0d1651efa5b86290a43a3fb08b503aad1bf5d4b47006d652bdc", _POINTER),
+        "hadith:abudawud:4817":
+            ("a816a50f42300ed7b4b64662fdb2b10c07f096074d5c649fdba48eaceaa05e1f", _POINTER),
+        "hadith:abudawud:4824":
+            ("a8a7c73812255580c0acd078b018fbbb3e0a95f610fc961c5d0310109ab4831b", _POINTER),
+        "hadith:abudawud:4858":
+            ("314cca838007660a1698a16457b10ca72a652448eb8fbf995ad46bf924011bcd", _POINTER),
+        "hadith:abudawud:4879":
+            ("4b95e162ba2e6ba57ab9d047d7eba3c5a3a7a25bbf2f245e9e866c367d2a3609", _POINTER),
+        "hadith:abudawud:5089":
+            ("d5ff5b365b56218b8c770736d8e06c9da312ef6fd6a4bd27affe484f7a840c86", _POINTER),
+        "hadith:abudawud:5133":
+            ("314cca838007660a1698a16457b10ca72a652448eb8fbf995ad46bf924011bcd", _POINTER),
+        "hadith:abudawud:5240":
+            ("da5b06f32a8be960e4896498557c3a5abf0318f6aa354cf9a2f1cdff8bc7dcbe", _POINTER),
+        # _DEFERRAL group (12 records)
+        "hadith:abudawud:511":
+            ("f5bea57322d67f17d124dce20564a7f4813a52cd2de9f97cd251412adb57dac6", _DEFERRAL),
+        "hadith:abudawud:765":
+            ("c1efe1d128aaada4dd59dbcb80769d57de8da5623f39466e8fd948e17948a614", _DEFERRAL),
+        "hadith:abudawud:1090":
+            ("0eff6ed445c5080cfbcb8d830c7edf3d96b24b8de85a747e187c50ac9b89a4c7", _DEFERRAL),
+        "hadith:abudawud:1137":
+            ("0869e94302b129f22fcfb3a34e5b60276a5f209e1205e3d79e4b8615aca3bd6b", _DEFERRAL),
+        "hadith:abudawud:1491":
+            ("edc5862bd004c3bef89e0e4e3c8f0e64f1fa71d9a89a676789dd728c9d23ff4a", _DEFERRAL),
+        "hadith:abudawud:1725":
+            ("c693d4e655dd943275f62c4d048324fa1867e844eacc8cf7bf817b01a664ed25", _DEFERRAL),
+        "hadith:abudawud:2115":
+            ("74609cf2ea279ebf5df7cb60d8a5b4f4a684f632ffd63e0c21a4af64726492c8", _DEFERRAL),
+        "hadith:abudawud:2661":
+            ("e4febdddd176592181e48db22b5695190c110f8581d9677530f68c7f2c46f829", _DEFERRAL),
+        "hadith:abudawud:4492":
+            ("5d0f73d954547dac47c03935a09eb56b918d12e1ede03524ef72cc9968a26265", _DEFERRAL),
+        "hadith:abudawud:4540":
+            ("ce106a5e74858e3ba8e8ddb512f07928e54fb74674ca719ee42cbb0a9b3ef22b", _DEFERRAL),
+        "hadith:abudawud:4754":
+            ("edc5862bd004c3bef89e0e4e3c8f0e64f1fa71d9a89a676789dd728c9d23ff4a", _DEFERRAL),
+        "hadith:abudawud:4831":
+            ("f9ba6ccd5adb1731900bb4177c62aef557801e581d5211a3dee70e326170bc9d", _DEFERRAL),
+        # _LEXICAL_GLOSS group (3 records)
+        "hadith:abudawud:1472":
+            ("879b7fa43b098b3e8d87f7fb33b2e31ac9e02971424e9aabd558d0bf62ebd886", _LEXICAL_GLOSS),
+        "hadith:abudawud:2330":
+            ("fde6d268e0ad23881ecb9891224a9b423d96cedcd7bb56330e0c74d5877d41df", _LEXICAL_GLOSS),
+        "hadith:abudawud:2331":
+            ("553579be4a9b819562f29b127d5e389f736ccebe6dc9d5dc6bd5a6ed66e71359", _LEXICAL_GLOSS),
+        # _ISNAD_COMMENT group (1 records)
+        "hadith:abudawud:3339":
+            ("984ed17408172c47bebde49b241fcd6aa34b1a956b2cd5dfe49d443877ef2894", _ISNAD_COMMENT),
+        # _EDITORIAL_DISCUSSION group (1 records)
+        "hadith:abudawud:2225":
+            ("4962a4a5d9de063d9ae14dfcfd01add40587995affa8ea9ab65ab2edfbf0e7e3", _EDITORIAL_DISCUSSION),
+        # _QURANIC_QUOTE group (1 records)
+        "hadith:abudawud:3979":
+            ("4e22b391af1063beb15250b34a5f3a305c7e5988566ea1277d5927406cbeb778", _QURANIC_QUOTE),
     },
 }

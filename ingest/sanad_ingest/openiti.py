@@ -31,7 +31,10 @@ _NUMBERED = re.compile(r"^(\d+)\s+(م\s+)?(.*)$", re.DOTALL)
 _LEADING_NUMBER = re.compile(r"^\d+\s+")
 
 # A numbered unit whose text begins with "باب" is a chapter heading that the
-# edition happens to number, not a narration. Six of them exist in the file.
+# edition happens to number, not a narration. Six of them exist in the
+# (Bukhari) file. `_KITAB_WORD` is the same idea one level up: Abu Dawud's
+# file has exactly one numbered unit that is really a kitab title (Task 12;
+# see the comment in `flush()` where it is used).
 _BAB_WORD = "باب"
 _KITAB_WORD = "كتاب"
 
@@ -513,7 +516,7 @@ def parse_openiti(
             bab_parts, bab_balance, heading_kind = None, 0, None
 
     def flush() -> None:
-        nonlocal buf, bab_parts, bab_balance, heading_kind
+        nonlocal buf, bab_parts, bab_balance, heading_kind, kitab_no, kitab_ar, bab_ar
         if buf is None:
             return
         text, buf = " ".join(buf), None
@@ -534,6 +537,25 @@ def parse_openiti(
             return
         number, repeat, rest = m.group(1), bool(m.group(2)), m.group(3)
         rest_clean = _clean(rest)
+        if rest_clean.startswith(_KITAB_WORD):
+            # A numbered unit whose entire text is a kitab title, not a
+            # narration. Every OTHER kitab heading in every pinned file
+            # arrives wrapped in the "### |" (Bukhari) or "# | 1 ( ... )"
+            # (Muslim/Abu Dawud) envelope, both handled elsewhere; this
+            # branch exists because Abu Dawud's OWN FIRST kitab heading --
+            # "# 1 كتاب الطهارة" -- carries no such wrapper, so `_NUMBERED`
+            # matches it exactly like an ordinary numbered hadith. Left
+            # unhandled, this mints a fabricated "hadith:abudawud:1" whose
+            # entire matn is "كتاب الطهارة" ("The Book of Purification"),
+            # and bumps the real first hadith to a false "-2" occurrence
+            # suffix, as if it were a repeat of a hadith that never existed.
+            # Measured against every pinned file: `^# \d+(\s+م)?\s+كتاب`
+            # matches exactly once, in Abu Dawud's file, and zero times in
+            # Bukhari's or Muslim's -- this branch is inert for both already-
+            # shipped collections.
+            kitab_no += 1
+            kitab_ar, bab_ar = rest_clean, None
+            return
         if rest_clean.startswith(_BAB_WORD):
             return  # numbered chapter heading, not a narration
 

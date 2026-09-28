@@ -101,12 +101,24 @@ def test_an_editorial_pointer_is_not_verified_as_a_hadith():
 
 
 def test_a_famous_short_hadith_still_verifies_exactly():
+    """"al-harb khud'a" is printed, byte-identically, four times across three
+    collections (Bukhari 2866; Muslim 1739, 1740; Abu Dawud 2636). Task 12
+    added the fourth copy, and with it the FIRST case anywhere in this corpus
+    of the tie-break's "lowest id wins" rule choosing a non-Bukhari winner:
+    the full id "hadith:abudawud:2636" sorts before "hadith:bukhari:2866"
+    lexicographically ("a" < "b"), so Abu Dawud is now the disclosed match
+    and the other three are surfaced in `also_at`. Verified, not assumed --
+    read directly from `verify_spans`'s own tie-break output.
+    """
     from sanad.verify.engine import Verdict, verify_spans
     conn = db.connect(DB_PATH)
     matches = verify_spans(conn, f"«{_AL_HARB_KHUDA}»")
     assert len(matches) == 1
     assert matches[0].verdict is Verdict.EXACT
-    assert matches[0].record.id == "hadith:bukhari:2866"
+    assert matches[0].record.id == "hadith:abudawud:2636"
+    assert matches[0].also_at == [
+        "hadith:bukhari:2866", "hadith:muslim:1739", "hadith:muslim:1740",
+    ]
 
 
 def test_the_shortest_ayah_still_verifies_exactly():
@@ -169,7 +181,7 @@ def test_the_isra_miraj_verifies_both_as_matn_and_as_printed():
 
 
 def test_the_full_printed_text_of_every_cut_record_verifies():
-    """The corpus-wide form of the test above: all 511 of them.
+    """The corpus-wide form of the test above: all 579 of them.
 
     A sample cannot show this. The defect it guards against is one record
     somewhere in the corpus whose full text is unreachable, which is exactly
@@ -187,13 +199,19 @@ def test_the_full_printed_text_of_every_cut_record_verifies():
     are its own -- none of its NEVER_CUT/UNSCORABLE work reverses or
     introduces a cut, it only judges primaries `_split_secondary` already cut,
     per the audit's own scope note in audit_lists.py.
+
+    Task 12 (Sunan Abi Dawud): 391 + 120 + 68 = 579. Abu Dawud contributes 69
+    cut records total (`addenda_ar IS NOT NULL`), one of which --
+    hadith:abudawud:2225, the `_EDITORIAL_DISCUSSION` record -- is also on
+    `UNSCORABLE["abudawud"]` and so is excluded from this scorable-only count,
+    leaving 68.
     """
     from sanad.verify.engine import Verdict, verify_spans
     conn = db.connect(DB_PATH)
     rows = conn.execute(
         "SELECT id, text_ar, addenda_ar FROM records"
         " WHERE addenda_ar IS NOT NULL AND unscorable_reason IS NULL").fetchall()
-    assert len(rows) == 511
+    assert len(rows) == 579
     failures = []
     for row in rows:
         for quoted in (row["text_ar"], row["text_ar"] + " " + row["addenda_ar"]):
@@ -286,7 +304,7 @@ def test_no_record_appears_twice_in_its_own_match():
 
 
 def test_the_index_holds_one_row_per_scorable_representation():
-    """20,601 = 20,087 scorable records + 514 full-text representations.
+    """25,841 = 25,258 scorable records + 583 full-text representations.
 
     Asserted as three numbers that have to add up, not as one total: a record
     dropping out of the index while a variant row appears would keep the
@@ -298,13 +316,18 @@ def test_the_index_holds_one_row_per_scorable_representation():
     122 carry a second ("full", cut) representation -- see
     test_muslim_record_count_and_scorability below for the per-collection
     breakdown these totals are built from.
+
+    Task 12 (Sunan Abi Dawud) moved these to (25258, 583, 25841). Abu Dawud
+    contributes 5,274 hadith records, of which 5,171 are scorable and 69
+    carry a second ("full", cut) representation -- see
+    test_abudawud_record_count_and_scorability below for the breakdown.
     """
     conn = db.connect(DB_PATH)
     scorable = conn.execute(
         "SELECT count(*) FROM records WHERE unscorable_reason IS NULL").fetchone()[0]
     variants = conn.execute("SELECT count(*) FROM record_variants").fetchone()[0]
     indexed = conn.execute("SELECT count(*) FROM records_fts").fetchone()[0]
-    assert (scorable, variants, indexed) == (20087, 514, 20601)
+    assert (scorable, variants, indexed) == (25258, 583, 25841)
 
 
 # --- C1: nothing scorable as a hadith is wholly a Qur'anic quotation --------
@@ -354,6 +377,14 @@ def test_no_scorable_hadith_representation_is_wholly_quranic():
     are also, by coincidence of brevity, verbatim substrings of the Qur'an.
     None of them are Qur'an quotations; see audit_lists.py's "muslim" section
     and the task-11 report for the full accounting.
+
+    Task 12 (Sunan Abi Dawud): the sweep now covers 19,605 representations
+    (14,365 plus Abu Dawud's 5,240) and is still zero, after
+    `UNSCORABLE["abudawud"]` excludes the 23 records
+    `_reject_wholly_quranic_representations` flagged on the first measured
+    build (22 false-positive short editorial pointers plus the one genuine
+    wholly-Qur'anic report, hadith:abudawud:3979 -- see audit_lists.py's
+    "abudawud" section and the task-12 report).
     """
     conn = db.connect(DB_PATH)
     blobs = _quran_blobs(conn)
@@ -364,7 +395,7 @@ def test_no_scorable_hadith_representation_is_wholly_quranic():
     reps += [(r["record_id"], r["variant"], r["norm_standard"]) for r in conn.execute(
         "SELECT v.record_id, v.variant, v.norm_standard FROM record_variants v"
         " JOIN records r ON r.id = v.record_id")]
-    assert len(reps) == 14365, "the sweep stopped covering what it was written for"
+    assert len(reps) == 19605, "the sweep stopped covering what it was written for"
     offenders = [(rid, variant) for rid, variant, norm in reps
                  if norm.strip() and any(f" {norm} " in b for b in blobs)]
     assert offenders == []
@@ -478,17 +509,24 @@ def test_every_other_excluded_record_is_excluded_whole():
     narrator naming Mu'ayqib). Everything else, in both collections, is
     excluded whole -- asserted rather than assumed, because "which records are
     affected" is the entire safety argument.
+
+    Task 12 (Sunan Abi Dawud): 103 more excluded records joined this count.
+    One of Abu Dawud's is the same shape -- "hadith:abudawud:2225"
+    (`_EDITORIAL_DISCUSSION`: Abu Dawud's own numbered remark about how other
+    narrators transmitted the isnad/wording differently, carrying its own
+    addendum). Everything else Abu Dawud contributes is excluded whole.
     """
     conn = db.connect(DB_PATH)
     rows = conn.execute(
         "SELECT r.id, count(v.record_id) AS n FROM records r"
         " LEFT JOIN record_variants v ON v.record_id = r.id"
         " WHERE r.unscorable_reason IS NOT NULL GROUP BY r.id").fetchall()
-    assert len(rows) == 738
+    assert len(rows) == 841
     assert {r["id"]: r["n"] for r in rows if r["n"]} == {
         "hadith:bukhari:237": 1,
         "hadith:muslim:1915-3": 1,
         "hadith:muslim:546-3": 1,
+        "hadith:abudawud:2225": 1,
     }
 
 
@@ -541,6 +579,10 @@ def test_exactly_one_hadith_representation_sits_inside_an_ayah():
     the source, the same discipline as
     `build._reject_wholly_quranic_representations` at the other end of the
     pipeline.
+
+    Task 12 (Sunan Abi Dawud) moved the representation count (14,365 to
+    19,605) without moving either list: re-read in full against the built
+    database, no Abu Dawud representation sits inside an ayah at either tier.
     """
     from sanad.verify.engine import _ayat_containing, _contains_at
     conn = db.connect(DB_PATH)
@@ -551,7 +593,7 @@ def test_exactly_one_hadith_representation_sits_inside_an_ayah():
         "SELECT v.record_id, v.variant, v.text_ar FROM record_variants v"
         " JOIN records r ON r.id = v.record_id WHERE r.kind = 'hadith'"
     ).fetchall()
-    assert len(reps) == 14365, len(reps)
+    assert len(reps) == 19605, len(reps)
 
     withheld, disclosed = [], []
     for rep in reps:
@@ -608,23 +650,139 @@ def test_muslim_record_count_and_scorability():
     assert (total, scorable, unscorable, cut) == (7460, 6739, 721, 122)
 
 
+def test_abudawud_record_count_and_scorability():
+    """The measured, lockfile-pinned facts about the third hadith collection.
+
+    5,274 is `expected_records` in corpus.lock.toml, pinned from the first
+    measured build (Task 12) -- one fewer than the raw file's own numbered
+    units, because unit "1" in the raw text is a mis-wrapped kitab heading
+    ("kitab al-tahara"), not a hadith; see the `_KITAB_WORD` branch in
+    `openiti.py`'s `flush()`. 103 unscorable and 69 cut are the audit's own
+    output: see audit_lists.py's "abudawud" section for what each of the 103
+    is and why.
+    """
+    conn = db.connect(DB_PATH)
+    total = conn.execute(
+        "SELECT count(*) FROM records WHERE kind='hadith' AND collection='abudawud'"
+    ).fetchone()[0]
+    scorable = conn.execute(
+        "SELECT count(*) FROM records WHERE kind='hadith' AND collection='abudawud'"
+        " AND unscorable_reason IS NULL").fetchone()[0]
+    unscorable = conn.execute(
+        "SELECT count(*) FROM records WHERE kind='hadith' AND collection='abudawud'"
+        " AND unscorable_reason IS NOT NULL").fetchone()[0]
+    cut = conn.execute(
+        "SELECT count(*) FROM records WHERE kind='hadith' AND collection='abudawud'"
+        " AND addenda_ar IS NOT NULL").fetchone()[0]
+    assert (total, scorable, unscorable, cut) == (5274, 5171, 103, 69)
+
+
+# Three spot-checked Abu Dawud matns, read BYTE-EXACT from the materialized
+# DB and reproduced here as codepoints (never retyped glyphs), per the
+# char-safety convention used throughout this file. Chosen to bracket the
+# collection and exercise the `_KITAB_WORD` fix directly: record 1 is the
+# real first hadith (proving the mis-wrapped kitab-heading unit was NOT
+# mistaken for it), record 2201 is the well-known "innama al-a'malu
+# bi-l-niyyat" ("actions are but by intentions"), and record 5274 is the
+# collection's own last hadith.
+_ABUDAWUD_1_MATN = "".join(chr(c) for c in (
+    0x0623, 0x0646, 0x0020, 0x0627, 0x0644, 0x0646, 0x0628, 0x064a,
+    0x0020, 0x0635, 0x0644, 0x0649, 0x0020, 0x0627, 0x0644, 0x0644,
+    0x0647, 0x0020, 0x0639, 0x0644, 0x064a, 0x0647, 0x0020, 0x0648,
+    0x0633, 0x0644, 0x0645, 0x0020, 0x0643, 0x0627, 0x0646, 0x0020,
+    0x0625, 0x0630, 0x0627, 0x0020, 0x0630, 0x0647, 0x0628, 0x0020,
+    0x0627, 0x0644, 0x0645, 0x0630, 0x0647, 0x0628, 0x0020, 0x0623,
+    0x0628, 0x0639, 0x062f,
+))
+
+_ABUDAWUD_2201_MATN = "".join(chr(c) for c in (
+    0x0625, 0x0646, 0x0645, 0x0627, 0x0020, 0x0627, 0x0644, 0x0623,
+    0x0639, 0x0645, 0x0627, 0x0644, 0x0020, 0x0628, 0x0627, 0x0644,
+    0x0646, 0x064a, 0x0627, 0x062a, 0x0020, 0x0648, 0x0625, 0x0646,
+    0x0645, 0x0627, 0x0020, 0x0644, 0x0643, 0x0644, 0x0020, 0x0627,
+    0x0645, 0x0631, 0x0626, 0x0020, 0x0645, 0x0627, 0x0020, 0x0646,
+    0x0648, 0x0649, 0x0020, 0x0641, 0x0645, 0x0646, 0x0020, 0x0643,
+    0x0627, 0x0646, 0x062a, 0x0020, 0x0647, 0x062c, 0x0631, 0x062a,
+    0x0647, 0x0020, 0x0625, 0x0644, 0x0649, 0x0020, 0x0627, 0x0644,
+    0x0644, 0x0647, 0x0020, 0x0648, 0x0631, 0x0633, 0x0648, 0x0644,
+    0x0647, 0x0020, 0x0641, 0x0647, 0x062c, 0x0631, 0x062a, 0x0647,
+    0x0020, 0x0625, 0x0644, 0x0649, 0x0020, 0x0627, 0x0644, 0x0644,
+    0x0647, 0x0020, 0x0648, 0x0631, 0x0633, 0x0648, 0x0644, 0x0647,
+    0x0020, 0x0648, 0x0645, 0x0646, 0x0020, 0x0643, 0x0627, 0x0646,
+    0x062a, 0x0020, 0x0647, 0x062c, 0x0631, 0x062a, 0x0647, 0x0020,
+    0x0644, 0x062f, 0x0646, 0x064a, 0x0627, 0x0020, 0x064a, 0x0635,
+    0x064a, 0x0628, 0x0647, 0x0627, 0x0020, 0x0623, 0x0648, 0x0020,
+    0x0627, 0x0645, 0x0631, 0x0623, 0x0629, 0x0020, 0x064a, 0x062a,
+    0x0632, 0x0648, 0x062c, 0x0647, 0x0627, 0x0020, 0x0641, 0x0647,
+    0x062c, 0x0631, 0x062a, 0x0647, 0x0020, 0x0625, 0x0644, 0x0649,
+    0x0020, 0x0645, 0x0627, 0x0020, 0x0647, 0x0627, 0x062c, 0x0631,
+    0x0020, 0x0625, 0x0644, 0x064a, 0x0647,
+))
+
+_ABUDAWUD_5274_MATN = "".join(chr(c) for c in (
+    0x064a, 0x0624, 0x0630, 0x064a, 0x0646, 0x064a, 0x0020, 0x0628,
+    0x0646, 0x0020, 0x0622, 0x062f, 0x0645, 0x0020, 0x064a, 0x0633,
+    0x0628, 0x0020, 0x0627, 0x0644, 0x062f, 0x0647, 0x0631, 0x0020,
+    0x0648, 0x0623, 0x0646, 0x0627, 0x0020, 0x0627, 0x0644, 0x062f,
+    0x0647, 0x0631, 0x0020, 0x0628, 0x064a, 0x062f, 0x064a, 0x0020,
+    0x0627, 0x0644, 0x0623, 0x0645, 0x0631, 0x0020, 0x0623, 0x0642,
+    0x0644, 0x0628, 0x0020, 0x0627, 0x0644, 0x0644, 0x064a, 0x0644,
+    0x0020, 0x0648, 0x0627, 0x0644, 0x0646, 0x0647, 0x0627, 0x0631,
+    0x0020, 0x0642, 0x0627, 0x0644, 0x0020, 0x0628, 0x0646, 0x0020,
+    0x0627, 0x0644, 0x0633, 0x0631, 0x062d, 0x0020, 0x0639, 0x0646,
+    0x0020, 0x0628, 0x0646, 0x0020, 0x0627, 0x0644, 0x0645, 0x0633,
+    0x064a, 0x0628, 0x0020, 0x0645, 0x0643, 0x0627, 0x0646, 0x0020,
+    0x0633, 0x0639, 0x064a, 0x062f, 0x0020, 0x0648, 0x0627, 0x0644,
+    0x0644, 0x0647, 0x0020, 0x0623, 0x0639, 0x0644, 0x0645,
+))
+
+
+def test_abudawud_hadith_1_is_the_real_first_hadith_not_the_kitab_heading():
+    """Guards the `_KITAB_WORD` fix directly against the materialized DB.
+
+    Before the fix, `hadith:abudawud:1` held the matn "kitab al-tahara" (a
+    book title) and the real first hadith was pushed to a fabricated "-2"
+    occurrence suffix. Both wrongs are checked here.
+    """
+    conn = db.connect(DB_PATH)
+    rec = db.get_record(conn, "hadith:abudawud:1")
+    assert rec.text_ar == _ABUDAWUD_1_MATN
+    assert conn.execute(
+        "SELECT count(*) FROM records WHERE id='hadith:abudawud:1-2'"
+    ).fetchone()[0] == 0
+
+
+def test_abudawud_spot_checked_matns_are_byte_exact():
+    conn = db.connect(DB_PATH)
+    assert db.get_record(conn, "hadith:abudawud:2201").text_ar == _ABUDAWUD_2201_MATN
+    assert db.get_record(conn, "hadith:abudawud:5274").text_ar == _ABUDAWUD_5274_MATN
+
+
 # "al-harb khud'a" -- war is deceit. The SAME codepoints as Bukhari's
-# _AL_HARB_KHUDA above: Sahih Muslim prints this saying too (1739, 1740).
+# _AL_HARB_KHUDA above: Sahih Muslim prints this saying too (1739, 1740), and
+# Task 12 found a fourth copy at Abu Dawud 2636.
 def test_a_genuine_short_hadith_shared_across_collections_still_verifies():
-    """Bukhari 2866 and Muslim 1739/1740 print the same three words.
+    """Bukhari 2866, Muslim 1739/1740, and (Task 12) Abu Dawud 2636 all print
+    the same three words.
 
     The tie-break rule ("lowest id wins, the rest are disclosed") was proven
-    within one collection (383 and 774, both Bukhari); this is the first case
-    of it firing ACROSS collections, and it is exercised here rather than
-    assumed to generalise.
+    within one collection (383 and 774, both Bukhari); Task 11 exercised it
+    firing ACROSS collections for the first time (Bukhari won the tie then).
+    Task 12 changed WHICH collection wins, without changing the rule: Abu
+    Dawud's full id sorts first lexicographically ("hadith:abudawud:..." <
+    "hadith:bukhari:..."), so it is the winner now and the other three move
+    into `also_at`. See `test_a_famous_short_hadith_still_verifies_exactly`
+    above for the same fact asserted the other direction.
     """
     from sanad.verify.engine import Verdict, verify_spans
     conn = db.connect(DB_PATH)
     matches = verify_spans(conn, f"«{_AL_HARB_KHUDA}»")
     assert len(matches) == 1
     assert matches[0].verdict is Verdict.EXACT
-    assert matches[0].record.id == "hadith:bukhari:2866"
-    assert matches[0].also_at == ["hadith:muslim:1739", "hadith:muslim:1740"]
+    assert matches[0].record.id == "hadith:abudawud:2636"
+    assert matches[0].also_at == [
+        "hadith:bukhari:2866", "hadith:muslim:1739", "hadith:muslim:1740",
+    ]
 
 
 # "da'hu" -- "leave him." The Prophet's own reply telling Abd al-Rahman ibn

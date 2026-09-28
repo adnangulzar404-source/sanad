@@ -8,7 +8,7 @@ REAL = "ingest/corpus.lock.toml"
 
 def test_loads_the_real_lockfile():
     sources = load_lockfile(REAL)
-    assert len(sources) == 4
+    assert len(sources) == 5
     by_id = {s.id: s for s in sources}
 
     arabic = by_id["tanzil-uthmani-1.1"]

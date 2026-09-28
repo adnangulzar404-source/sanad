@@ -156,3 +156,30 @@ license_url      = "https://github.com/OpenITI/0275AH"
 content_sha256   = "32b8b949d80d22d3db81be52d8749bc191f12510c8afe19868589bc4b08605e8"
 expected_records = 7460
 modifications    = "mARkdown structural markers parsed and discarded; no text altered"
+
+# Sunan Abi Dawud (Task 12): Abu Dawud al-Sijistani d. 275 AH. Same OpenITI
+# 0275AH commit as Bukhari/Muslim. numbering_scheme = "abdalhamid": Muhammad
+# Muhyi al-Din Abd al-Hamid's standard Abu Dawud numbering, distinct from
+# Bukhari's al-Bugha and Muslim's 'Abd al-Baqi numbering (Task 11 precursor --
+# see the comment on `numbering_scheme` in lockfile.py). OpenITI is the
+# transcriber, not the licensor; the underlying work is public domain by age.
+# See docs/SOURCES.md for the full basis.
+#
+# content_sha256/expected_records: build-measured placeholders, pinned after
+# the first measured build (see the report for this task).
+[[source]]
+id               = "openiti-abudawud-jk000142"
+kind             = "hadith-arabic"
+collection       = "abudawud"
+numbering_scheme = "abdalhamid"
+format           = "openiti-markdown"
+title            = "سنن أبي داود (Sunan Abi Dawud)"
+publisher        = "OpenITI (transcription); Dar al-Fikr (edition)"
+edition          = "ed. Muhammad Muhyi al-Din Abd al-Hamid; OpenITI JK000142, ara1"
+url              = "https://raw.githubusercontent.com/OpenITI/0275AH/44e1c36738a2bf5c14dafa232a6ae1891e6171cd/data/0275AbuDawudSijistani/0275AbuDawudSijistani.Sunan/0275AbuDawudSijistani.Sunan.JK000142-ara1"
+commit           = "44e1c36738a2bf5c14dafa232a6ae1891e6171cd"
+license_id       = "public-domain"
+license_url      = "https://github.com/OpenITI/0275AH"
+content_sha256   = "94d6fe547384efd2f8b369879775f617cb6283053482dc672ff04fbb5454292e"
+expected_records = 5274
+modifications    = "mARkdown structural markers parsed and discarded; no text altered"

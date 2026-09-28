@@ -152,10 +152,14 @@ def test_texts_absent_from_the_corpus_really_are_absent(conn, hadith_cases):
     rather than trusted.
 
     Three as of Task 11: the original two Bukhari-era cases plus
-    hadith-muslim-fabricated-attribution, the Muslim analogue.
+    hadith-muslim-fabricated-attribution, the Muslim analogue. Four as of
+    Task 12: hadith-abudawud-fabricated-attribution reuses the SAME string as
+    the Muslim case (it is absent from Sunan Abi Dawud just as it is from
+    Sahih Muslim), so this loop checks it twice against the corpus rather than
+    once, which is a stronger guarantee, not a weaker one.
     """
     absent = [c for c in hadith_cases if c.expect_scope_caveat]
-    assert len(absent) == 3
+    assert len(absent) == 4
     for case in absent:
         needle = case.text.strip()
         assert needle

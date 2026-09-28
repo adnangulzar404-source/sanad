@@ -650,3 +650,30 @@
     record id) selects 894 -- the same behaviour already proven for the
     al-harb-khud'a duplicate (see test_real_corpus.py), not a new rule.
     MEASURED EXACT 1.0, record hadith:abudawud:894.
+- id: hadith-abudawud-accusative-narrator-chain-now-verifies
+  text: 'أن عليا رضي الله عنه كان إذا سافر سار بعد ما تغرب الشمس حتى تكاد أن تظلم ثم ينزل فيصلي المغرب ثم يدعو بعشائه فيتعشى ثم يصلي العشاء ثم يرتحل ويقول هكذا كان رسول الله صلى الله عليه وسلم يصنع'
+  expect_verdict: EXACT
+  expect_record: hadith:abudawud:1234
+  rationale: >-
+    'Ali's own travel-prayer routine, byte-exact from the MATERIALISED
+    database. The source fuses it with "qala 'Uthman 'an 'Abd Allah ibn
+    Muhammad ibn 'Amr ibn 'Ali SAMI'TU ABA DAWUD yaqulu ..." -- Uthman
+    reporting that he heard Abu Dawud say something, the compiler's kunya in
+    the ACCUSATIVE (object of "I heard"), a case fix rounds 1-2's
+    nominative-only markers could never match (R-A3-23). The narrator chain
+    in front of "sami'tu" ("qala Uthman 'an ... 'Ali") also needed a second
+    hand-audited cut (`NEAR_MISS_CUT_OVERRIDE`), the same shape as 4129 in
+    fix round 2. MEASURED EXACT 1.0 against hadith:abudawud:1234.
+- id: hadith-abudawud-accusative-heard-form-now-verifies
+  text: 'أصبنا صرما من جراد فكان رجل منا يضرب بسوطه وهو محرم فقيل له إن هذا لا يصلح فذكر ذلك للنبي صلى الله عليه وسلم فقال إنما هو من صيد البحر'
+  expect_verdict: EXACT
+  expect_record: hadith:abudawud:1854
+  rationale: >-
+    The Prophet's own ruling on locusts taken while in ihram ("it is only sea
+    game"), byte-exact from the MATERIALISED database. The source fuses it
+    with "sami'tu Aba Dawud yaqulu Abu l-Muhazzam da'if wa-l-hadithani
+    jami'an wahm" -- al-Lu'lu'i's own remark judging the narration's
+    reliability, again the compiler's kunya in the ACCUSATIVE, with no "qala"
+    at all before it (R-A3-23). `_split_heard_commentary`'s cut is complete
+    on its own here, with no further nested attribution to correct.
+    MEASURED EXACT 1.0 against hadith:abudawud:1854.

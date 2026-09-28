@@ -186,10 +186,29 @@ CUT_OVERRIDE: dict[str, dict[str, tuple[str, int]]] = {
 # different expected digests would make one of the checks raise every build.
 # The value has the same shape as `CUT_OVERRIDE`: (sha256-of-the-primary-
 # after-the-compiler-commentary-split, count-of-trailing-tokens-to-move).
+#
+# hadith:abudawud:1234 (Task 12 fix round 3, ruling R-A3-23) is the same
+# shape one call site later: "sami'tu ACC-kunya" ("I heard Abu Dawud say")
+# is a case `_split_compiler_commentary`'s nominative-only markers can never
+# reach, so `_split_heard_commentary` exists to catch it -- but 1234 prints
+# "... qala 'Uthman 'an 'Abd Allah ibn Muhammad ibn 'Amr ibn 'Ali SAMI'TU ABA
+# DAWUD yaqulu ...": a narrator's own attribution ("Uthman said, on the
+# authority of ...") stands in front of the "sami'tu" that introduces Abu
+# Dawud's remark, and `_split_heard_commentary`'s own marker only reaches the
+# "sami'tu" itself. Left alone, the primary matn would still end "... ANNAHU
+# kana rasulu Llahi ... yasna'u QALA 'UTHMAN 'AN 'ABD ALLAH IBN MUHAMMAD IBN
+# 'AMR IBN 'ALI" -- the genuine hadith plus a dangling, unrelated narrator's
+# name -- the exact defect this whole fix round exists to close. Its digest
+# is of the matn as it stands after `_split_heard_commentary`, one call site
+# later than 4129's own entry above; both entries share this one dict
+# because each is checked against its OWN record id, so a different pipeline
+# stage per entry is safe as long as no record ever appears twice.
 NEAR_MISS_CUT_OVERRIDE: dict[str, dict[str, tuple[str, int]]] = {
     "abudawud": {
         "hadith:abudawud:4129":
             ("f5638b9dd3517aabb7a92e055bb6ad366aa01371bd6e3e533cda4eb8a3dc294e", 18),
+        "hadith:abudawud:1234":
+            ("29dd1c200736cb6d27f5b1de7641c061e46e66b541670e4e0d422dad37d4f0f0", 11),
     },
 }
 

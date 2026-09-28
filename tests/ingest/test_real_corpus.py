@@ -226,13 +226,18 @@ def test_the_full_printed_text_of_every_cut_record_verifies():
     voice, the same defect class, a different speaker) together add 9 more
     scorable cut records: `hadith:abudawud:4129`, `5239`, `911`, `1096`,
     `1391`, `3220`, `3437`, `4924`, `5190`. 1,335 + 9 = 1,344.
+
+    Fix round 3 (R-A3-23): 1,346. `_split_heard_commentary` ("sami'tu" +
+    ACCUSATIVE kunya, the grammatical case the marker above never covered)
+    adds 2 more scorable cut records: `hadith:abudawud:1234`, `1854`.
+    1,344 + 2 = 1,346.
     """
     from sanad.verify.engine import Verdict, verify_spans
     conn = db.connect(DB_PATH)
     rows = conn.execute(
         "SELECT id, text_ar, addenda_ar FROM records"
         " WHERE addenda_ar IS NOT NULL AND unscorable_reason IS NULL").fetchall()
-    assert len(rows) == 1344
+    assert len(rows) == 1346
     failures = []
     for row in rows:
         for quoted in (row["text_ar"], row["text_ar"] + " " + row["addenda_ar"]):
@@ -353,13 +358,16 @@ def test_the_index_holds_one_row_per_scorable_representation():
     unchanged (no record's scorability changes, only where 9 more primaries
     are cut), variants gains the same 9 records as
     `test_the_full_printed_text_of_every_cut_record_verifies` above.
+
+    Fix round 3 (R-A3-23) moves these to (25222, 1387, 26609): scorable is
+    unchanged again, variants gains 2 more records (1234, 1854).
     """
     conn = db.connect(DB_PATH)
     scorable = conn.execute(
         "SELECT count(*) FROM records WHERE unscorable_reason IS NULL").fetchone()[0]
     variants = conn.execute("SELECT count(*) FROM record_variants").fetchone()[0]
     indexed = conn.execute("SELECT count(*) FROM records_fts").fetchone()[0]
-    assert (scorable, variants, indexed) == (25222, 1385, 26607)
+    assert (scorable, variants, indexed) == (25222, 1387, 26609)
 
 
 # --- C1: nothing scorable as a hadith is wholly a Qur'anic quotation --------
@@ -432,6 +440,12 @@ def test_no_scorable_hadith_representation_is_wholly_quranic():
     Qur'anic -- every one is either a well-known Prophetic saying (4129,
     5239) or a narrator's/transmitter's remark, neither of which the sweep
     would expect to find inside a surah.
+
+    Fix round 3 (R-A3-23) moves the representation count to 20,373 (1,387
+    full-text representations corpus-wide instead of 1,385; scorable primary
+    count unchanged again -- 1234 and 1854 were already scorable). The sweep
+    is still zero: 'Ali's travel-prayer routine and the Prophet's "it is
+    only sea game" ruling are ordinary hadith wording, not Qur'an.
     """
     conn = db.connect(DB_PATH)
     blobs = _quran_blobs(conn)
@@ -442,7 +456,7 @@ def test_no_scorable_hadith_representation_is_wholly_quranic():
     reps += [(r["record_id"], r["variant"], r["norm_standard"]) for r in conn.execute(
         "SELECT v.record_id, v.variant, v.norm_standard FROM record_variants v"
         " JOIN records r ON r.id = v.record_id")]
-    assert len(reps) == 20371, "the sweep stopped covering what it was written for"
+    assert len(reps) == 20373, "the sweep stopped covering what it was written for"
     offenders = [(rid, variant) for rid, variant, norm in reps
                  if norm.strip() and any(f" {norm} " in b for b in blobs)]
     assert offenders == []
@@ -687,6 +701,11 @@ def test_exactly_one_hadith_representation_sits_inside_an_ayah():
     full-text representations corpus-wide instead of 1,376) without moving
     either list: re-run against the fixed build, none of the 9 newly-cut Abu
     Dawud records sits inside an ayah at either tier.
+
+    Fix round 3 (R-A3-23) moves the representation count to 20,373 (1,387
+    full-text representations corpus-wide instead of 1,385) without moving
+    either list: re-run against the fixed build, neither 1234 nor 1854 sits
+    inside an ayah at either tier.
     """
     from sanad.verify.engine import _ayat_containing, _contains_at
     conn = db.connect(DB_PATH)
@@ -697,7 +716,7 @@ def test_exactly_one_hadith_representation_sits_inside_an_ayah():
         "SELECT v.record_id, v.variant, v.text_ar FROM record_variants v"
         " JOIN records r ON r.id = v.record_id WHERE r.kind = 'hadith'"
     ).fetchall()
-    assert len(reps) == 20371, len(reps)
+    assert len(reps) == 20373, len(reps)
 
     withheld, disclosed = [], []
     for rep in reps:
@@ -794,6 +813,15 @@ def test_abudawud_record_count_and_scorability():
     newly-cut primary is a genuine, complete, quotable matn -- see
     `tests/ingest/test_real_corpus.py`'s fix-round-2 section below for each
     one verified against the materialized DB.
+
+    139 unscorable (unchanged) and 873 cut, fix round 3 (R-A3-23): the
+    marker only ever recognised the compiler's kunya in the NOMINATIVE case;
+    two records quote him in the ACCUSATIVE instead ("sami'tu Aba Dawud
+    yaqulu ...", `_split_heard_commentary`, `hadith:abudawud:1234`/`1854`).
+    871 + 2 = 873. 1234 additionally needed `NEAR_MISS_CUT_OVERRIDE` for a
+    dangling narrator attribution the heard-marker alone did not reach, the
+    same shape as 4129 in fix round 2. Unscorable is unchanged for the same
+    reason as before -- both are genuine, complete, quotable matns.
     """
     conn = db.connect(DB_PATH)
     total = conn.execute(
@@ -808,7 +836,7 @@ def test_abudawud_record_count_and_scorability():
     cut = conn.execute(
         "SELECT count(*) FROM records WHERE kind='hadith' AND collection='abudawud'"
         " AND addenda_ar IS NOT NULL").fetchone()[0]
-    assert (total, scorable, unscorable, cut) == (5274, 5135, 139, 871)
+    assert (total, scorable, unscorable, cut) == (5274, 5135, 139, 873)
 
 
 # Three spot-checked Abu Dawud matns, read BYTE-EXACT from the materialized
@@ -1045,6 +1073,99 @@ def test_the_two_near_miss_gap_records_now_verify():
         assert matches[0].record.id == record_id, record_id
 
 
+# --- Task 12 fix round 3 (R-A3-23): the marker's own case-blind spot -------
+#
+# Both markers above only ever recognised the compiler's kunya in the
+# NOMINATIVE ("Abu Dawud" as the grammatical subject of "qala"/"su'ila"). An
+# adversarial re-review found two further records where the compiler is
+# quoted in the ACCUSATIVE instead -- "sami'tu ABA Dawud yaqulu ..." ("I
+# heard Abu Dawud say ...", he is the object of "I heard", not the subject of
+# "he said") -- a case no nominative-only marker could ever match.
+
+# "anna Aliyyan ... kana idha safara sara ba'da ma taghrubu l-shamsu hatta
+# takada an tuzlima thumma yanzilu fa-yusalli l-maghriba thumma yad'u
+# bi-'asha'ihi fa-yata'ashsha thumma yusalli l-'isha'a thumma yartahilu
+# wa-yaqulu hakadha kana rasulu Llahi salla Llahu 'alayhi wa-sallama yasna'"
+# -- "'Ali, when he travelled, would ride on until the sun had nearly set,
+# then dismount and pray maghrib, then call for his supper and have it,
+# then pray 'isha, then set off again, saying: this is how the Messenger of
+# Allah used to do it." hadith:abudawud:1234's genuine matn. Fused, with no
+# marker before this fix round, onto "qala 'Uthman 'an 'Abd Allah ibn
+# Muhammad ibn 'Amr ibn 'Ali SAMI'TU ABA DAWUD yaqulu ..." -- a narrator
+# (Uthman) reporting that he heard Abu Dawud say something, itself a further
+# narration comparison, not part of 'Ali's own hadith.
+_ABUDAWUD_1234_MATN = "".join(chr(c) for c in (
+    0x0623, 0x0646, 0x0020, 0x0639, 0x0644, 0x064a, 0x0627, 0x0020, 0x0631,
+    0x0636, 0x064a, 0x0020, 0x0627, 0x0644, 0x0644, 0x0647, 0x0020, 0x0639,
+    0x0646, 0x0647, 0x0020, 0x0643, 0x0627, 0x0646, 0x0020, 0x0625, 0x0630,
+    0x0627, 0x0020, 0x0633, 0x0627, 0x0641, 0x0631, 0x0020, 0x0633, 0x0627,
+    0x0631, 0x0020, 0x0628, 0x0639, 0x062f, 0x0020, 0x0645, 0x0627, 0x0020,
+    0x062a, 0x063a, 0x0631, 0x0628, 0x0020, 0x0627, 0x0644, 0x0634, 0x0645,
+    0x0633, 0x0020, 0x062d, 0x062a, 0x0649, 0x0020, 0x062a, 0x0643, 0x0627,
+    0x062f, 0x0020, 0x0623, 0x0646, 0x0020, 0x062a, 0x0638, 0x0644, 0x0645,
+    0x0020, 0x062b, 0x0645, 0x0020, 0x064a, 0x0646, 0x0632, 0x0644, 0x0020,
+    0x0641, 0x064a, 0x0635, 0x0644, 0x064a, 0x0020, 0x0627, 0x0644, 0x0645,
+    0x063a, 0x0631, 0x0628, 0x0020, 0x062b, 0x0645, 0x0020, 0x064a, 0x062f,
+    0x0639, 0x0648, 0x0020, 0x0628, 0x0639, 0x0634, 0x0627, 0x0626, 0x0647,
+    0x0020, 0x0641, 0x064a, 0x062a, 0x0639, 0x0634, 0x0649, 0x0020, 0x062b,
+    0x0645, 0x0020, 0x064a, 0x0635, 0x0644, 0x064a, 0x0020, 0x0627, 0x0644,
+    0x0639, 0x0634, 0x0627, 0x0621, 0x0020, 0x062b, 0x0645, 0x0020, 0x064a,
+    0x0631, 0x062a, 0x062d, 0x0644, 0x0020, 0x0648, 0x064a, 0x0642, 0x0648,
+    0x0644, 0x0020, 0x0647, 0x0643, 0x0630, 0x0627, 0x0020, 0x0643, 0x0627,
+    0x0646, 0x0020, 0x0631, 0x0633, 0x0648, 0x0644, 0x0020, 0x0627, 0x0644,
+    0x0644, 0x0647, 0x0020, 0x0635, 0x0644, 0x0649, 0x0020, 0x0627, 0x0644,
+    0x0644, 0x0647, 0x0020, 0x0639, 0x0644, 0x064a, 0x0647, 0x0020, 0x0648,
+    0x0633, 0x0644, 0x0645, 0x0020, 0x064a, 0x0635, 0x0646, 0x0639
+))
+
+# "asabna sarman min jarad fa-kana rajulun minna yadribu bi-sawtihi wa-huwa
+# muhrim fa-qila lahu inna hadha la yasluh fa-dhukira dhalika li-l-nabiyyi
+# salla Llahu 'alayhi wa-sallama fa-qala innama huwa min saydi l-bahr" --
+# "we came upon a swarm of locusts, and a man among us, while in ihram,
+# began striking them with his whip. He was told: this is not permissible.
+# That was mentioned to the Prophet, and he said: it is only sea game."
+# hadith:abudawud:1854's genuine matn -- the Prophet's own ruling completes
+# it. Fused, with no marker before this fix round, onto "sami'tu Aba Dawud
+# yaqulu Abu l-Muhazzam da'if wa-l-hadithani jami'an wahm" -- al-Lu'lu'i's
+# own remark, with no "qala" before it at all (the accusative verb itself is
+# the whole first-person clause), judging the narration's own reliability.
+_ABUDAWUD_1854_MATN = "".join(chr(c) for c in (
+    0x0623, 0x0635, 0x0628, 0x0646, 0x0627, 0x0020, 0x0635, 0x0631, 0x0645,
+    0x0627, 0x0020, 0x0645, 0x0646, 0x0020, 0x062c, 0x0631, 0x0627, 0x062f,
+    0x0020, 0x0641, 0x0643, 0x0627, 0x0646, 0x0020, 0x0631, 0x062c, 0x0644,
+    0x0020, 0x0645, 0x0646, 0x0627, 0x0020, 0x064a, 0x0636, 0x0631, 0x0628,
+    0x0020, 0x0628, 0x0633, 0x0648, 0x0637, 0x0647, 0x0020, 0x0648, 0x0647,
+    0x0648, 0x0020, 0x0645, 0x062d, 0x0631, 0x0645, 0x0020, 0x0641, 0x0642,
+    0x064a, 0x0644, 0x0020, 0x0644, 0x0647, 0x0020, 0x0625, 0x0646, 0x0020,
+    0x0647, 0x0630, 0x0627, 0x0020, 0x0644, 0x0627, 0x0020, 0x064a, 0x0635,
+    0x0644, 0x062d, 0x0020, 0x0641, 0x0630, 0x0643, 0x0631, 0x0020, 0x0630,
+    0x0644, 0x0643, 0x0020, 0x0644, 0x0644, 0x0646, 0x0628, 0x064a, 0x0020,
+    0x0635, 0x0644, 0x0649, 0x0020, 0x0627, 0x0644, 0x0644, 0x0647, 0x0020,
+    0x0639, 0x0644, 0x064a, 0x0647, 0x0020, 0x0648, 0x0633, 0x0644, 0x0645,
+    0x0020, 0x0641, 0x0642, 0x0627, 0x0644, 0x0020, 0x0625, 0x0646, 0x0645,
+    0x0627, 0x0020, 0x0647, 0x0648, 0x0020, 0x0645, 0x0646, 0x0020, 0x0635,
+    0x064a, 0x062f, 0x0020, 0x0627, 0x0644, 0x0628, 0x062d, 0x0631
+))
+
+
+def test_the_two_accusative_near_miss_records_now_verify():
+    """1234 and 1854: the marker's own case-blind spot, not found by any
+    gap widening (R-A3-22's own sweep never varied grammatical case), found
+    instead by an adversarial re-review reading the accusative form
+    directly.
+    """
+    from sanad.verify.engine import Verdict, verify_spans
+    conn = db.connect(DB_PATH)
+    assert db.get_record(conn, "hadith:abudawud:1234").text_ar == _ABUDAWUD_1234_MATN
+    assert db.get_record(conn, "hadith:abudawud:1854").text_ar == _ABUDAWUD_1854_MATN
+    for record_id, matn in (("hadith:abudawud:1234", _ABUDAWUD_1234_MATN),
+                            ("hadith:abudawud:1854", _ABUDAWUD_1854_MATN)):
+        matches = verify_spans(conn, f"«{matn}»")
+        assert len(matches) == 1, record_id
+        assert matches[0].verdict is Verdict.EXACT, record_id
+        assert matches[0].record.id == record_id, record_id
+
+
 # "anna rasula Llahi ... ru'iya 'ala jabhatihi wa-'ala arnabatihi atharu tinin
 # min salatin sallaha bi-l-nas" -- "the Messenger of Allah was seen, on his
 # forehead and the tip of his nose, the trace of mud from a prayer he had led
@@ -1118,25 +1239,63 @@ def _real_abudawud_units():
 
 
 def test_no_unaudited_near_miss_for_the_abudawud_compiler_marker():
-    """R-A3-22's own detector, committed: sweep the real corpus for any
-    "<verb> <=1-token-gap> Abu Dawud" the shipped marker (tight, or the
-    one-token fallback) does not already catch. Clean: both records the
-    fallback exists for are matched by the CONFIGURED pattern itself, so
-    `find_near_misses` (which only reports what `configured` misses) has
-    nothing left to find even at a four-token sweep.
+    """R-A3-22/R-A3-23's own detector, committed: sweep the real corpus for
+    any "<verb> <=4-token-gap> Abu Dawud" the shipped marker set (tight,
+    one-token-gap nominative fallback, or the accusative "heard" form) does
+    not already catch -- varying BOTH token gap and grammatical case, not
+    gap alone. R-A3-22's own version of this test swept gap only and stayed
+    green while missing 1234/5239's accusative shape entirely (that is
+    exactly the gap R-A3-23 found and this sweep now closes): the sweep
+    below tries "qala"/"su'ila"/"sami'tu" against BOTH the nominative
+    ("Abu Dawud") and accusative ("Aba Dawud") forms, at every gap 0-4.
+
+    Clean: every record any widening of this sweep finds is already matched
+    by the CONFIGURED pattern itself (tight nominative, near-fallback
+    nominative, or tight accusative), so `find_near_misses` has nothing left
+    to find even at a four-token, both-case sweep.
     """
     import re
 
     from sanad_ingest.openiti import (
-        _ABUDAWUD_COMMENTARY, _ABUDAWUD_COMMENTARY_NEAR, _ARABIC,
-        find_near_misses)
+        _ABUDAWUD_COMMENTARY, _ABUDAWUD_COMMENTARY_NEAR, _ABUDAWUD_HEARD,
+        _ARABIC, find_near_misses)
 
     configured = re.compile(
-        f"{_ABUDAWUD_COMMENTARY.pattern}|{_ABUDAWUD_COMMENTARY_NEAR.pattern}")
+        f"{_ABUDAWUD_COMMENTARY.pattern}|{_ABUDAWUD_COMMENTARY_NEAR.pattern}"
+        f"|{_ABUDAWUD_HEARD.pattern}")
     sweep = re.compile(
-        rf"(?<![{_ARABIC}])[وف]?(?:قال|سئل)(?:\s+\S+){{0,4}}\s+أبو\s+داود"
-        rf"(?![{_ARABIC}])")
+        rf"(?<![{_ARABIC}])[وف]?(?:قال|سئل|سمعت)(?:\s+\S+){{0,4}}"
+        rf"\s+(?:أبو|أبا)\s+داود(?![{_ARABIC}])")
     assert find_near_misses(_real_abudawud_units(), configured, sweep) == []
+
+
+def test_the_genitive_kunya_never_appears_in_scored_abudawud_text():
+    """R-A3-23's explicit guard: "'an"/"min" + GENITIVE kunya ("Abi Dawud")
+    names a narrator inside an isnad, not the compiler speaking, and must
+    NEVER be treated as commentary -- a case-blind widening of the marker
+    would cut genuine isnad, per the controller's own ruling. No code
+    implements a genitive pattern (there is nothing to disable), so this
+    test is the guard: it fails loudly if a genitive occurrence ever reaches
+    scored text (matn or addendum) rather than staying silent in `isnad_ar`,
+    which is never scored.
+
+    Measured directly against the real corpus: the genitive form occurs
+    exactly 3 times in the raw file -- twice in the `#META#` book title
+    ("Sunan Abi Dawud", outside any unit), and once inside a unit
+    (hadith:abudawud:507, "... 'an Abi Dawud ...", a narrator reference that
+    sits in `isnad_ar`, before the "*" split). Zero occurrences reach
+    `matn_ar`/`addenda_ar` for any record.
+    """
+    import re
+
+    from sanad_ingest.openiti import _ARABIC, full_text_from_parts
+
+    genitive = re.compile(rf"(?<![{_ARABIC}])أبي\s+داود(?![{_ARABIC}])")
+    hits = [
+        u.record_id for u in _real_abudawud_units()
+        if genitive.search(full_text_from_parts(u.matn_ar, u.addenda_ar))
+    ]
+    assert hits == []
 
 
 def test_the_abudawud_lului_near_miss_is_found_and_correctly_excluded():

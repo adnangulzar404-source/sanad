@@ -771,6 +771,11 @@ def test_the_appended_narrations_are_stored_but_never_scored(real_corpus):
     3437, 4924, 5190) -- 9 more addendum-bearing records total, none of them
     Bukhari or Muslim.
 
+    Fix round 3 (R-A3-23) moves this to 1,387: the marker only ever
+    recognised the NOMINATIVE case of the compiler's kunya; two records
+    (1234, 1854) quote him in the ACCUSATIVE ("sami'tu Aba Dawud yaqulu
+    ..."), a case `_split_heard_commentary` now covers.
+
     hadith 22 is one of the three boundaries named in the fix brief: the
     primary matn ends at "...as the seed grows beside a stream", and a second
     chain ("Wuhayb said: Amr narrated to us...") follows it with a variant
@@ -785,7 +790,7 @@ def test_the_appended_narrations_are_stored_but_never_scored(real_corpus):
     conn = db.connect(out)
     n = conn.execute(
         "SELECT count(*) FROM records WHERE addenda_ar IS NOT NULL").fetchone()[0]
-    assert n == 1385
+    assert n == 1387
     rec = db.get_record(conn, "hadith:bukhari:22")
     assert rec.addenda_ar and _HADDATHANA in rec.addenda_ar
     assert _HADDATHANA not in rec.text_ar
@@ -828,6 +833,10 @@ def test_no_addendum_reaches_the_primary_representation(real_corpus):
     every one of them adds a row here. Confirmed directly, not by arithmetic
     alone: `41` was re-measured against the round-2 DB before this docstring
     was written.
+
+    1,346, not 1,344, after fix round 3 (R-A3-23): 41 unchanged again --
+    1234 and 1854 are both genuine, complete, scorable matns -- so both new
+    addendum-bearing records add a row here.
     """
     out, _, _ = real_corpus
     conn = db.connect(out)
@@ -839,7 +848,7 @@ def test_no_addendum_reaches_the_primary_representation(real_corpus):
         "       f.norm_aggressive FROM records r"
         " JOIN records_fts f ON f.record_id = r.id AND f.variant = 'primary'"
         " WHERE r.addenda_ar IS NOT NULL").fetchall()
-    assert len(rows) == 1344
+    assert len(rows) == 1346
     for row in rows:
         assert row["addenda_ar"] not in row["text_ar"], row["id"]
         for form in ("standard", "aggressive"):
@@ -865,7 +874,7 @@ def test_the_full_printed_text_is_scored_alongside_the_primary(real_corpus):
         "       v.norm_aggressive FROM records r"
         " LEFT JOIN record_variants v ON v.record_id = r.id"
         " WHERE r.addenda_ar IS NOT NULL").fetchall()
-    assert len(rows) == 1385
+    assert len(rows) == 1387
     checked = 0
     for row in rows:
         # 237 (and Task 11's Muslim 1915-3, 546-3, and fix round 1's 41
@@ -877,7 +886,7 @@ def test_the_full_printed_text_is_scored_alongside_the_primary(real_corpus):
         for form in ("light", "standard", "aggressive"):
             assert row[f"norm_{form}"] == normalize(row["whole"], form), row["id"]
         checked += 1
-    assert checked == 1385
+    assert checked == 1387
 
 
 def test_a_record_with_no_addendum_has_no_second_representation(real_corpus):

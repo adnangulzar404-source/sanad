@@ -359,36 +359,98 @@ def _apply_cut_override(matn: str, addenda: str | None, record_id: str,
 # Dawud: thana al-Hasan ibn Ali al-Wasiti") was read in context: it is still
 # the compiler, in his own voice, introducing a further route -- a routine
 # move in his commentary -- not a narrator link.
-_ABUDAWUD_COMMENTARY = re.compile(
-    rf"(?<![{_ARABIC}])[وف]?(?:قال|سئل)\s+أبو\s+داود(?![{_ARABIC}])")
-
-# R-A3-22 (Task 12 fix round 2): two records have exactly ONE word between the
-# verb and the compiler's name, so the marker above never fires on them at
-# all -- 4129 ("... qala LANA Abu Dawud abu al-Mu'tamir ismuhu ...", a later
-# transmitter's "Abu Dawud told us", the "lana" reporting it) and 5239 ("...
-# su'ila ABU Abu Dawud 'an ma'na hadha l-hadith ...", a duplicated "abu" in
-# the source itself, not a second name). A dedicated per-record sweep of every
-# unit in the file -- comparing the tight marker above against a one-token-gap
-# widening, record by record, not a raw match count (which double-counts runs
-# like "... qala QALA Abu Dawud ..." at 1741/3596, see below) -- found these
-# two and no others: every other record either already matches the tight
-# marker or matches nothing even with the gap.
+# R-A3-23 (Task 12 fix round 3): the marker above only ever recognised the
+# compiler's kunya in the NOMINATIVE ("Abu Dawud" as grammatical subject of
+# "qala"/"su'ila"). An independent adversarial re-review found two further
+# records where the compiler is quoted in the ACCUSATIVE instead -- "sami'tu
+# ABA Dawud yaqulu ..." ("I heard Abu Dawud say ...", he is the object of
+# "I heard", not the subject of "he said") -- which no nominative-only marker
+# could ever match. Measuring all three grammatical cases of "Abu Dawud"
+# against the pinned file (and, for the controller's own cross-check, of
+# "Abu 'Isa"/al-Tirmidhi, "Abu 'Abd al-Rahman"/al-Nasa'i, and "Abu
+# al-Hasan"/Ibn Majah -- Tasks 13-15's own compiler kunyas, out of scope to
+# fix here but sharing the exact same grammar) gives one completely regular
+# rule, not three collections' worth of ad-hoc name strings:
 #
-# This is deliberately a FALLBACK, tried only when the tight marker finds no
-# match anywhere in the matn, never a replacement for it or an alternation
-# joined into one pattern. 1741 and 3596 both read "... qala QALA Abu Dawud
-# ..." -- two verbs in a row, the outer one plain reported speech ("... shakka
-# 'Abd Allah ayyatuhuma QALA", "which of the two, he said"), the inner one the
-# genuine marker. The tight marker already finds the inner, correct
-# occurrence in both. A single widened regex would have let `re.search`'s
-# leftmost-match rule jump to the OUTER "qala" instead (it also satisfies a
-# one-token gap, by treating the inner "qala" as the filler token) and pulled
-# that extra word out of the narration and into addenda -- an over-cut this
-# fix must not introduce while fixing an under-cut. Trying the tight pattern
-# first and only falling back when it finds nothing keeps those two records
-# byte-for-byte as they already were.
-_ABUDAWUD_COMMENTARY_NEAR = re.compile(
-    rf"(?<![{_ARABIC}])[وف]?(?:قال|سئل)\s+\S+\s+أبو\s+داود(?![{_ARABIC}])")
+#   - "qala"/"su'ila" + NOMINATIVE kunya (he is the subject) -- the compiler
+#     speaking in his own voice -- IS commentary, and is cut.
+#   - "sami'tu" + ... + ACCUSATIVE kunya (he is the object of "I heard") --
+#     someone else reporting having heard the compiler say something -- is
+#     STILL commentary (the fused text is editorial apparatus either way),
+#     and is cut.
+#   - "'an"/"min" + GENITIVE kunya -- he is named as a narrator INSIDE an
+#     isnad, not as the compiler speaking -- must NEVER be cut. Confirmed by
+#     reading every genitive occurrence in the file: two are the `#META#`
+#     book title ("Sunan Abi Dawud"), outside any unit entirely, and the one
+#     inside a unit (record 507, "... 'an Abi Dawud ...") sits in `isnad_ar`
+#     itself, before the "*" split -- isnad text is never scored in the
+#     first place, so there is nothing to guard here beyond not inventing a
+#     genitive pattern that would reach in and cut it. This is exactly why a
+#     case-blind widening of the marker would be actively dangerous: nothing
+#     about the SHAPE of "<preposition> + kunya" tells qala/su'ila's subject
+#     apart from an isnad's own narrator reference except the case ending.
+#
+# `_kunya_case_forms`/`_compiler_commentary_markers` build all three
+# collections' markers from this one rule and their own nominative kunya
+# (Arabic's "five nouns", الأسماء الخمسة, decline "abu" the same way no
+# matter what follows it: nominative "أبو", accusative "أبا", genitive
+# "أبي"), so Tasks 13-15 read this table once and derive a correct marker
+# from their own kunya, instead of each hand-writing a regex and inheriting
+# a fresh case-blind blind spot the way this one did.
+
+
+def _kunya_case_forms(nominative: str) -> tuple[str, str, str]:
+    """(nominative, accusative, genitive) forms of a kunya-headed compiler
+    name, e.g. "أبو داود" -> ("أبو داود", "أبا داود", "أبي داود")."""
+    assert nominative.startswith("أبو "), nominative
+    rest = nominative[len("أبو ") :]
+    return nominative, f"أبا {rest}", f"أبي {rest}"
+
+
+def _compiler_commentary_markers(
+    kunya_nom: str,
+) -> tuple[re.Pattern[str], re.Pattern[str], re.Pattern[str]]:
+    """(tight, near-fallback, heard) marker set for one collection's kunya.
+
+    `tight`/`near` cover "qala"/"su'ila" + NOMINATIVE, `near` tolerating one
+    intervening token (R-A3-22) as a FALLBACK only, tried when `tight` finds
+    no match anywhere in the matn -- never a replacement for it or an
+    alternation joined into one pattern. Records 1741/3596 both read "...
+    qala QALA Abu Dawud ..." (an outer, plain reported-speech "qala"
+    immediately followed by the genuine marker's own inner "qala"); a single
+    widened regex used as the primary search would let `re.search`'s
+    leftmost-match rule jump to the OUTER "qala" instead (satisfying a
+    one-token gap by treating the inner "qala" as the filler token) and pull
+    an extra genuine word out of the narration -- an over-cut. `tight` alone
+    already finds the correct, inner occurrence in both, so trying it first
+    and only falling back when it finds nothing keeps those two records
+    byte-for-byte unchanged.
+
+    `heard` covers "sami'tu" + ACCUSATIVE, tight (no gap tolerance): every
+    measured occurrence in the pinned Abu Dawud file has the kunya
+    immediately after "sami'tu", so there is no correctness reason to widen
+    it, per the same "read what each additional match actually is, don't
+    blanket-widen" discipline as `near`.
+
+    No genitive pattern exists here, deliberately: see the comment above.
+    """
+    nom, acc, _gen = _kunya_case_forms(kunya_nom)
+    tight = re.compile(rf"(?<![{_ARABIC}])[وف]?(?:قال|سئل)\s+{nom}(?![{_ARABIC}])")
+    near = re.compile(
+        rf"(?<![{_ARABIC}])[وف]?(?:قال|سئل)\s+\S+\s+{nom}(?![{_ARABIC}])")
+    heard = re.compile(rf"(?<![{_ARABIC}])[وف]?سمعت\s+{acc}(?![{_ARABIC}])")
+    return tight, near, heard
+
+
+_ABUDAWUD_COMMENTARY, _ABUDAWUD_COMMENTARY_NEAR, _ABUDAWUD_HEARD = \
+    _compiler_commentary_markers("أبو داود")
+
+# Known ceiling (R-A3-23, deliberately not fixed here): a bare "qultu" ("I
+# said") self-reference compiler remark -- one that never names "Abu Dawud"
+# at all -- is structurally invisible to any name-based marker, this table
+# included. Left as-is on the coordinator's explicit instruction; pinned to
+# Task 16's corpus-wide sweep, which is where a construction not anchored on
+# a name belongs.
 
 
 def _split_compiler_commentary(matn: str, addenda: str | None
@@ -413,6 +475,41 @@ def _split_compiler_commentary(matn: str, addenda: str | None
         # on the same principle as _split_secondary's one-word guard: an
         # empty scored text is worse than the fused-commentary bug this
         # function exists to fix.
+        return matn, addenda
+    tail = matn[m.start() :]
+    return head, tail if addenda is None else f"{tail} {addenda}"
+
+
+def _split_heard_commentary(matn: str, addenda: str | None
+                            ) -> tuple[str, str | None]:
+    """Cut the "sami'tu ... ACCUSATIVE-kunya" shape of Abu Dawud's own
+    commentary (R-A3-23) -- someone reporting having heard him say something,
+    which is still editorial apparatus fused onto the matn, not narration.
+
+    Run AFTER `_split_lului_commentary` in `flush()`, not before: of the 8
+    accusative occurrences in the file, 6 are immediately preceded by "qala
+    Abu Ali" ("... qala Abu Ali sami'tu Aba Dawud yaqulu ...") and are
+    already cut, correctly, at that EARLIER position by
+    `_split_lului_commentary`'s own marker before this function ever runs --
+    running this one first would instead cut at the later "sami'tu" and
+    leave "qala Abu Ali" stranded on the primary, the exact dangling-
+    attribution defect `CUT_OVERRIDE` exists to fix elsewhere. By the time
+    this function's search runs, those 6 already have "sami'tu ..." inside
+    their addendum, so it is a no-op for them, not a second cut.
+
+    The remaining 2 (1234, 1854) have no earlier marker at all and are cut
+    here directly. 1854's cut is complete on its own. 1234's is not: "qala
+    Uthman 'an 'Abd Allah ibn Muhammad ibn 'Amr ibn 'Ali sami'tu Aba Dawud
+    yaqulu ..." leaves "qala Uthman 'an ... 'Ali" dangling on the primary
+    the same way 4129 did in fix round 2 -- corrected the same way, by a
+    second hand-audited entry in `NEAR_MISS_CUT_OVERRIDE`, applied after this
+    function returns.
+    """
+    m = _ABUDAWUD_HEARD.search(matn)
+    if m is None:
+        return matn, addenda
+    head = matn[: m.start()].rstrip()
+    if not head:
         return matn, addenda
     tail = matn[m.start() :]
     return head, tail if addenda is None else f"{tail} {addenda}"
@@ -837,18 +934,28 @@ def parse_openiti(
             # never marked a boundary for either, and the marker search is a
             # no-op -- returns matn/addenda unchanged -- when absent.
             matn, addenda = _split_compiler_commentary(matn, addenda)
-            # 4129's near-miss cut (see NEAR_MISS_CUT_OVERRIDE) leaves two
-            # more nested "qala <name>" attributions fused onto the genuine
-            # matn -- a no-op for every other record, since the table holds
-            # exactly the one hand-read entry.
-            matn, addenda = _apply_cut_override(
-                matn, addenda, record_id, near_miss_cut_override)
-            # Al-Lu'lu'i's voice, same treatment, run second: 3040's "qala
-            # Abu Ali" already lives inside the tail the line above just cut,
-            # so by the time this runs it is a no-op for that record, not a
+            # Al-Lu'lu'i's voice, run BEFORE the heard-form marker below
+            # (R-A3-23): 6 of the 8 "sami'tu ACC-kunya" occurrences are
+            # immediately preceded by "qala Abu Ali", and must be cut at that
+            # earlier position, not the later "sami'tu" -- see
+            # `_split_heard_commentary`'s own docstring for why the order is
+            # load-bearing, not incidental. 3040's "qala Abu Ali" already
+            # lives inside `_split_compiler_commentary`'s own tail above, so
+            # by the time this runs it is a no-op for that record, not a
             # double cut.
             matn, addenda = _split_lului_commentary(
                 matn, addenda, record_id, lului_never_cut)
+            # R-A3-23: "sami'tu ACC-kunya", the case the two markers above
+            # cannot reach (they only recognise the NOMINATIVE). A no-op for
+            # the 6 records `_split_lului_commentary` just handled.
+            matn, addenda = _split_heard_commentary(matn, addenda)
+            # 4129's (R-A3-22) and 1234's (R-A3-23) near-miss cuts each leave
+            # a further nested "qala <name>" attribution fused onto the
+            # genuine matn, past what either marker's own window reaches --
+            # a no-op for every other record, since the table holds exactly
+            # these two hand-read entries.
+            matn, addenda = _apply_cut_override(
+                matn, addenda, record_id, near_miss_cut_override)
 
         units.append(
             HadithUnit(

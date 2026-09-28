@@ -11,7 +11,7 @@ from sanad.corpus.models import Record, Source
 from sanad.corpus.schema import SOURCE_SCHEMA_SQL
 from sanad.corpus.surahs import surah_name
 
-from .audit_lists import NEVER_CUT, UNSCORABLE
+from .audit_lists import CUT_OVERRIDE, NEVER_CUT, UNSCORABLE
 from .fetch import fetch_source
 from .lockfile import LockedSource, load_lockfile
 from .openiti import ParsedOpeniti
@@ -203,7 +203,8 @@ def _hadith_records(
     # to and the check needs no source-specific guard.
     present = {r.id for r in out}
     for list_name, audited in (("unscorable", UNSCORABLE.get(locked.collection, {})),
-                               ("do-not-cut", NEVER_CUT.get(locked.collection, {}))):
+                               ("do-not-cut", NEVER_CUT.get(locked.collection, {})),
+                               ("cut-override", CUT_OVERRIDE.get(locked.collection, {}))):
         missing = sorted(set(audited) - present)
         if missing:
             raise BuildError(

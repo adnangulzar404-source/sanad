@@ -99,6 +99,71 @@ _QURANIC_PRIMARY = ("Qur'anic primary: the cut leaves a matn that is nothing "
                     "but the ayah the chapter comments on, the narration that "
                     "makes the unit a hadith beginning in the appended chain")
 
+# --- hand-corrected cuts (Task 12 fix round 1, ruling R-A3-18) --------------
+#
+# `_split_secondary`'s single-level backward walk sometimes finds an INNER
+# "qala <name>" attribution but misses an OUTER one immediately in front of
+# it -- nested reported speech -- and leaves the outer "qala <name>" stranded
+# at the end of the primary. See `_apply_cut_override`'s docstring in
+# openiti.py for why this is a hand-read list rather than a generalised
+# extension of the walk: the same token shape is, on a case-by-case reading,
+# sometimes complete narrative content (454, 3988 -- not on this list) and
+# sometimes a dangling fragment (the eleven records below). The value is
+# (sha256-of-the-uncorrected-primary, count-of-trailing-tokens-to-move); sha
+# values are computed directly from the pre-fix build's text_ar (never
+# hand-typed), which for every record below equals `_split_secondary`'s own
+# output since none of them carry Abu Dawud's "qala Abu Dawud" marker.
+CUT_OVERRIDE: dict[str, dict[str, tuple[str, int]]] = {
+    "abudawud": {
+        # "... qala bin al-Muthanna" | addendum "qala 'Amr wa-haddathani ...":
+        # Ibn al-Muthanna's own attribution, stranded outside the addendum
+        # that reports what he said.
+        "hadith:abudawud:506":
+            ("b5c4c68e8eaad29dd82044ef93579f85dcdfd67535f6ff57ac1c0c074215a0a2", 3),
+        # "... qala Hajjaj" | addendum "wa-qala Hammam wa-haddathana ...".
+        "hadith:abudawud:736":
+            ("cf69fed768fced5a221c5879ff89b0960abfb70a8271db19dff0d721e68c91ab", 2),
+        # "... wa-qala Sulayman" | addendum "qala haddathani Yahya ...".
+        "hadith:abudawud:907":
+            ("bc3f3d628440a47b09b110cfd5a9494b726cdfdff55717fac0d802d6ef65937e", 2),
+        # "... qala Za'ida" | addendum "qala haddathani Hussein 'an 'Umara ...".
+        "hadith:abudawud:1104":
+            ("5c90c8df6ee07f9c2a51d6251531ada824dccd26c22c4941f0053ca8bf946e6d", 2),
+        # "... qala Sufyan kana bin Jurayj" | addendum "akhbarana 'anhu ...":
+        # the cut also landed mid-clause -- "kana bin Jurayj" is the start of
+        # what Sufyan said, not part of the genuine matn in front of it -- so
+        # all five trailing tokens move, not just the bare attribution.
+        "hadith:abudawud:2016":
+            ("ad7af02a7ea94a816ab73664c7fb671eb3c9044c45efdd3bdc8b3b7982a36fcd", 5),
+        # "... qala Abu Bakr" | addendum "qala alladhi haddathani ...".
+        "hadith:abudawud:2365":
+            ("599940886eeca8d1f9af2ab32e8ed58950628e69043453c595fc37e6b6d6bff0", 3),
+        # "... qala Musaddad" | addendum "qala akhbarani 'Abd Allah ...".
+        "hadith:abudawud:3255":
+            ("7a1ad97bd454d2698a3a5d915e13f1bb021f138320e36aaec7f6acd0c879e8b7", 2),
+        # "... qala fa-man a'da al-awwal qala Ma'mar" | addendum "qala
+        # al-Zuhri fa-haddathani rajul ...": the genuine rhetorical question
+        # ("so who infected the first one?") stays; only the trailing "qala
+        # Ma'mar" is the dangling fragment.
+        "hadith:abudawud:3911":
+            ("c466e10735aa1f1732a83a4c8d7544778ce78cbd828b220bba80b511d6e635b5", 2),
+        # "... qala Nasr" | addendum "qala haddathani bin Jurayj ...".
+        "hadith:abudawud:4586":
+            ("71969ed518e9f59560b02f9491252e2cf057ae27471a3848e7512b08954ea554", 2),
+        # "... hatta yu'mina bil-qadar thumma" | addendum "qala haddathani
+        # 'Umar bin al-Khattab ...": the dangling fragment is the bare
+        # conjunction "thumma" ("then"), not a name -- the backward walk
+        # stops on it because it is a closed-class word (_NOT_A_NAME), the
+        # same reason it correctly stops on real conjunctions elsewhere.
+        "hadith:abudawud:4695":
+            ("57f840b08dcd90f434c63ccf62f6d41c163e22905be3c18c25569c590c74aace", 1),
+        # "... qala Yahya bin Zakariyya" | addendum "qala abi fa-haddathani
+        # Abu Ishaq ...": a three-token name, at the walk's own ceiling.
+        "hadith:abudawud:4717":
+            ("6aa221babdadd6164037803e0103ae0d88d694657936399e870205100a27a59a", 4),
+    },
+}
+
 NEVER_CUT: dict[str, dict[str, tuple[str, str]]] = {
     "bukhari": {
         # "The Prophet passed by a man." The man praying two rak'as after the
@@ -1456,8 +1521,15 @@ UNSCORABLE: dict[str, dict[str, tuple[str, str]]] = {
             ("879b7fa43b098b3e8d87f7fb33b2e31ac9e02971424e9aabd558d0bf62ebd886", _LEXICAL_GLOSS),
         "hadith:abudawud:2330":
             ("fde6d268e0ad23881ecb9891224a9b423d96cedcd7bb56330e0c74d5877d41df", _LEXICAL_GLOSS),
+        # Fix round 1 (R-A3-18): re-hashed, not reclassified. This matn
+        # always ended on the compiler's own remark about a wording variant
+        # ("qala Abu Dawud: wa-qala ba'duhum ... wa-qalu akhirahu") fused
+        # onto the gloss with no addendum recorded; the compiler-commentary
+        # split now cuts it into an addendum, same as everywhere else in
+        # this collection, leaving the audited judgement about the gloss
+        # itself unchanged but the string it is pinned to shorter.
         "hadith:abudawud:2331":
-            ("553579be4a9b819562f29b127d5e389f736ccebe6dc9d5dc6bd5a6ed66e71359", _LEXICAL_GLOSS),
+            ("fde6d268e0ad23881ecb9891224a9b423d96cedcd7bb56330e0c74d5877d41df", _LEXICAL_GLOSS),
         # _ISNAD_COMMENT group (1 records)
         "hadith:abudawud:3339":
             ("984ed17408172c47bebde49b241fcd6aa34b1a956b2cd5dfe49d443877ef2894", _ISNAD_COMMENT),
@@ -1467,5 +1539,114 @@ UNSCORABLE: dict[str, dict[str, tuple[str, str]]] = {
         # _QURANIC_QUOTE group (1 records)
         "hadith:abudawud:3979":
             ("4e22b391af1063beb15250b34a5f3a305c7e5988566ea1277d5927406cbeb778", _QURANIC_QUOTE),
+
+        # Fix round 1 (R-A3-18). Once the compiler-commentary split (see
+        # _split_compiler_commentary in openiti.py) cuts Abu Dawud's own
+        # "qala Abu Dawud ..." remark away from the matn it follows, 806
+        # records' primaries change -- most remain genuine narration or a
+        # genuine short hadith/legal maxim in their own right (no length
+        # floor: "khayrukum alyanukum manakiban fi al-salah", 29 characters,
+        # is a complete Prophetic saying, same principle as the module-level
+        # note above). This is the SAME 30-character-or-fewer methodology
+        # applied to the new post-split primaries: every one of the 59 was
+        # read against its own context, not matched by a length rule; 35
+        # carry no independent content and are listed below, 24 were ruled
+        # genuine and are NOT listed (e.g. 644, 672, 1056, 2085, 2371, 3949,
+        # 4965 -- famous complete hadith/maxims that merely happen to be
+        # short). sha256 values are computed directly from the fixed
+        # parser's post-split matn (never hand-typed).
+        # _POINTER group (26 records)
+        "hadith:abudawud:180":
+            ("2e7ada394e710687300baa23caa51ff5d56288fdaa3b409b3db1a90546ed05da", _POINTER),
+        "hadith:abudawud:263":
+            ("2e7ada394e710687300baa23caa51ff5d56288fdaa3b409b3db1a90546ed05da", _POINTER),
+        "hadith:abudawud:308":
+            ("92d5f662cd531946a72590d721c4870f84847ca45e91a1907882dd20701105de", _POINTER),
+        "hadith:abudawud:300":
+            ("314cca838007660a1698a16457b10ca72a652448eb8fbf995ad46bf924011bcd", _POINTER),
+        "hadith:abudawud:960":
+            ("450b81376543cf334f12e425e9ad8c000d8fb69893f8b9705d3b95da70db9d6f", _POINTER),
+        "hadith:abudawud:1302":
+            ("913d1207fb420a8c9f47970049e9b6b85ea18aa7f51d1fbceb44dd39ddaa6927", _POINTER),
+        "hadith:abudawud:1405":
+            ("c62d9ff34bb102eff56b0eb3aadfa788def273b576972b6983018a65cc6efbae", _POINTER),
+        "hadith:abudawud:1604":
+            ("79e8dd47cfb13b6383da93d14d689791fbf478c920f2902e89882153f164ad4e", _POINTER),
+        "hadith:abudawud:1636":
+            ("c62d9ff34bb102eff56b0eb3aadfa788def273b576972b6983018a65cc6efbae", _POINTER),
+        "hadith:abudawud:1948":
+            ("c62d9ff34bb102eff56b0eb3aadfa788def273b576972b6983018a65cc6efbae", _POINTER),
+        "hadith:abudawud:2084":
+            ("c62d9ff34bb102eff56b0eb3aadfa788def273b576972b6983018a65cc6efbae", _POINTER),
+        "hadith:abudawud:2097":
+            ("2e7ada394e710687300baa23caa51ff5d56288fdaa3b409b3db1a90546ed05da", _POINTER),
+        "hadith:abudawud:2397":
+            ("3e2719391b26ba384c79ae0a238838189cda2b512e8f99444f8aad6574c1c069", _POINTER),
+        "hadith:abudawud:2468":
+            ("da5b06f32a8be960e4896498557c3a5abf0318f6aa354cf9a2f1cdff8bc7dcbe", _POINTER),
+        "hadith:abudawud:2580":
+            ("6ce00316c764b2675f1ceace463f844cb4c5466e4d98f0c7c8239b2e1dad9f81", _POINTER),
+        "hadith:abudawud:3162":
+            ("c62d9ff34bb102eff56b0eb3aadfa788def273b576972b6983018a65cc6efbae", _POINTER),
+        "hadith:abudawud:3226":
+            ("2e7ada394e710687300baa23caa51ff5d56288fdaa3b409b3db1a90546ed05da", _POINTER),
+        "hadith:abudawud:3291":
+            ("68fb1c5a26ec091db95c9d939e6f8ccacb80fb0745c12f8fd661bc481eba118b", _POINTER),
+        "hadith:abudawud:3434":
+            ("028333e66a88ac6b39f8cdebd0648f2e7c33cc553b5566dfb18629aac195a5ce", _POINTER),
+        "hadith:abudawud:3552":
+            ("c62d9ff34bb102eff56b0eb3aadfa788def273b576972b6983018a65cc6efbae", _POINTER),
+        "hadith:abudawud:3952":
+            ("314cca838007660a1698a16457b10ca72a652448eb8fbf995ad46bf924011bcd", _POINTER),
+        "hadith:abudawud:4013":
+            ("2e7ada394e710687300baa23caa51ff5d56288fdaa3b409b3db1a90546ed05da", _POINTER),
+        "hadith:abudawud:4022":
+            ("79e8dd47cfb13b6383da93d14d689791fbf478c920f2902e89882153f164ad4e", _POINTER),
+        "hadith:abudawud:4118":
+            ("2e7ada394e710687300baa23caa51ff5d56288fdaa3b409b3db1a90546ed05da", _POINTER),
+        # "bi-hadha al-hadith wa-qala tis'a sinin": the pointer carries a
+        # terse numeric-variant note ("and he said: nine years"), too short
+        # to be independent content on its own -- still no report of the
+        # Prophet's words.
+        "hadith:abudawud:4287":
+            ("3d3e0784397e009665e591deb424070a2ac8166a85233768365991c2fdb2ad58", _POINTER),
+        "hadith:abudawud:4571":
+            ("c62d9ff34bb102eff56b0eb3aadfa788def273b576972b6983018a65cc6efbae", _POINTER),
+        # _DEFERRAL group (7 records)
+        "hadith:abudawud:209":
+            ("cc41df59fa86232d6a530172c552a0fc497d209482df305027d8fab0084019f6", _DEFERRAL),
+        "hadith:abudawud:533":
+            ("edc5862bd004c3bef89e0e4e3c8f0e64f1fa71d9a89a676789dd728c9d23ff4a", _DEFERRAL),
+        "hadith:abudawud:1200":
+            ("07c48d0353117fb7115d8882083ff3a081f2f5385cf474cab28f6f2581b37ea8", _DEFERRAL),
+        "hadith:abudawud:2585":
+            ("6c84810d07e033d654598d893f5ae7eb7df13fa700eff615961df3fd7f2ecc7f", _DEFERRAL),
+        "hadith:abudawud:3100":
+            ("9caaeec483d7366df3a9ee275daadb599a957f557fa8d1430d2dcbc5496b46a4", _DEFERRAL),
+        "hadith:abudawud:3604":
+            ("5d0f73d954547dac47c03935a09eb56b918d12e1ede03524ef72cc9968a26265", _DEFERRAL),
+        "hadith:abudawud:4897":
+            ("bf220a6dbea3f2402f6837ba6214511e5e24ed6de1ac1072691fdfd8dfc32897", _DEFERRAL),
+        # _EDITORIAL_DISCUSSION group (1 record)
+        # "bi-ma'nahu lam yadhkur al-kharif": a pointer plus Abu Dawud's own
+        # note that one narrator omitted a word from the wording -- his
+        # remark about transmission, not narration.
+        "hadith:abudawud:3099":
+            ("39d67a28336b3c7f5b25a7a40a76f46d84898a2a2b3f0de523c33cb3ccb9f0da", _EDITORIAL_DISCUSSION),
+        # _QURANIC_QUOTE group (2 records)
+        # "fa-yawma'idhin la yu'adhdhibu": the qira'a-variant hadith's matn
+        # is the opening of Qur'an 89:25 and nothing else -- same pattern as
+        # 3979 above, verified against the shipped ayah text.
+        "hadith:abudawud:3997":
+            ("c5bdd233228644e105944a03bda42b7429d57cf47a02a91e71c7014daa82e881", _QURANIC_QUOTE),
+        # "bi-fadli llahi wa-bi-rahmatihi fa-bi-dhalika fal-yafrahu": 33
+        # characters, one over this task's own 30-character scan boundary --
+        # found not by that scan but by materialize.py's
+        # _reject_wholly_quranic_representations gate, which is exactly what
+        # it exists for. Verbatim Qur'an 10:58; the addendum "bi-l-ta'"
+        # ("with a ta'") is Abu Dawud noting which letter a variant reading
+        # uses.
+        "hadith:abudawud:3980":
+            ("ce73cb2280b432685a1dcceba0c6ad25b279a1b71ba51d49f271f4dbe71e3fc5", _QURANIC_QUOTE),
     },
 }

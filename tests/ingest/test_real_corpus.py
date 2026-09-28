@@ -181,7 +181,7 @@ def test_the_isra_miraj_verifies_both_as_matn_and_as_printed():
 
 
 def test_the_full_printed_text_of_every_cut_record_verifies():
-    """The corpus-wide form of the test above: all 579 of them.
+    """The corpus-wide form of the test above: all 1,335 of them.
 
     A sample cannot show this. The defect it guards against is one record
     somewhere in the corpus whose full text is unreachable, which is exactly
@@ -200,18 +200,33 @@ def test_the_full_printed_text_of_every_cut_record_verifies():
     introduces a cut, it only judges primaries `_split_secondary` already cut,
     per the audit's own scope note in audit_lists.py.
 
-    Task 12 (Sunan Abi Dawud): 391 + 120 + 68 = 579. Abu Dawud contributes 69
-    cut records total (`addenda_ar IS NOT NULL`), one of which --
-    hadith:abudawud:2225, the `_EDITORIAL_DISCUSSION` record -- is also on
-    `UNSCORABLE["abudawud"]` and so is excluded from this scorable-only count,
+    Task 12 (Sunan Abi Dawud), first build: 391 + 120 + 68 = 579. Abu Dawud
+    contributed 69 cut records total (`addenda_ar IS NOT NULL`), one of which --
+    hadith:abudawud:2225, the `_EDITORIAL_DISCUSSION` record -- was also on
+    `UNSCORABLE["abudawud"]` and so was excluded from this scorable-only count,
     leaving 68.
+
+    Fix round 1 (R-A3-18): 1,335. The compiler-commentary split
+    (`_split_compiler_commentary`) cuts Abu Dawud's own "qala Abu Dawud ..."
+    remarks away from primaries they were fused with -- 806 records carry the
+    marker, most gaining a fresh cut -- and the cut-override table
+    (`CUT_OVERRIDE["abudawud"]`) corrects 11 more `_split_secondary`
+    boundaries. Of the resulting cut records, 36 have a post-split primary
+    that is itself editorial apparatus (fix round 1's addition to
+    `UNSCORABLE["abudawud"]`) and 2 more (2225, 2331) were already on that
+    list before this round, so this scorable-only count excludes them.
+    Measured directly from the fixed build, not derived by hand from the
+    individual deltas above: the population sizes overlap (13 of the 806
+    marker records were already cut by `_split_secondary`; some of the 36
+    newly-excluded primaries are among the 806) in ways not worth re-deriving
+    on top of a number the build itself reports.
     """
     from sanad.verify.engine import Verdict, verify_spans
     conn = db.connect(DB_PATH)
     rows = conn.execute(
         "SELECT id, text_ar, addenda_ar FROM records"
         " WHERE addenda_ar IS NOT NULL AND unscorable_reason IS NULL").fetchall()
-    assert len(rows) == 579
+    assert len(rows) == 1335
     failures = []
     for row in rows:
         for quoted in (row["text_ar"], row["text_ar"] + " " + row["addenda_ar"]):
@@ -304,7 +319,7 @@ def test_no_record_appears_twice_in_its_own_match():
 
 
 def test_the_index_holds_one_row_per_scorable_representation():
-    """25,841 = 25,258 scorable records + 583 full-text representations.
+    """26,598 = 25,222 scorable records + 1,376 full-text representations.
 
     Asserted as three numbers that have to add up, not as one total: a record
     dropping out of the index while a variant row appears would keep the
@@ -317,17 +332,23 @@ def test_the_index_holds_one_row_per_scorable_representation():
     test_muslim_record_count_and_scorability below for the per-collection
     breakdown these totals are built from.
 
-    Task 12 (Sunan Abi Dawud) moved these to (25258, 583, 25841). Abu Dawud
-    contributes 5,274 hadith records, of which 5,171 are scorable and 69
-    carry a second ("full", cut) representation -- see
-    test_abudawud_record_count_and_scorability below for the breakdown.
+    Task 12 (Sunan Abi Dawud), first build, moved these to (25258, 583,
+    25841). Abu Dawud contributed 5,274 hadith records, of which 5,171 were
+    scorable and 69 carried a second ("full", cut) representation.
+
+    Fix round 1 (R-A3-18) moved these to (25222, 1376, 26598). The
+    compiler-commentary split and the cut-override table together change
+    which Abu Dawud primaries are scorable (5,171 -> 5,135, see
+    test_abudawud_record_count_and_scorability below) and which records carry
+    a second representation (69 -> 1,376 corpus-wide, since almost every one
+    of the 806 marker records gains an addendum where most had none before).
     """
     conn = db.connect(DB_PATH)
     scorable = conn.execute(
         "SELECT count(*) FROM records WHERE unscorable_reason IS NULL").fetchone()[0]
     variants = conn.execute("SELECT count(*) FROM record_variants").fetchone()[0]
     indexed = conn.execute("SELECT count(*) FROM records_fts").fetchone()[0]
-    assert (scorable, variants, indexed) == (25258, 583, 25841)
+    assert (scorable, variants, indexed) == (25222, 1376, 26598)
 
 
 # --- C1: nothing scorable as a hadith is wholly a Qur'anic quotation --------
@@ -378,13 +399,20 @@ def test_no_scorable_hadith_representation_is_wholly_quranic():
     None of them are Qur'an quotations; see audit_lists.py's "muslim" section
     and the task-11 report for the full accounting.
 
-    Task 12 (Sunan Abi Dawud): the sweep now covers 19,605 representations
-    (14,365 plus Abu Dawud's 5,240) and is still zero, after
-    `UNSCORABLE["abudawud"]` excludes the 23 records
+    Task 12 (Sunan Abi Dawud), first build: the sweep covered 19,605
+    representations (14,365 plus Abu Dawud's 5,240) and was still zero, after
+    `UNSCORABLE["abudawud"]` excluded the 23 records
     `_reject_wholly_quranic_representations` flagged on the first measured
     build (22 false-positive short editorial pointers plus the one genuine
     wholly-Qur'anic report, hadith:abudawud:3979 -- see audit_lists.py's
     "abudawud" section and the task-12 report).
+
+    Fix round 1 (R-A3-18): the compiler-commentary split changes both terms --
+    5,135 scorable Abu Dawud primaries (18,986 total scorable hadith
+    corpus-wide) plus 1,376 full-text representations corpus-wide, 20,362
+    total -- and materialize.py's own gate caught a second genuine
+    wholly-Qur'anic report this round surfaced, hadith:abudawud:3980 (see
+    audit_lists.py's `_QURANIC_QUOTE` group). The sweep is still zero.
     """
     conn = db.connect(DB_PATH)
     blobs = _quran_blobs(conn)
@@ -395,7 +423,7 @@ def test_no_scorable_hadith_representation_is_wholly_quranic():
     reps += [(r["record_id"], r["variant"], r["norm_standard"]) for r in conn.execute(
         "SELECT v.record_id, v.variant, v.norm_standard FROM record_variants v"
         " JOIN records r ON r.id = v.record_id")]
-    assert len(reps) == 19605, "the sweep stopped covering what it was written for"
+    assert len(reps) == 20362, "the sweep stopped covering what it was written for"
     offenders = [(rid, variant) for rid, variant, norm in reps
                  if norm.strip() and any(f" {norm} " in b for b in blobs)]
     assert offenders == []
@@ -510,23 +538,68 @@ def test_every_other_excluded_record_is_excluded_whole():
     excluded whole -- asserted rather than assumed, because "which records are
     affected" is the entire safety argument.
 
-    Task 12 (Sunan Abi Dawud): 103 more excluded records joined this count.
-    One of Abu Dawud's is the same shape -- "hadith:abudawud:2225"
+    Task 12 (Sunan Abi Dawud), first build: 103 more excluded records joined
+    this count. One of Abu Dawud's was the same shape -- "hadith:abudawud:2225"
     (`_EDITORIAL_DISCUSSION`: Abu Dawud's own numbered remark about how other
     narrators transmitted the isnad/wording differently, carrying its own
-    addendum). Everything else Abu Dawud contributes is excluded whole.
+    addendum). Everything else Abu Dawud contributed was excluded whole.
+
+    Fix round 1 (R-A3-18): 36 more excluded records joined this count (877
+    total), and the compiler-commentary split gives 37 more of Abu Dawud's
+    excluded records their own addendum -- every one of the 36 new
+    `UNSCORABLE["abudawud"]` entries was excluded BECAUSE the split cut its
+    compiler commentary into an addendum in the first place, and 2331
+    (already `_LEXICAL_GLOSS`) gained one the same way. 38 Abu Dawud records
+    now carry a second representation, not one.
     """
     conn = db.connect(DB_PATH)
     rows = conn.execute(
         "SELECT r.id, count(v.record_id) AS n FROM records r"
         " LEFT JOIN record_variants v ON v.record_id = r.id"
         " WHERE r.unscorable_reason IS NOT NULL GROUP BY r.id").fetchall()
-    assert len(rows) == 841
+    assert len(rows) == 877
     assert {r["id"]: r["n"] for r in rows if r["n"]} == {
         "hadith:bukhari:237": 1,
         "hadith:muslim:1915-3": 1,
         "hadith:muslim:546-3": 1,
+        "hadith:abudawud:180": 1,
+        "hadith:abudawud:209": 1,
+        "hadith:abudawud:263": 1,
+        "hadith:abudawud:300": 1,
+        "hadith:abudawud:308": 1,
+        "hadith:abudawud:533": 1,
+        "hadith:abudawud:960": 1,
+        "hadith:abudawud:1200": 1,
+        "hadith:abudawud:1302": 1,
+        "hadith:abudawud:1405": 1,
+        "hadith:abudawud:1604": 1,
+        "hadith:abudawud:1636": 1,
+        "hadith:abudawud:1948": 1,
+        "hadith:abudawud:2084": 1,
+        "hadith:abudawud:2097": 1,
         "hadith:abudawud:2225": 1,
+        "hadith:abudawud:2331": 1,
+        "hadith:abudawud:2397": 1,
+        "hadith:abudawud:2468": 1,
+        "hadith:abudawud:2580": 1,
+        "hadith:abudawud:2585": 1,
+        "hadith:abudawud:3099": 1,
+        "hadith:abudawud:3100": 1,
+        "hadith:abudawud:3162": 1,
+        "hadith:abudawud:3226": 1,
+        "hadith:abudawud:3291": 1,
+        "hadith:abudawud:3434": 1,
+        "hadith:abudawud:3552": 1,
+        "hadith:abudawud:3604": 1,
+        "hadith:abudawud:3952": 1,
+        "hadith:abudawud:3980": 1,
+        "hadith:abudawud:3997": 1,
+        "hadith:abudawud:4013": 1,
+        "hadith:abudawud:4022": 1,
+        "hadith:abudawud:4118": 1,
+        "hadith:abudawud:4287": 1,
+        "hadith:abudawud:4571": 1,
+        "hadith:abudawud:4897": 1,
     }
 
 
@@ -580,9 +653,16 @@ def test_exactly_one_hadith_representation_sits_inside_an_ayah():
     `build._reject_wholly_quranic_representations` at the other end of the
     pipeline.
 
-    Task 12 (Sunan Abi Dawud) moved the representation count (14,365 to
-    19,605) without moving either list: re-read in full against the built
-    database, no Abu Dawud representation sits inside an ayah at either tier.
+    Task 12 (Sunan Abi Dawud), first build, moved the representation count
+    (14,365 to 19,605) without moving either list: re-read in full against the
+    built database, no Abu Dawud representation sat inside an ayah at either
+    tier.
+
+    Fix round 1 (R-A3-18) moves the representation count to 20,362 (5,135
+    scorable Abu Dawud primaries instead of 5,171, plus 1,376 full-text
+    representations corpus-wide instead of 69) without moving either list:
+    re-run against the fixed build, still no Abu Dawud representation -- new
+    or old -- sits inside an ayah at either tier.
     """
     from sanad.verify.engine import _ayat_containing, _contains_at
     conn = db.connect(DB_PATH)
@@ -593,7 +673,7 @@ def test_exactly_one_hadith_representation_sits_inside_an_ayah():
         "SELECT v.record_id, v.variant, v.text_ar FROM record_variants v"
         " JOIN records r ON r.id = v.record_id WHERE r.kind = 'hadith'"
     ).fetchall()
-    assert len(reps) == 19605, len(reps)
+    assert len(reps) == 20362, len(reps)
 
     withheld, disclosed = [], []
     for rep in reps:
@@ -657,9 +737,27 @@ def test_abudawud_record_count_and_scorability():
     measured build (Task 12) -- one fewer than the raw file's own numbered
     units, because unit "1" in the raw text is a mis-wrapped kitab heading
     ("kitab al-tahara"), not a hadith; see the `_KITAB_WORD` branch in
-    `openiti.py`'s `flush()`. 103 unscorable and 69 cut are the audit's own
-    output: see audit_lists.py's "abudawud" section for what each of the 103
-    is and why.
+    `openiti.py`'s `flush()`. `expected_records` and `content_sha256` in the
+    lockfile are unchanged by fix round 1 below -- the raw source file was
+    never touched, only how its matns are split.
+
+    103 unscorable and 69 cut, first build: the audit's own output; see
+    audit_lists.py's "abudawud" section for what each of the 103 is and why.
+
+    139 unscorable and 862 cut, fix round 1 (R-A3-18): the compiler-commentary
+    split (`_split_compiler_commentary`) cuts Abu Dawud's own "qala Abu Dawud
+    ..." remarks -- fused into 793 matns with no addendum at all, and into 13
+    more that already had one -- into an addendum instead, closing the
+    Class-B defect where quoting the genuine matn alone (e.g.
+    hadith:abudawud:65, the qultayn hadith) fell below the verification
+    threshold. The cut-override table (`CUT_OVERRIDE["abudawud"]`) separately
+    corrects 11 `_split_secondary` boundaries that left a dangling "qala
+    <name>" attribution fragment on the primary. Once the post-split
+    primaries are read the same way the original 103 were -- every one 30
+    characters or fewer, by hand, against its own context -- 36 more turned
+    out to be editorial apparatus (pointer/deferral/an editorial remark about
+    a wording variant/two wholly-Qur'anic qira'a reports) and joined
+    `UNSCORABLE["abudawud"]`; 103 + 36 = 139.
     """
     conn = db.connect(DB_PATH)
     total = conn.execute(
@@ -674,7 +772,7 @@ def test_abudawud_record_count_and_scorability():
     cut = conn.execute(
         "SELECT count(*) FROM records WHERE kind='hadith' AND collection='abudawud'"
         " AND addenda_ar IS NOT NULL").fetchone()[0]
-    assert (total, scorable, unscorable, cut) == (5274, 5171, 103, 69)
+    assert (total, scorable, unscorable, cut) == (5274, 5135, 139, 862)
 
 
 # Three spot-checked Abu Dawud matns, read BYTE-EXACT from the materialized

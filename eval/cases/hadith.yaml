@@ -531,9 +531,11 @@
     exactly this one-word string). The Abu Dawud analogue of
     hadith-editorial-pointer-is-not-a-text and hadith-muslim-editorial-pointer-is-not-a-text:
     a false EXACT here would be Sanad telling a reader that a one-word
-    editorial gloss is a hadith of the Prophet. All 103 records on
-    `UNSCORABLE["abudawud"]` are excluded by the same mechanism that excludes
-    this one.
+    editorial gloss is a hadith of the Prophet. All records on
+    `UNSCORABLE["abudawud"]` (103 at the first measured build; 139 after fix
+    round 1 / R-A3-18 folded 36 more short post-split remainders into the
+    same list -- see that section below) are excluded by the same mechanism
+    that excludes this one.
 - id: hadith-abudawud-quranic-fragment-is-not-a-false-attribution
   text: '«من ضعف»'
   forbid_verdict: WRONG_REFERENCE
@@ -548,9 +550,11 @@
     stays scorable -- 3979 is wholly the Qur'an's own wording with nothing
     else, so `_reject_wholly_quranic_representations` correctly forced it
     onto `UNSCORABLE["abudawud"]` at the first measured build (Abu Dawud's
-    only genuine member of that 23-record flag; the other 22 are short
-    editorial pointers coincidentally also substrings of the Qur'an -- see
-    audit_lists.py's "abudawud" section, `_QURANIC_QUOTE` vs `_POINTER`).
+    only genuine member of that 23-record flag at the time; the other 22 were
+    short editorial pointers coincidentally also substrings of the Qur'an.
+    Fix round 1 / R-A3-18 surfaced a second genuine member,
+    hadith:abudawud:3980, one over this scan's own 30-character boundary --
+    see audit_lists.py's "abudawud" section, `_QURANIC_QUOTE` vs `_POINTER`).
     MEASURED: NOT_FOUND at 0.13, with or without a citation attached -- the
     fix must not manufacture an EXACT against hadith:abudawud:3979 (the
     Bukhari-4575 defect this whole hazard class exists to prevent) and must
@@ -561,3 +565,43 @@
     attributed" half of the pattern rather than the "verifies as printed"
     half -- per the brief's own instruction for a collection with no
     surviving scorable case of that second shape.
+
+# --- fix round 1 (R-A3-18): Abu Dawud's own compiler commentary -------------
+#
+# Abu Dawud al-Sijistani appends his own remarks directly after a hadith's
+# matn -- "qala Abu Dawud ..." -- with no structural marker in the source, and
+# the first build fused it into the single scored text_ar. That is a
+# false-NEGATIVE defect the gate above never measured: it checks that nothing
+# INVALID verifies, not that everything VALID does. Quoting the genuine
+# Prophetic wording of hadith:abudawud:65 alone (the "qultayn" water-purity
+# hadith) scored 0.457 against its own fused record and returned NOT_FOUND --
+# a correct quotation of an authentic hadith, told it was not in the corpus.
+# These two cases are that gap closed: the SAME record, both halves of the
+# split proven independently.
+
+- id: hadith-abudawud-compiler-commentary-fused-matn-now-verifies
+  text: 'إذا كان الماء قلتين فإنه لا ينجس'
+  expect_verdict: EXACT
+  expect_record: hadith:abudawud:65
+  rationale: >-
+    "If the water is two qullas, it does not carry impurity" -- the genuine
+    Prophetic wording of hadith:abudawud:65, extracted byte-exact from the
+    MATERIALISED database. Before fix round 1 this scored 0.457 / NOT_FOUND
+    against its own record, because the stored text_ar was this matn fused
+    with Abu Dawud's own trailing remark ("qala Abu Dawud: Hammad ibn Zayd
+    stopped it [i.e. did not raise the chain further] at 'Asim") with no
+    boundary between them. `_split_compiler_commentary` (openiti.py) now cuts
+    the remark into `addenda_ar`, scoped to `collection == "abudawud"`, and
+    this quotation is MEASURED EXACT 1.0 against hadith:abudawud:65.
+- id: hadith-abudawud-compiler-commentary-fragment-is-not-a-text
+  text: '«قال أبو داود حماد بن زيد وقفه عن عاصم»'
+  expect_verdict: NOT_FOUND
+  rationale: >-
+    The other half of the same record: Abu Dawud's own remark about the
+    isnad, now living in hadith:abudawud:65's `addenda_ar`, quoted alone. It
+    is editorial apparatus about a chain of transmission, not a report of the
+    Prophet's words, and MUST NOT verify as one -- a false EXACT here would be
+    Sanad telling a reader that Abu Dawud's own aside is scripture. MEASURED
+    NOT_FOUND against the fixed corpus: too small a fraction of the record's
+    "full" (matn-plus-addendum) representation to score as that record, and
+    not indexed as a primary text of its own.

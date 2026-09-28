@@ -753,8 +753,16 @@ def test_hadith_records_rejects_a_record_id_that_does_not_match_the_collection()
 # --- fix round 1: secondary narrations are stored, not scored --------------
 
 def test_the_appended_narrations_are_stored_but_never_scored(real_corpus):
-    """583 records carry an addendum: Bukhari's 392 plus Muslim's 122 (Task 11)
-    plus Abu Dawud's 69 (Task 12).
+    """583 records carried an addendum after Task 12's first build: Bukhari's
+    392 plus Muslim's 122 plus Abu Dawud's 69.
+
+    Fix round 1 (R-A3-18) moves this to 1,376: the compiler-commentary split
+    gives an addendum to most of the 806 Abu Dawud matns that carry Abu
+    Dawud's own "qala Abu Dawud ..." remark (793 of them had none before at
+    all), and the cut-override table corrects 11 more boundaries. Bukhari's
+    392 and Muslim's 122 are untouched -- the split is scoped to
+    `collection == "abudawud"` and proven so by the byte-identity check in
+    the fix-round report.
 
     hadith 22 is one of the three boundaries named in the fix brief: the
     primary matn ends at "...as the seed grows beside a stream", and a second
@@ -770,7 +778,7 @@ def test_the_appended_narrations_are_stored_but_never_scored(real_corpus):
     conn = db.connect(out)
     n = conn.execute(
         "SELECT count(*) FROM records WHERE addenda_ar IS NOT NULL").fetchone()[0]
-    assert n == 583
+    assert n == 1376
     rec = db.get_record(conn, "hadith:bukhari:22")
     assert rec.addenda_ar and _HADDATHANA in rec.addenda_ar
     assert _HADDATHANA not in rec.text_ar
@@ -782,34 +790,42 @@ def test_the_appended_narrations_are_stored_but_never_scored(real_corpus):
 
 
 def test_no_addendum_reaches_the_primary_representation(real_corpus):
-    """Exhaustive over all 583, in both the stored and the indexed text.
+    """Exhaustive over all 1,376, in both the stored and the indexed text.
 
     The other half of the guarantee is
     test_fts_indexes_the_record_norms_and_nothing_else, which pins each index
     row to the column it claims to index. Together: the addendum is not in the
     primary's norms, and the primary index row is nothing but those norms.
 
-    579, not 583: four cut records also carry a primary-level unscorable
-    verdict, so their PRIMARY has no index row -- Bukhari's 237 (a "bayna"
-    clause ending at the chain-transfer mark), Task 11's Muslim
-    1915-3 and 546-3 (both editorial pointers: "the chain, and in his
-    version" / "with this chain"), and Task 12's Abu Dawud 2225 (Abu Dawud's
-    own numbered remark about how other narrators transmitted an isnad/wording
-    differently -- `_EDITORIAL_DISCUSSION`). The two counts are asserted
-    separately rather than relaxed into one, so that a record silently
-    falling out of the index cannot hide inside this total.
+    579, not 583, after Task 12's first build: four cut records also carried a
+    primary-level unscorable verdict, so their PRIMARY had no index row --
+    Bukhari's 237 (a "bayna" clause ending at the chain-transfer mark), Task
+    11's Muslim 1915-3 and 546-3 (both editorial pointers: "the chain, and in
+    his version" / "with this chain"), and Task 12's Abu Dawud 2225 (Abu
+    Dawud's own numbered remark about how other narrators transmitted an
+    isnad/wording differently -- `_EDITORIAL_DISCUSSION`).
+
+    1,335, not 1,376, after fix round 1 (R-A3-18): 41 cut records now carry a
+    primary-level unscorable verdict -- the same 4 plus 37 more. 36 are fix
+    round 1's own new `UNSCORABLE["abudawud"]` entries, every one excluded
+    BECAUSE the compiler-commentary split gave its short post-split primary
+    an addendum in the first place; the 37th is hadith:abudawud:2331
+    (`_LEXICAL_GLOSS`, already on the list before this round), which gained
+    an addendum the same way. The two counts are asserted separately rather
+    than relaxed into one, so that a record silently falling out of the index
+    cannot hide inside this total.
     """
     out, _, _ = real_corpus
     conn = db.connect(out)
     assert conn.execute(
         "SELECT count(*) FROM records WHERE addenda_ar IS NOT NULL"
-        " AND unscorable_reason IS NOT NULL").fetchone()[0] == 4
+        " AND unscorable_reason IS NOT NULL").fetchone()[0] == 41
     rows = conn.execute(
         "SELECT r.id, r.text_ar, r.addenda_ar, f.norm_standard,"
         "       f.norm_aggressive FROM records r"
         " JOIN records_fts f ON f.record_id = r.id AND f.variant = 'primary'"
         " WHERE r.addenda_ar IS NOT NULL").fetchall()
-    assert len(rows) == 579
+    assert len(rows) == 1335
     for row in rows:
         assert row["addenda_ar"] not in row["text_ar"], row["id"]
         for form in ("standard", "aggressive"):
@@ -835,19 +851,19 @@ def test_the_full_printed_text_is_scored_alongside_the_primary(real_corpus):
         "       v.norm_aggressive FROM records r"
         " LEFT JOIN record_variants v ON v.record_id = r.id"
         " WHERE r.addenda_ar IS NOT NULL").fetchall()
-    assert len(rows) == 583
+    assert len(rows) == 1376
     checked = 0
     for row in rows:
-        # 237 (and Task 11's Muslim 1915-3, 546-3, and Task 12's Abu Dawud
-        # 2225) are here too. Their `unscorable_reason` is a judgement about
-        # their primary matn and carries no verdict on the text printed
-        # behind them.
+        # 237 (and Task 11's Muslim 1915-3, 546-3, and fix round 1's 41
+        # unscorable-with-addendum Abu Dawud records) are here too. Their
+        # `unscorable_reason` is a judgement about their primary matn and
+        # carries no verdict on the text printed behind them.
         assert row["variant"] == "full", row["id"]
         assert row["whole"] == row["text_ar"] + " " + row["addenda_ar"], row["id"]
         for form in ("light", "standard", "aggressive"):
             assert row[f"norm_{form}"] == normalize(row["whole"], form), row["id"]
         checked += 1
-    assert checked == 583
+    assert checked == 1376
 
 
 def test_a_record_with_no_addendum_has_no_second_representation(real_corpus):
@@ -944,7 +960,16 @@ def test_editorial_pointers_are_kept_but_never_scored(real_corpus):
     restate independently here without defeating the point of an
     independently-typed check, so Muslim is verified by count instead: the
     total flagged set must be exactly Bukhari's 17 plus Muslim's 721 plus
-    (Task 12) Abu Dawud's 103, with no unaccounted-for record on any side.
+    Abu Dawud's 139, with no unaccounted-for record on any side.
+
+    Abu Dawud's count was 103 after Task 12's first build. Fix round 1
+    (R-A3-18) adds 36: once the compiler-commentary split cuts Abu Dawud's own
+    "qala Abu Dawud ..." remarks away, 36 of the resulting post-split
+    primaries turn out to be editorial apparatus themselves (pointer,
+    deferral, one editorial remark about a wording variant, two wholly-Qur'anic
+    qira'a reports) by the SAME 30-characters-or-fewer, read-in-context
+    methodology the original 103 were found by -- see audit_lists.py's
+    "abudawud" section, the block added for fix round 1.
     """
     out, _, _ = real_corpus
     conn = db.connect(out)
@@ -955,7 +980,7 @@ def test_editorial_pointers_are_kept_but_never_scored(real_corpus):
     flagged_abudawud = {r for r in flagged if r.startswith("hadith:abudawud:")}
     assert flagged_bukhari == set(_UNSCORABLE_IDS)
     assert len(flagged_muslim) == 721
-    assert len(flagged_abudawud) == 103
+    assert len(flagged_abudawud) == 139
     assert flagged == flagged_bukhari | flagged_muslim | flagged_abudawud
     for record_id in sorted(_UNSCORABLE_IDS):
         rec = db.get_record(conn, record_id)
@@ -968,13 +993,21 @@ def test_editorial_pointers_are_kept_but_never_scored(real_corpus):
 
 
 def test_no_unscorable_primary_is_in_the_search_index(real_corpus):
-    """All excluded primaries are out of the index. Only four of them have
-    any index row at all -- their full printed text, which is a narration,
-    not the apparatus the audit ruled on: Bukhari's 237, Task 11's
-    Muslim 1915-3 and 546-3 (both cut records whose primary is a pointer
-    but whose addendum is a genuine narration), and Task 12's Abu Dawud 2225
+    """All excluded primaries are out of the index. After Task 12's first
+    build, only four had any index row at all -- their full printed text,
+    which is a narration, not the apparatus the audit ruled on: Bukhari's
+    237, Task 11's Muslim 1915-3 and 546-3 (both cut records whose primary is
+    a pointer but whose addendum is a genuine narration), and Abu Dawud 2225
     (Abu Dawud's own editorial discussion of isnad variants, likewise cut
-    with a genuine addendum behind the excluded primary)."""
+    with a genuine addendum behind the excluded primary).
+
+    Fix round 1 (R-A3-18) raises this to 41: hadith:abudawud:2331 (already
+    `_LEXICAL_GLOSS`) gains an addendum the compiler-commentary split cuts
+    away from it, and every one of the round's 36 new
+    `UNSCORABLE["abudawud"]` entries was excluded BECAUSE that same split gave
+    its short post-split primary an addendum in the first place -- so all 36
+    carry their compiler commentary as a genuine, scorable "full" representation.
+    """
     out, _, _ = real_corpus
     rows = db.connect(out).execute(
         "SELECT f.record_id, f.variant FROM records_fts f"
@@ -982,7 +1015,44 @@ def test_no_unscorable_primary_is_in_the_search_index(real_corpus):
         " WHERE r.unscorable_reason IS NOT NULL"
         " ORDER BY f.record_id").fetchall()
     assert [(r["record_id"], r["variant"]) for r in rows] == \
-        [("hadith:abudawud:2225", "full"),
+        [("hadith:abudawud:1200", "full"),
+         ("hadith:abudawud:1302", "full"),
+         ("hadith:abudawud:1405", "full"),
+         ("hadith:abudawud:1604", "full"),
+         ("hadith:abudawud:1636", "full"),
+         ("hadith:abudawud:180", "full"),
+         ("hadith:abudawud:1948", "full"),
+         ("hadith:abudawud:2084", "full"),
+         ("hadith:abudawud:209", "full"),
+         ("hadith:abudawud:2097", "full"),
+         ("hadith:abudawud:2225", "full"),
+         ("hadith:abudawud:2331", "full"),
+         ("hadith:abudawud:2397", "full"),
+         ("hadith:abudawud:2468", "full"),
+         ("hadith:abudawud:2580", "full"),
+         ("hadith:abudawud:2585", "full"),
+         ("hadith:abudawud:263", "full"),
+         ("hadith:abudawud:300", "full"),
+         ("hadith:abudawud:308", "full"),
+         ("hadith:abudawud:3099", "full"),
+         ("hadith:abudawud:3100", "full"),
+         ("hadith:abudawud:3162", "full"),
+         ("hadith:abudawud:3226", "full"),
+         ("hadith:abudawud:3291", "full"),
+         ("hadith:abudawud:3434", "full"),
+         ("hadith:abudawud:3552", "full"),
+         ("hadith:abudawud:3604", "full"),
+         ("hadith:abudawud:3952", "full"),
+         ("hadith:abudawud:3980", "full"),
+         ("hadith:abudawud:3997", "full"),
+         ("hadith:abudawud:4013", "full"),
+         ("hadith:abudawud:4022", "full"),
+         ("hadith:abudawud:4118", "full"),
+         ("hadith:abudawud:4287", "full"),
+         ("hadith:abudawud:4571", "full"),
+         ("hadith:abudawud:4897", "full"),
+         ("hadith:abudawud:533", "full"),
+         ("hadith:abudawud:960", "full"),
          ("hadith:bukhari:237", "full"),
          ("hadith:muslim:1915-3", "full"),
          ("hadith:muslim:546-3", "full")]

@@ -279,6 +279,115 @@ def _split_secondary(matn: str, record_id: str, attribution_window: int,
     return matn, None
 
 
+def _apply_cut_override(matn: str, addenda: str | None, record_id: str,
+                        cut_override: dict[str, tuple[str, int]]
+                        ) -> tuple[str, str | None]:
+    """Hand-corrected boundary for a `_split_secondary` cut that left a
+    dangling attribution fragment on the primary matn.
+
+    `_attribution_start`'s single-level backward walk sometimes finds an
+    INNER "qala <name>" attribution but misses an OUTER one immediately
+    preceding it -- nested reported speech ("Zayd said: [Hussein said: Amr
+    told me ...]"), where only the inner bracket is recognised and the outer
+    "qala Zayd" is left stranded at the end of the primary. A one-hop
+    recursive extension of the backward walk was tried and rejected: it
+    correctly reattaches the nine records below, but ALSO fires on 454
+    ("... wa-qala ightasilu kulla wahid 'ala hida", a genuine wording-variant
+    note) and 3988 ("qala 'Uthman al-Ghatafani makan al-Ghatifi", a genuine
+    name-correction note) -- both end on a token sequence that is
+    structurally identical to a nested attribution but is, on a reading of
+    the sentence, complete narrative content in its own right. No heuristic
+    tried told the two shapes apart; each of the entries below was read by
+    hand instead, against its own addendum, one at a time.
+
+    The value is (sha256-of-the-uncorrected-primary, count-of-trailing-
+    tokens-to-move). Moving whole tokens, not a character offset, means the
+    fix is expressed as arithmetic on `_split_secondary`'s own output rather
+    than as a retyped string -- nothing here is hand-copied Arabic.
+    """
+    override = cut_override.get(record_id)
+    if override is None:
+        return matn, addenda
+    digest, n_tokens = override
+    if hashlib.sha256(matn.encode("utf-8")).hexdigest() != digest:
+        raise ValueError(
+            f"{record_id} is on the cut-override audit list, but its primary "
+            "matn is no longer the text that was audited. The override "
+            "corrects a judgement about one specific string; it must not be "
+            "carried over to a new one. Read the record and its addendum "
+            "again, decide the boundary afresh, and update or remove the "
+            "entry.")
+    if addenda is None:
+        raise ValueError(
+            f"{record_id} is on the cut-override audit list, which corrects "
+            "a _split_secondary cut, but this record has no addendum to "
+            "correct against.")
+    tokens = matn.split()
+    if n_tokens < 1 or n_tokens >= len(tokens):
+        raise ValueError(
+            f"{record_id}'s cut-override would move {n_tokens} of "
+            f"{len(tokens)} primary tokens -- not a boundary correction.")
+    moved = " ".join(tokens[-n_tokens:])
+    return " ".join(tokens[:-n_tokens]), f"{moved} {addenda}"
+
+
+# --- Abu Dawud's own compiler commentary ------------------------------------
+#
+# Abu Dawud al-Sijistani appends his own remarks directly after a hadith's
+# matn -- "qala Abu Dawud ..." ("Abu Dawud said: ..."), "su'ila Abu Dawud
+# ..." ("Abu Dawud was asked: ...") -- with NO structural marker separating
+# it from the narration, unlike a secondary narration's fresh isnad. Measured
+# against the pinned file: 806 matns carry the marker (qala|su'ila, with an
+# optional wa-/fa- proclitic, immediately in front of "Abu Dawud"), 793 of
+# them with no addendum at all -- the commentary simply fused into the scored
+# matn. Quoting the genuine narration alone then falls below the verification
+# threshold, because the stored text is narration-plus-commentary, not the
+# narration.
+#
+# Scoped to the abudawud collection ONLY: Bukhari and Muslim's editions were
+# built and audited without this marker (Task 16 measures and fixes their
+# own, lower-rate instances of the same phenomenon separately), and this
+# function is never called for them.
+#
+# No NEVER_CUT exceptions were needed. The one narrator who is himself named
+# "Abu Dawud" (al-Tayalisi) appears in this file as "haddathana/thana Abu
+# Dawud", never as "qala/su'ila Abu Dawud" -- checked by requiring the verb
+# immediately precede the name, and independently confirmed: the file's one
+# "qala Abu Dawud" inside a chain (401) sits in the isnad half of the unit,
+# before the "*" split, and never reaches matn at all. The one instance where
+# the marker is immediately followed by a narration verb (228, "qala Abu
+# Dawud: thana al-Hasan ibn Ali al-Wasiti") was read in context: it is still
+# the compiler, in his own voice, introducing a further route -- a routine
+# move in his commentary -- not a narrator link.
+_ABUDAWUD_COMMENTARY = re.compile(
+    rf"(?<![{_ARABIC}])[وف]?(?:قال|سئل)\s+أبو\s+داود(?![{_ARABIC}])")
+
+
+def _split_compiler_commentary(matn: str, addenda: str | None
+                               ) -> tuple[str, str | None]:
+    """Cut Abu Dawud's own commentary from a matn, appending it to whatever
+    addendum `_split_secondary` already found (or starting one).
+
+    Cuts on what FOLLOWS the marker, not what precedes it -- the compiler's
+    remark is itself the secondary material, exactly as a fresh narration's
+    isnad is. Never invents a cut: if the marker is not present, the matn and
+    addendum returned are the ones passed in, unchanged.
+    """
+    m = _ABUDAWUD_COMMENTARY.search(matn)
+    if m is None:
+        return matn, addenda
+    head = matn[: m.start()].rstrip()
+    if not head:
+        # Measured: no record's matn opens directly on the marker (every one
+        # of the 806 has genuine narrative in front of it). Guarded anyway,
+        # on the same principle as _split_secondary's one-word guard: an
+        # empty scored text is worse than the fused-commentary bug this
+        # function exists to fix.
+        return matn, addenda
+    tail = matn[m.start() :]
+    return head, tail if addenda is None else f"{tail} {addenda}"
+
+
 def full_text_from_parts(matn_ar: str, addenda_ar: str | None) -> str:
     """The string-level join `full_text` delegates to.
 
@@ -438,6 +547,7 @@ def parse_openiti(
     attribution_window: int = audit_lists.ATTRIBUTION_WINDOW,
     never_cut: dict[str, tuple[str, str]] | None = None,
     unscorable: dict[str, tuple[str, str]] | None = None,
+    cut_override: dict[str, tuple[str, int]] | None = None,
 ) -> ParsedOpeniti:
     # None-then-resolve rather than a mutable dict default, and resolved
     # against `collection`: NEVER_CUT/UNSCORABLE are keyed by collection, so
@@ -451,6 +561,8 @@ def parse_openiti(
         never_cut = audit_lists.NEVER_CUT.get(collection, {})
     if unscorable is None:
         unscorable = audit_lists.UNSCORABLE.get(collection, {})
+    if cut_override is None:
+        cut_override = audit_lists.CUT_OVERRIDE.get(collection, {})
 
     end = raw.find(_HEADER_END)
     if end == -1:
@@ -590,6 +702,15 @@ def parse_openiti(
         else:
             matn, addenda = _split_secondary(
                 matn, record_id, attribution_window, max_addendum, never_cut)
+            if collection == "abudawud":
+                matn, addenda = _apply_cut_override(
+                    matn, addenda, record_id, cut_override)
+        if collection == "abudawud":
+            # Unconditional, even when isnad is None (208): the compiler's
+            # remark can follow a matn whose own leading chain the source
+            # never marked a boundary for either, and the marker search is a
+            # no-op -- returns matn/addenda unchanged -- when absent.
+            matn, addenda = _split_compiler_commentary(matn, addenda)
 
         units.append(
             HadithUnit(

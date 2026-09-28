@@ -159,17 +159,15 @@ Records ingested: 7460 &nbsp;&nbsp; Records flagged: 48
 
 ## Source: `openiti-abudawud-jk000142` (ed. Muhammad Muhyi al-Din Abd al-Hamid; OpenITI JK000142, ara1)
 
-Records ingested: 5274 &nbsp;&nbsp; Records flagged: 20
+Records ingested: 5274 &nbsp;&nbsp; Records flagged: 17
 
 | Record | Citation | Characters | Codepoints |
 | --- | --- | --- | --- |
 | `hadith:abudawud:453` | Sunan Abi Dawud 453 | `%(` | U+0025 U+0028 |
 | `hadith:abudawud:660` | Sunan Abi Dawud 660 | `59` | U+0035 U+0039 |
-| `hadith:abudawud:720` | Sunan Abi Dawud 720 | `(17` | U+0028 U+0031 U+0037 |
 | `hadith:abudawud:1160` | Sunan Abi Dawud 1160 | `259` | U+0032 U+0035 U+0039 |
 | `hadith:abudawud:1197` | Sunan Abi Dawud 1197 | `127` | U+0031 U+0032 U+0037 |
 | `hadith:abudawud:1303` | Sunan Abi Dawud 1303 | `037` | U+0030 U+0033 U+0037 |
-| `hadith:abudawud:1387` | Sunan Abi Dawud 1387 | `236` | U+0032 U+0033 U+0036 |
 | `hadith:abudawud:1720` | Sunan Abi Dawud 1720 | `5` | U+0035 |
 | `hadith:abudawud:2476` | Sunan Abi Dawud 2476 | `9` | U+0039 |
 | `hadith:abudawud:2787` | Sunan Abi Dawud 2787 | `01` | U+0030 U+0031 |
@@ -182,4 +180,3 @@ Records ingested: 5274 &nbsp;&nbsp; Records flagged: 20
 | `hadith:abudawud:4000` | Sunan Abi Dawud 4000 | `<>` | U+003C U+003E |
 | `hadith:abudawud:4004` | Sunan Abi Dawud 4004 | `<>` | U+003C U+003E |
 | `hadith:abudawud:4213` | Sunan Abi Dawud 4213 | `29` | U+0032 U+0039 |
-| `hadith:abudawud:4239` | Sunan Abi Dawud 4239 | `03` | U+0030 U+0033 |

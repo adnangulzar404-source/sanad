@@ -986,9 +986,12 @@ def test_every_ayah_wrongly_cited_is_still_flagged(conn):
 
 def test_no_correctly_cited_hadith_is_ever_flagged_wrong_reference(conn):
     """Sweep of all scorable hadith -- 13,851 as of Task 11 (7,112 Bukhari +
-    6,739 Muslim), 19,022 as of Task 12 (+ 5,171 Abu Dawud) -- each quoted
-    verbatim and cited with ITS OWN collection's name and its own printed
-    number, in the Latin citation form."""
+    6,739 Muslim), 19,022 as of Task 12's first build (+ 5,171 Abu Dawud),
+    18,986 as of fix round 1 (R-A3-18; + 5,135 Abu Dawud, the compiler-
+    commentary split and cut-override table moving 36 records onto
+    `UNSCORABLE["abudawud"]`) -- each quoted verbatim and cited with ITS OWN
+    collection's name and its own printed number, in the Latin citation
+    form."""
     bad = []
     checked = 0
     for r in db.iter_records(conn):
@@ -1000,7 +1003,7 @@ def test_no_correctly_cited_hadith_is_ever_flagged_wrong_reference(conn):
         if m.verdict is Verdict.WRONG_REFERENCE or m.record is None \
                 or m.record.hadith_no != r.hadith_no:
             bad.append((r.id, m.verdict, m.record.id if m.record else None))
-    assert checked == 19022, checked
+    assert checked == 18986, checked
     assert bad == [], f"{len(bad)} regressed, e.g. {bad[:5]}"
 
 
@@ -1021,7 +1024,7 @@ def test_no_correctly_cited_hadith_is_flagged_in_the_arabic_citation_form(conn):
         if m.verdict is Verdict.WRONG_REFERENCE or m.record is None \
                 or m.record.hadith_no != r.hadith_no:
             bad.append((r.id, m.verdict, m.record.id if m.record else None))
-    assert checked == 19022, checked
+    assert checked == 18986, checked
     assert bad == [], f"{len(bad)} regressed, e.g. {bad[:5]}"
 
 
@@ -1036,8 +1039,12 @@ def test_every_wrongly_cited_hadith_is_flagged(conn):
     13,849, not 13,851 as of Task 11: excludes both collections' own hadith 1
     (the record the citation actually names), not just Bukhari's.
 
-    19,019 as of Task 12: adds Abu Dawud's own scorable hadith minus its own
-    hadith 1 (5,171 scorable - 1 = 5,170; 13,849 + 5,170 = 19,019).
+    19,019 as of Task 12's first build: adds Abu Dawud's own scorable hadith
+    minus its own hadith 1 (5,171 scorable - 1 = 5,170; 13,849 + 5,170 =
+    19,019).
+
+    18,983 as of fix round 1 (R-A3-18): Abu Dawud's scorable count moves to
+    5,135 (5,134 excluding its own hadith 1); 13,849 + 5,134 = 18,983.
     """
     bad = []
     checked = 0
@@ -1048,7 +1055,7 @@ def test_every_wrongly_cited_hadith_is_flagged(conn):
         checked += 1
         if m.verdict is not Verdict.WRONG_REFERENCE:
             bad.append((r.id, m.verdict))
-    assert checked == 19019, checked
+    assert checked == 18983, checked
     assert bad == [], f"{len(bad)} not flagged, e.g. {bad[:5]}"
 
 
@@ -1062,11 +1069,13 @@ def test_every_record_cited_as_the_other_kind_is_flagged(conn):
     `given_reference is None` for all 13,348 of these: a silent pass on every
     possible misattribution across the two corpora. 20,087 as of Task 11:
     6,236 ayat + 7,112 Bukhari + 6,739 Muslim scorable hadith. 25,258 as of
-    Task 12: adds Abu Dawud's 5,171 scorable hadith (20,087 + 5,171 =
-    25,258). The citation used here (always "Bukhari" for a hadith,
-    regardless of the record's own collection) does not need to change: it is
-    deliberately the WRONG kind of citation for every record it is paired
-    with, so its own collection name is irrelevant to what it tests.
+    Task 12's first build: adds Abu Dawud's 5,171 scorable hadith (20,087 +
+    5,171 = 25,258). 25,222 as of fix round 1 (R-A3-18): Abu Dawud's scorable
+    count moves to 5,135 (20,087 + 5,135 = 25,222). The citation used here
+    (always "Bukhari" for a hadith, regardless of the record's own
+    collection) does not need to change: it is deliberately the WRONG kind of
+    citation for every record it is paired with, so its own collection name
+    is irrelevant to what it tests.
     """
     bad = []
     checked = 0
@@ -1078,7 +1087,7 @@ def test_every_record_cited_as_the_other_kind_is_flagged(conn):
         checked += 1
         if m.verdict is not Verdict.WRONG_REFERENCE or m.given_reference is None:
             bad.append((r.id, m.verdict))
-    assert checked == 25258, checked
+    assert checked == 25222, checked
     assert bad == [], f"{len(bad)} not flagged, e.g. {bad[:5]}"
 
 

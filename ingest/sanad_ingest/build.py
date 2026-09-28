@@ -169,7 +169,7 @@ def _hadith_records(
             book_no=u.kitab_no,
             chapter_ar=u.bab_ar,
             hadith_no=u.hadith_no,
-            numbering_scheme="bugha-1987",
+            numbering_scheme=locked.numbering_scheme,
             text_ar=text,
             isnad_ar=u.isnad_ar,
             addenda_ar=u.addenda_ar,

@@ -64,6 +64,14 @@ class LockedSource:
     # to a mus'haf -- so this stays optional rather than required for every
     # source kind.
     collection: str | None = None
+    # Hadith-only: the printed numbering this edition uses ("bugha-1987" for
+    # the al-Bugha Bukhari edition, "abdalbaqi" for Muhammad Fu'ad 'Abd
+    # al-Baqi's standard Muslim numbering). Deferred from Task 8 (R-A3-11):
+    # `build.py` used to hardcode "bugha-1987" for every hadith record
+    # regardless of collection, which would mislabel every non-Bukhari
+    # edition. Optional and not in `_REQUIRED` for the same reason as
+    # `collection` -- the two Qur'an sources have no numbering scheme either.
+    numbering_scheme: str | None = None
 
 
 def load_lockfile(path: str | Path) -> list[LockedSource]:
@@ -100,7 +108,7 @@ def load_lockfile(path: str | Path) -> list[LockedSource]:
                                    list(_REQUIRED) +
                                    ["expected_lines", "expected_records", "commit",
                                     "publisher", "edition", "license_url",
-                                    "collection"]}))
+                                    "collection", "numbering_scheme"]}))
 
     if not out:
         # A lockfile with zero [[source]] entries parses "successfully" and

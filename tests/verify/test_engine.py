@@ -525,6 +525,17 @@ _RAWAHU_AL_BUKHARI_AR = "\u0631\u0648\u0627\u0647" + " " + _AL_BUKHARI_AR
 # U+0646 U+0628 U+064A. Prose, not a quotation -- see D2.
 _QALA_AL_NABI_AR = "\u0642\u0627\u0644 \u0627\u0644\u0646\u0628\u064a"
 
+# Task 11: Sahih Muslim ("muslim" U+0645 U+0633 U+0644 U+0645, no definite
+# article in the module's own citation grammar or audit_lists.py). A sweep
+# that quotes every scorable hadith with ITS OWN collection's name must pick
+# the right one per record now that a second collection exists, or it would
+# quote a genuine Muslim narration under "Sahih al-Bukhari" and call the
+# resulting (correct) WRONG_REFERENCE a regression.
+_MUSLIM_AR = "\u0645\u0633\u0644\u0645"
+_SAHIH_MUSLIM_AR = "\u0635\u062d\u064a\u062d" + " " + _MUSLIM_AR
+_LATIN_CITE_NAME = {"bukhari": "Bukhari", "muslim": "Muslim"}
+_ARABIC_CITE_NAME = {"bukhari": _SAHIH_AL_BUKHARI_AR, "muslim": _SAHIH_MUSLIM_AR}
+
 
 def _arabic_indic(n: int) -> str:
     """Arabic-Indic digits (U+0660-U+0669), GENERATED from the integer.
@@ -849,21 +860,32 @@ def test_no_corpus_record_is_swallowed_by_the_citation_filter(conn):
 
 
 def test_a_repeated_hadith_number_is_satisfied_by_either_record(conn):
-    """7,124 distinct printed numbers over 7,129 records. A citation of a
-    repeated number is correct for ANY record carrying it; treating the first
-    hit as the only one would flag one of the two as a wrong reference."""
+    """7,124 distinct printed numbers over 7,129 Bukhari records. A citation
+    of a repeated number is correct for ANY record carrying it WITHIN ITS OWN
+    COLLECTION; treating the first hit as the only one would flag one of the
+    two as a wrong reference.
+
+    Grouped by (collection, hadith_no), not hadith_no alone (Task 11): two
+    different collections legitimately reuse the same printed number for
+    unrelated hadith (Bukhari 1 and Muslim 1 are not "the same number
+    repeated"), and citing one collection's record under the OTHER
+    collection's name for that number is a genuine misattribution, not the
+    thing this test is about.
+    """
     rows = conn.execute(
-        "SELECT hadith_no FROM records WHERE kind='hadith'"
-        " GROUP BY hadith_no HAVING count(*) > 1").fetchall()
-    assert rows, "fixture assumes the edition repeats at least one number"
+        "SELECT collection, hadith_no FROM records WHERE kind='hadith'"
+        " GROUP BY collection, hadith_no HAVING count(*) > 1").fetchall()
+    assert rows, "fixture assumes some edition repeats at least one number"
     checked = 0
-    for (number,) in rows:
+    for collection, number in rows:
+        name = _LATIN_CITE_NAME[collection]
         siblings = conn.execute(
-            "SELECT id FROM records WHERE kind='hadith' AND hadith_no = ?"
-            " AND unscorable_reason IS NULL", (number,)).fetchall()
+            "SELECT id FROM records WHERE kind='hadith' AND collection = ?"
+            " AND hadith_no = ? AND unscorable_reason IS NULL",
+            (collection, number)).fetchall()
         for (rid,) in siblings:
             rec = db.get_record(conn, rid)
-            m = _only(verify_spans(conn, f"«{rec.text_ar}» (Bukhari {number})"))
+            m = _only(verify_spans(conn, f"«{rec.text_ar}» ({name} {number})"))
             assert m.verdict is not Verdict.WRONG_REFERENCE, rid
             assert m.record.hadith_no == number, rid
             checked += 1
@@ -934,44 +956,56 @@ def test_every_ayah_wrongly_cited_is_still_flagged(conn):
 
 
 def test_no_correctly_cited_hadith_is_ever_flagged_wrong_reference(conn):
-    """Sweep of all 7,112 scorable hadith, each quoted verbatim and cited with
-    its own printed number, in the Latin citation form."""
+    """Sweep of all 13,851 scorable hadith (Task 11: 7,112 Bukhari + 6,739
+    Muslim), each quoted verbatim and cited with ITS OWN collection's name
+    and its own printed number, in the Latin citation form."""
     bad = []
     checked = 0
     for r in db.iter_records(conn):
         if r.kind != "hadith" or r.unscorable_reason is not None:
             continue
-        m = _only(verify_spans(conn, f"«{r.text_ar}» (Bukhari {r.hadith_no})"))
+        name = _LATIN_CITE_NAME[r.collection]
+        m = _only(verify_spans(conn, f"«{r.text_ar}» ({name} {r.hadith_no})"))
         checked += 1
         if m.verdict is Verdict.WRONG_REFERENCE or m.record is None \
                 or m.record.hadith_no != r.hadith_no:
             bad.append((r.id, m.verdict, m.record.id if m.record else None))
-    assert checked == 7112, checked
+    assert checked == 13851, checked
     assert bad == [], f"{len(bad)} regressed, e.g. {bad[:5]}"
 
 
 def test_no_correctly_cited_hadith_is_flagged_in_the_arabic_citation_form(conn):
-    """Same sweep, Arabic-script citation. The two forms must be
-    interchangeable: an Arabic citation is not a second-class one."""
+    """Same sweep, Arabic-script citation, each record's OWN collection name.
+    The two forms must be interchangeable: an Arabic citation is not a
+    second-class one, for either collection."""
     bad = []
     checked = 0
     for r in db.iter_records(conn):
         if r.kind != "hadith" or r.unscorable_reason is not None:
             continue
-        citation = f"{_SAHIH_AL_BUKHARI_AR} {_arabic_indic(int(r.hadith_no))}"
+        name_ar = _ARABIC_CITE_NAME[r.collection]
+        citation = f"{name_ar} {_arabic_indic(int(r.hadith_no))}"
         m = _only([x for x in verify_spans(conn, f"«{r.text_ar}» ({citation})")
                    if x.span.text == r.text_ar])
         checked += 1
         if m.verdict is Verdict.WRONG_REFERENCE or m.record is None \
                 or m.record.hadith_no != r.hadith_no:
             bad.append((r.id, m.verdict, m.record.id if m.record else None))
-    assert checked == 7112, checked
+    assert checked == 13851, checked
     assert bad == [], f"{len(bad)} regressed, e.g. {bad[:5]}"
 
 
 def test_every_wrongly_cited_hadith_is_flagged(conn):
     """hadith:bukhari:1's text is unique in the corpus, so citing Bukhari 1
-    for any hadith not printed under number 1 is genuinely wrong."""
+    for any hadith not printed under number 1 (in EITHER collection) is
+    genuinely wrong -- including for Muslim's own hadith 1, which is a
+    different narration under the same number in a different collection
+    (Task 11): citing it as "Bukhari 1" names both the wrong collection and
+    the wrong text.
+
+    13,849, not 13,851: excludes both collections' own hadith 1 (the record
+    the citation actually names), not just Bukhari's.
+    """
     bad = []
     checked = 0
     for r in db.iter_records(conn):
@@ -981,7 +1015,7 @@ def test_every_wrongly_cited_hadith_is_flagged(conn):
         checked += 1
         if m.verdict is not Verdict.WRONG_REFERENCE:
             bad.append((r.id, m.verdict))
-    assert checked == 7111, checked
+    assert checked == 13849, checked
     assert bad == [], f"{len(bad)} not flagged, e.g. {bad[:5]}"
 
 
@@ -993,7 +1027,12 @@ def test_every_record_cited_as_the_other_kind_is_flagged(conn):
     adjacent to it, must be WRONG_REFERENCE -- and must carry the citation that
     made it so. The earlier, over-corrected rule returned EXACT with
     `given_reference is None` for all 13,348 of these: a silent pass on every
-    possible misattribution across the two corpora.
+    possible misattribution across the two corpora. 20,087 as of Task 11:
+    6,236 ayat + 7,112 Bukhari + 6,739 Muslim scorable hadith. The citation
+    used here (always "Bukhari" for a hadith, regardless of the record's own
+    collection) does not need to change: it is deliberately the WRONG kind of
+    citation for every record it is paired with, so its own collection name
+    is irrelevant to what it tests.
     """
     bad = []
     checked = 0
@@ -1005,7 +1044,7 @@ def test_every_record_cited_as_the_other_kind_is_flagged(conn):
         checked += 1
         if m.verdict is not Verdict.WRONG_REFERENCE or m.given_reference is None:
             bad.append((r.id, m.verdict))
-    assert checked == 13348, checked
+    assert checked == 20087, checked
     assert bad == [], f"{len(bad)} not flagged, e.g. {bad[:5]}"
 
 
@@ -1254,12 +1293,18 @@ def test_a_hadith_cited_as_a_verse_it_is_not_inside_is_still_flagged(conn):
     """The control. Withholding is triggered by CONTAINMENT, not by the mere
     presence of a Qur'anic citation next to a hadith -- otherwise every wrong
     verse citation on a hadith would go unreported, which is the accusation
-    this tool exists to make."""
+    this tool exists to make.
+
+    `also_at` is no longer empty (Task 11): "al-harb khud'a" ("war is
+    deceit") is printed verbatim at hadith:muslim:1739 and hadith:muslim:1740
+    too, the same disclosed duplicate the corpus has always made for a
+    matn repeated within one collection -- now demonstrated across two.
+    """
     matn = db.get_record(conn, "hadith:bukhari:2866").text_ar
     m = _only(verify_spans(conn, f"«{matn}» (54:1)"))
     assert m.verdict is Verdict.WRONG_REFERENCE
     assert m.record.id == "hadith:bukhari:2866"
-    assert m.also_at == []
+    assert m.also_at == ["hadith:muslim:1739", "hadith:muslim:1740"]
 
 
 # The one pair of letters that separates the aggressive tier from the standard

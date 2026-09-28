@@ -416,7 +416,7 @@ def test_builds_hadith_records_with_matn_as_the_scored_text(real_corpus):
     out, _, _ = real_corpus
     conn = db.connect(out)
     n = conn.execute("SELECT count(*) FROM records WHERE kind='hadith'").fetchone()[0]
-    assert n == 7129
+    assert n == 14589  # Task 11: 7129 Bukhari + 7460 Muslim
     row = conn.execute(
         "SELECT text_ar, isnad_ar, norm_light, norm_standard, norm_aggressive "
         "FROM records WHERE id='hadith:bukhari:1'").fetchone()
@@ -500,7 +500,7 @@ def test_every_hadith_norm_derives_from_its_matn_alone(real_corpus):
     rows = db.connect(out).execute(
         "SELECT id, text_ar, norm_light, norm_standard, norm_aggressive"
         " FROM records WHERE kind='hadith'").fetchall()
-    assert len(rows) == 7129
+    assert len(rows) == 14589  # Task 11: 7129 Bukhari + 7460 Muslim
     for row in rows:
         for form in ("light", "standard", "aggressive"):
             assert row[f"norm_{form}"] == normalize(row["text_ar"], form), row["id"]
@@ -510,7 +510,7 @@ def test_corpus_holds_both_the_quran_and_the_hadith(real_corpus):
     out, _, _ = real_corpus
     counts = dict(db.connect(out).execute(
         "SELECT kind, count(*) FROM records GROUP BY kind").fetchall())
-    assert counts == {"ayah": 6236, "hadith": 7129}
+    assert counts == {"ayah": 6236, "hadith": 14589}  # Task 11: +7460 Muslim
 
 
 def test_hadith_records_carry_their_collection_metadata(real_corpus):
@@ -527,13 +527,18 @@ def test_hadith_records_carry_their_collection_metadata(real_corpus):
 def test_every_hadith_reference_display_is_unique(real_corpus):
     # Two records rendering the same citation while carrying different text is
     # the duplicate-verse problem Stage A solved once with `also_at`, back
-    # again. Five printed numbers appear twice in this edition.
+    # again. Five printed numbers appear twice in Bukhari; Muslim has its own
+    # collisions, handled the same way. Task 11 also checks that the two
+    # collections' citations never collide with EACH OTHER -- "reference_display"
+    # is prefixed with the collection's own printed name ("Sahih al-Bukhari" vs
+    # "Sahih Muslim"), so two different editions numbering their narrations
+    # identically is not, on its own, a collision.
     out, _, _ = real_corpus
     rows = db.connect(out).execute(
         "SELECT reference_display FROM records WHERE kind='hadith'").fetchall()
     refs = [r[0] for r in rows]
-    assert len(refs) == 7129
-    assert len(set(refs)) == 7129
+    assert len(refs) == 14589
+    assert len(set(refs)) == 14589
 
 
 def test_mukarrar_variant_is_marked_in_the_citation(real_corpus):
@@ -745,7 +750,7 @@ def test_hadith_records_rejects_a_record_id_that_does_not_match_the_collection()
 # --- fix round 1: secondary narrations are stored, not scored --------------
 
 def test_the_appended_narrations_are_stored_but_never_scored(real_corpus):
-    """392 records carry an addendum. It is in the row and out of THAT score.
+    """514 records carry an addendum: Bukhari's 392 plus Muslim's 122 (Task 11).
 
     hadith 22 is one of the three boundaries named in the fix brief: the
     primary matn ends at "...as the seed grows beside a stream", and a second
@@ -761,7 +766,7 @@ def test_the_appended_narrations_are_stored_but_never_scored(real_corpus):
     conn = db.connect(out)
     n = conn.execute(
         "SELECT count(*) FROM records WHERE addenda_ar IS NOT NULL").fetchone()[0]
-    assert n == 392
+    assert n == 514
     rec = db.get_record(conn, "hadith:bukhari:22")
     assert rec.addenda_ar and _HADDATHANA in rec.addenda_ar
     assert _HADDATHANA not in rec.text_ar
@@ -773,30 +778,32 @@ def test_the_appended_narrations_are_stored_but_never_scored(real_corpus):
 
 
 def test_no_addendum_reaches_the_primary_representation(real_corpus):
-    """Exhaustive over all 392, in both the stored and the indexed text.
+    """Exhaustive over all 514, in both the stored and the indexed text.
 
     The other half of the guarantee is
     test_fts_indexes_the_record_norms_and_nothing_else, which pins each index
     row to the column it claims to index. Together: the addendum is not in the
     primary's norms, and the primary index row is nothing but those norms.
 
-    391, not 392: hadith 237 both carries an addendum and is on the
-    unscorable audit list (its matn is a "bayna" clause ending at the
-    chain-transfer mark), so its PRIMARY has no index row. The two counts are
-    asserted separately rather than relaxed into one, so that a record
-    silently falling out of the index cannot hide inside this total.
+    511, not 514: three cut records also carry a primary-level unscorable
+    verdict, so their PRIMARY has no index row -- Bukhari's 237 (a "bayna"
+    clause ending at the chain-transfer mark) plus Task 11's Muslim
+    1915-3 and 546-3 (both editorial pointers: "the chain, and in his
+    version" / "with this chain"). The two counts are asserted separately
+    rather than relaxed into one, so that a record silently falling out of
+    the index cannot hide inside this total.
     """
     out, _, _ = real_corpus
     conn = db.connect(out)
     assert conn.execute(
         "SELECT count(*) FROM records WHERE addenda_ar IS NOT NULL"
-        " AND unscorable_reason IS NOT NULL").fetchone()[0] == 1
+        " AND unscorable_reason IS NOT NULL").fetchone()[0] == 3
     rows = conn.execute(
         "SELECT r.id, r.text_ar, r.addenda_ar, f.norm_standard,"
         "       f.norm_aggressive FROM records r"
         " JOIN records_fts f ON f.record_id = r.id AND f.variant = 'primary'"
         " WHERE r.addenda_ar IS NOT NULL").fetchall()
-    assert len(rows) == 391
+    assert len(rows) == 511
     for row in rows:
         assert row["addenda_ar"] not in row["text_ar"], row["id"]
         for form in ("standard", "aggressive"):
@@ -822,17 +829,18 @@ def test_the_full_printed_text_is_scored_alongside_the_primary(real_corpus):
         "       v.norm_aggressive FROM records r"
         " LEFT JOIN record_variants v ON v.record_id = r.id"
         " WHERE r.addenda_ar IS NOT NULL").fetchall()
-    assert len(rows) == 392
+    assert len(rows) == 514
     checked = 0
     for row in rows:
-        # 237 is here too. Its `unscorable_reason` is a judgement about its
-        # primary matn and carries no verdict on the text printed behind it.
+        # 237 (and Task 11's Muslim 1915-3, 546-3) are here too. Their
+        # `unscorable_reason` is a judgement about their primary matn and
+        # carries no verdict on the text printed behind them.
         assert row["variant"] == "full", row["id"]
         assert row["whole"] == row["text_ar"] + " " + row["addenda_ar"], row["id"]
         for form in ("light", "standard", "aggressive"):
             assert row[f"norm_{form}"] == normalize(row["whole"], form), row["id"]
         checked += 1
-    assert checked == 392
+    assert checked == 514
 
 
 def test_a_record_with_no_addendum_has_no_second_representation(real_corpus):
@@ -923,11 +931,23 @@ _GENUINE_SHORT_IDS = tuple(f"hadith:bukhari:{n}" for n in
 
 
 def test_editorial_pointers_are_kept_but_never_scored(real_corpus):
+    """Bukhari's 17 are restated and checked as an exact set, unchanged since
+    round 3. Task 11's Muslim audit list adds 721 more records across 235
+    distinct texts (audit_lists.py's UNSCORABLE["muslim"]) -- too many to
+    restate independently here without defeating the point of an
+    independently-typed check, so Muslim is verified by count instead: the
+    total flagged set must be exactly Bukhari's 17 plus Muslim's 721, with no
+    unaccounted-for record on either side.
+    """
     out, _, _ = real_corpus
     conn = db.connect(out)
     flagged = {r[0] for r in conn.execute(
         "SELECT id FROM records WHERE unscorable_reason IS NOT NULL").fetchall()}
-    assert flagged == set(_UNSCORABLE_IDS)
+    flagged_bukhari = {r for r in flagged if r.startswith("hadith:bukhari:")}
+    flagged_muslim = {r for r in flagged if r.startswith("hadith:muslim:")}
+    assert flagged_bukhari == set(_UNSCORABLE_IDS)
+    assert len(flagged_muslim) == 721
+    assert flagged == flagged_bukhari | flagged_muslim
     for record_id in sorted(_UNSCORABLE_IDS):
         rec = db.get_record(conn, record_id)
         # Nothing is deleted: the record stays, keeps its citation, and keeps
@@ -939,16 +959,21 @@ def test_editorial_pointers_are_kept_but_never_scored(real_corpus):
 
 
 def test_no_unscorable_primary_is_in_the_search_index(real_corpus):
-    """All 17 excluded primaries are out of the index, and the only index row
-    any of them has is 237's full printed text -- which is a narration, not
-    the apparatus the audit ruled on."""
+    """All excluded primaries are out of the index. Only three of them have
+    any index row at all -- their full printed text, which is a narration,
+    not the apparatus the audit ruled on: Bukhari's 237 and, since Task 11,
+    Muslim's 1915-3 and 546-3 (both cut records whose primary is a pointer
+    but whose addendum is a genuine narration)."""
     out, _, _ = real_corpus
     rows = db.connect(out).execute(
         "SELECT f.record_id, f.variant FROM records_fts f"
         " JOIN records r ON r.id = f.record_id"
-        " WHERE r.unscorable_reason IS NOT NULL").fetchall()
+        " WHERE r.unscorable_reason IS NOT NULL"
+        " ORDER BY f.record_id").fetchall()
     assert [(r["record_id"], r["variant"]) for r in rows] == \
-        [("hadith:bukhari:237", "full")]
+        [("hadith:bukhari:237", "full"),
+         ("hadith:muslim:1915-3", "full"),
+         ("hadith:muslim:546-3", "full")]
 
 
 def test_a_famous_short_matn_is_still_indexed_and_scorable(real_corpus):

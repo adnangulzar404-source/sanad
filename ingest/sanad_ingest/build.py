@@ -244,28 +244,48 @@ an eval case.
 """
 
 
-def _write_noise_report(path: Path, locked: LockedSource,
-                        parsed: ParsedOpeniti, records: list[Record]) -> None:
-    ref_by_id = {r.id: r.reference_display for r in records}
-    lines = [
-        _NOISE_HEADER,
-        f"Source: `{locked.id}` ({locked.edition})",
-        "",
-        (f"Records ingested: {len(parsed.units)} &nbsp;&nbsp; "
-         f"Records flagged: {len(parsed.noisy)}"),
-        "",
-        "| Record | Citation | Characters | Codepoints |",
-        "| --- | --- | --- | --- |",
-    ]
-    for record_id, chars in parsed.noisy:
-        codepoints = " ".join(f"U+{ord(c):04X}" for c in chars)
-        lines.append(
-            f"| `{record_id}` | {ref_by_id.get(record_id, '')} | "
-            f"`{chars}` | {codepoints} |")
+def _write_noise_report(path: Path,
+                        sources: list[tuple[LockedSource, ParsedOpeniti, list[Record]]]
+                        ) -> None:
+    """Write ONE combined report covering every hadith source, not one per
+    source at a shared path.
+
+    Task 11 (Sahih Muslim): before this, `build_corpus` called this function
+    once per hadith source with the SAME `noise_report` path, and each call
+    unconditionally overwrote the last -- harmless with exactly one hadith
+    source (there was nothing to overwrite), which is why it went unnoticed
+    through Bukhari alone. With a second hadith source the final file on disk
+    held only the LAST source's rows: Bukhari's 71 flagged records vanished
+    from the shipped report the moment Muslim's 48 were written after them,
+    silently defeating the review-artifact guarantee the header above
+    promises. Sources are now collected across the whole hadith pass and
+    written together, one section per source, in a single call after the
+    loop.
+    """
+    lines = [_NOISE_HEADER]
+    for locked, parsed, records in sources:
+        ref_by_id = {r.id: r.reference_display for r in records}
+        lines += [
+            "",
+            f"## Source: `{locked.id}` ({locked.edition})",
+            "",
+            (f"Records ingested: {len(parsed.units)} &nbsp;&nbsp; "
+             f"Records flagged: {len(parsed.noisy)}"),
+            "",
+            "| Record | Citation | Characters | Codepoints |",
+            "| --- | --- | --- | --- |",
+        ]
+        for record_id, chars in parsed.noisy:
+            codepoints = " ".join(f"U+{ord(c):04X}" for c in chars)
+            lines.append(
+                f"| `{record_id}` | {ref_by_id.get(record_id, '')} | "
+                f"`{chars}` | {codepoints} |")
     lines.append("")
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("\n".join(lines), encoding="utf-8")
-    log.info("wrote noise report %s (%d flagged)", path, len(parsed.noisy))
+    total = sum(len(parsed.noisy) for _, parsed, _ in sources)
+    log.info("wrote noise report %s (%d flagged across %d source(s))",
+             path, total, len(sources))
 
 
 def build_corpus(lockfile: Path, out_db: Path, cache_dir: Path,
@@ -313,7 +333,10 @@ def build_corpus(lockfile: Path, out_db: Path, cache_dir: Path,
     # Pass 2: hadith sources. Nothing references these rows, so they could sit
     # in either other pass; they get their own because they are a different
     # shape of source, and because the noise report is written from exactly
-    # one place.
+    # one place -- ONE call, after the loop, covering every hadith source
+    # (Task 11: this used to be one call per source at the same path, which
+    # silently dropped every source but the last; see _write_noise_report).
+    noise_sources: list[tuple[LockedSource, ParsedOpeniti, list[Record]]] = []
     for locked in locked_sources:
         if locked.kind != "hadith-arabic":
             continue
@@ -329,8 +352,10 @@ def build_corpus(lockfile: Path, out_db: Path, cache_dir: Path,
         # too, so nothing but source rows is written here.
         db.insert_records(conn, records)
         log.info("inserted %d records from %s", len(records), locked.id)
-        if noise_report is not None:
-            _write_noise_report(Path(noise_report), locked, parsed, records)
+        noise_sources.append((locked, parsed, records))
+
+    if noise_report is not None and noise_sources:
+        _write_noise_report(Path(noise_report), noise_sources)
 
     # Pass 3: quran-translation sources, now that every record they
     # reference exists.

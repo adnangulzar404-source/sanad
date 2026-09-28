@@ -8,7 +8,7 @@ REAL = "ingest/corpus.lock.toml"
 
 def test_loads_the_real_lockfile():
     sources = load_lockfile(REAL)
-    assert len(sources) == 3
+    assert len(sources) == 4
     by_id = {s.id: s for s in sources}
 
     arabic = by_id["tanzil-uthmani-1.1"]
@@ -93,6 +93,32 @@ def test_accepts_the_openiti_markdown_bukhari_entry():
     assert b.content_sha256 == (
         "69e95684acfde24171d29dd7ba43ff2c8f9b54ade5e3ab0a73899c06671082b7"
     )
+
+
+def test_accepts_the_openiti_markdown_muslim_entry():
+    srcs = load_lockfile(REAL)
+    muslim = [s for s in srcs if s.id == "openiti-muslim-jk000109"]
+    assert len(muslim) == 1, "the Muslim source must be pinned in the lockfile"
+    m = muslim[0]
+    assert m.format == "openiti-markdown"
+    assert m.kind == "hadith-arabic"
+    assert m.collection == "muslim"
+    # Distinct from Bukhari's al-Bugha numbering (Task 11 precursor).
+    assert m.numbering_scheme == "abdalbaqi"
+    assert m.license_id == "public-domain"
+    assert m.expected_records == 7460
+    assert m.content_sha256 == (
+        "32b8b949d80d22d3db81be52d8749bc191f12510c8afe19868589bc4b08605e8"
+    )
+
+
+def test_bukhari_numbering_scheme_is_pinned_and_unchanged():
+    """The Task 11 precursor: numbering_scheme became a real field read by
+    build.py instead of a hardcoded string, and Bukhari's own value must not
+    have moved as a result."""
+    srcs = load_lockfile(REAL)
+    b = next(s for s in srcs if s.id == "openiti-bukhari-jk000110")
+    assert b.numbering_scheme == "bugha-1987"
 
 
 def test_rejects_openiti_markdown_entry_missing_expected_records(tmp_path):

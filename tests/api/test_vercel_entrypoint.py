@@ -13,4 +13,4 @@ def test_root_entrypoint_serves_health(monkeypatch, tmp_path):
     import app as entrypoint
     importlib.reload(entrypoint)
     body = TestClient(entrypoint.app).get("/api/health").json()
-    assert body["records"] == 6236 + 7129  # ayat + Bukhari narrations
+    assert body["records"] == 6236 + 7129 + 7460  # ayat + Bukhari + Muslim (Task 11)

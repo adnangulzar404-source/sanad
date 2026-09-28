@@ -169,7 +169,7 @@ def test_the_isra_miraj_verifies_both_as_matn_and_as_printed():
 
 
 def test_the_full_printed_text_of_every_cut_record_verifies():
-    """The corpus-wide form of the test above: all 391 of them.
+    """The corpus-wide form of the test above: all 511 of them.
 
     A sample cannot show this. The defect it guards against is one record
     somewhere in the corpus whose full text is unreachable, which is exactly
@@ -182,13 +182,18 @@ def test_the_full_printed_text_of_every_cut_record_verifies():
     the lowest id and disclose the rest. That is the same answer for a tie
     between two records as for a tie between two representations, and the
     quotation is verified either way.
+
+    Task 11 (Sahih Muslim): 391 + 120 = 511. Muslim's 120 scorable cut records
+    are its own -- none of its NEVER_CUT/UNSCORABLE work reverses or
+    introduces a cut, it only judges primaries `_split_secondary` already cut,
+    per the audit's own scope note in audit_lists.py.
     """
     from sanad.verify.engine import Verdict, verify_spans
     conn = db.connect(DB_PATH)
     rows = conn.execute(
         "SELECT id, text_ar, addenda_ar FROM records"
         " WHERE addenda_ar IS NOT NULL AND unscorable_reason IS NULL").fetchall()
-    assert len(rows) == 391
+    assert len(rows) == 511
     failures = []
     for row in rows:
         for quoted in (row["text_ar"], row["text_ar"] + " " + row["addenda_ar"]):
@@ -281,18 +286,25 @@ def test_no_record_appears_twice_in_its_own_match():
 
 
 def test_the_index_holds_one_row_per_scorable_representation():
-    """13,740 = 13,348 scorable records + 392 full-text representations.
+    """20,601 = 20,087 scorable records + 514 full-text representations.
 
     Asserted as three numbers that have to add up, not as one total: a record
     dropping out of the index while a variant row appears would keep the
     total right.
+
+    Task 11 (Sahih Muslim): these numbers moved from (13348, 392, 13740) when
+    Muslim joined Bukhari and the Qur'an in the same committed database.
+    Muslim contributes 7,460 hadith records, of which 6,739 are scorable and
+    122 carry a second ("full", cut) representation -- see
+    test_muslim_record_count_and_scorability below for the per-collection
+    breakdown these totals are built from.
     """
     conn = db.connect(DB_PATH)
     scorable = conn.execute(
         "SELECT count(*) FROM records WHERE unscorable_reason IS NULL").fetchone()[0]
     variants = conn.execute("SELECT count(*) FROM record_variants").fetchone()[0]
     indexed = conn.execute("SELECT count(*) FROM records_fts").fetchone()[0]
-    assert (scorable, variants, indexed) == (13348, 392, 13740)
+    assert (scorable, variants, indexed) == (20087, 514, 20601)
 
 
 # --- C1: nothing scorable as a hadith is wholly a Qur'anic quotation --------
@@ -331,8 +343,17 @@ def test_no_scorable_hadith_representation_is_wholly_quranic():
     left the class exactly as open; the sweep is the assertion.
 
     Measured here and independently by the reviewer: exactly one of the 7,504
-    scorable representations was wholly Qur'anic, and it is the record now on
-    the do-not-cut audit. The expected answer is zero.
+    Bukhari-only scorable representations was wholly Qur'anic, and it is the
+    record now on the do-not-cut audit. The expected answer is zero.
+
+    Task 11 (Sahih Muslim): the same sweep over 14,365 representations
+    (Bukhari's 7,504 plus Muslim's 6,861) is still zero, but only after
+    `UNSCORABLE["muslim"]` excludes the 144 pointer/deferral records this
+    guard flagged on the first measured build -- "bi-mithlihi", "mithlahu",
+    "bi-hadha al-hadith" and seven other stock cross-reference phrases that
+    are also, by coincidence of brevity, verbatim substrings of the Qur'an.
+    None of them are Qur'an quotations; see audit_lists.py's "muslim" section
+    and the task-11 report for the full accounting.
     """
     conn = db.connect(DB_PATH)
     blobs = _quran_blobs(conn)
@@ -343,7 +364,7 @@ def test_no_scorable_hadith_representation_is_wholly_quranic():
     reps += [(r["record_id"], r["variant"], r["norm_standard"]) for r in conn.execute(
         "SELECT v.record_id, v.variant, v.norm_standard FROM record_variants v"
         " JOIN records r ON r.id = v.record_id")]
-    assert len(reps) == 7504, "the sweep stopped covering what it was written for"
+    assert len(reps) == 14365, "the sweep stopped covering what it was written for"
     offenders = [(rid, variant) for rid, variant, norm in reps
                  if norm.strip() and any(f" {norm} " in b for b in blobs)]
     assert offenders == []
@@ -445,17 +466,30 @@ def test_the_excluded_primary_of_that_record_is_still_excluded():
 
 
 def test_every_other_excluded_record_is_excluded_whole():
-    """237 is the exception because it is the only excluded record with a
-    second representation. The other sixteen have nothing but their primary,
-    so nothing about them changes -- asserted rather than assumed, because
-    "only one record is affected" is the entire safety argument."""
+    """Among Bukhari's 17 excluded records, 237 is the exception with a
+    second representation; the other sixteen have nothing but their primary.
+
+    Task 11 (Sahih Muslim): 721 more excluded records joined 237 in this
+    count. Two of Muslim's are the same shape as 237 -- a pointer/deferral
+    primary that a `_split_secondary` cut also gave a real addendum to --
+    "hadith:muslim:1915-3" (pointer primary "the chain, and in his version",
+    addendum: Ibn Miqsam's addition "and drowning is martyrdom too") and
+    "hadith:muslim:546-3" (pointer primary "with this chain", addendum: a
+    narrator naming Mu'ayqib). Everything else, in both collections, is
+    excluded whole -- asserted rather than assumed, because "which records are
+    affected" is the entire safety argument.
+    """
     conn = db.connect(DB_PATH)
     rows = conn.execute(
         "SELECT r.id, count(v.record_id) AS n FROM records r"
         " LEFT JOIN record_variants v ON v.record_id = r.id"
         " WHERE r.unscorable_reason IS NOT NULL GROUP BY r.id").fetchall()
-    assert len(rows) == 17
-    assert {r["id"]: r["n"] for r in rows if r["n"]} == {"hadith:bukhari:237": 1}
+    assert len(rows) == 738
+    assert {r["id"]: r["n"] for r in rows if r["n"]} == {
+        "hadith:bukhari:237": 1,
+        "hadith:muslim:1915-3": 1,
+        "hadith:muslim:546-3": 1,
+    }
 
 
 def test_exactly_one_hadith_representation_sits_inside_an_ayah():
@@ -466,18 +500,47 @@ def test_exactly_one_hadith_representation_sits_inside_an_ayah():
     is a fact about this corpus, and the honest form of it is a number over
     every scorable representation, not the one example that prompted the fix.
 
-    Today it is exactly one pair: Sahih al-Bukhari 3658's whole matn, "the
-    moon split", inside Qur'an 54:1, which ends with the same two words
-    carrying a prefixed waw. Both tiers agree on it -- the withholding tier
-    finds nothing the disclosure tier does not.
+    In the Bukhari-only corpus this was exactly one pair: Sahih al-Bukhari
+    3658's whole matn, "the moon split", inside Qur'an 54:1, which ends with
+    the same two words carrying a prefixed waw. Both tiers agreed on it -- the
+    withholding tier found nothing the disclosure tier did not.
 
-    If this number ever moves, a new edition has brought in another short matn
-    that is also scripture, and someone has to read it in the source. That is
-    the same discipline as `build._reject_wholly_quranic_representations`,
-    asked at the other end of the pipeline: the build's question is "is this
-    representation wholly Qur'an" and the answer is 0, while this one is "is
-    it INSIDE an ayah" and the answer is 1. The gap between those two numbers
-    is the whole of finding F1.
+    Task 11 (Sahih Muslim) moved this from one pair to four, and broke the
+    "both tiers agree" equality for the first time -- read in the source, not
+    assumed to still hold:
+
+    - "hadith:muslim:274-13", the matn "da'hu" ("leave him") -- the Prophet's
+      own two-word reply telling Abd al-Rahman ibn Awf to keep leading the
+      prayer (Task 11's audit left this one OFF `UNSCORABLE`: it is a genuine,
+      complete saying, just a very short one). At three letters it is a
+      substring of four unrelated ayat at BOTH tiers, which is exactly the
+      corpus fact `_ayat_containing`/`_contains_at` exist to catch and
+      `verify.engine` exists to withhold on, not a defect in either.
+    - "hadith:muslim:1473", "laqad kana lakum fi rasuli Llahi uswatun
+      hasanatun" -- a narrator quoting the opening clause of Qur'an 33:21.
+      Found at the withholding (aggressive) tier but NOT confirmed at the
+      disclosure (standard) one: the hadith's plain transcription spells "fi"
+      with a dotted ya (U+064A), the Qur'an's Uthmani rasm spells the same
+      word with a dotless alif maqsura (U+0649) -- a real, common, benign
+      divergence between modern and Qur'anic orthography that the aggressive
+      tier folds together and the standard tier does not. This is the first
+      record in the corpus where the two tiers disagree; it is noted here and
+      in the task-11 report as a question for verify.engine (should the
+      disclosure tier tolerate this one substitution?), not fixed by this
+      ingestion task.
+    - "hadith:muslim:2380-5", the matn "< la-ittakhadhta 'alayhi ajran >"
+      (Khidr's reply in the Qur'an 18:77 story, as Ubayy ibn Ka'b recited it)
+      -- also withheld-not-disclosed, for an unrelated reason: the edition
+      itself prints this one variant reading wrapped in literal "<" ">"
+      angle brackets (a qira'a note, present in the raw OpenITI file, not
+      introduced by this parser), so its stored text never matches the ayah's
+      clean text at the standard tier either. Left as printed; see the
+      task-11 report.
+
+    If either number ever moves again, someone has to read the new record in
+    the source, the same discipline as
+    `build._reject_wholly_quranic_representations` at the other end of the
+    pipeline.
     """
     from sanad.verify.engine import _ayat_containing, _contains_at
     conn = db.connect(DB_PATH)
@@ -488,7 +551,7 @@ def test_exactly_one_hadith_representation_sits_inside_an_ayah():
         "SELECT v.record_id, v.variant, v.text_ar FROM record_variants v"
         " JOIN records r ON r.id = v.record_id WHERE r.kind = 'hadith'"
     ).fetchall()
-    assert len(reps) == 7504, len(reps)
+    assert len(reps) == 14365, len(reps)
 
     withheld, disclosed = [], []
     for rep in reps:
@@ -501,5 +564,144 @@ def test_exactly_one_hadith_representation_sits_inside_an_ayah():
         if strict:
             disclosed.append((rep["rid"], rep["variant"], strict))
 
-    assert withheld == [("hadith:bukhari:3658", "primary", ["quran:54:1"])]
-    assert disclosed == withheld
+    assert withheld == [
+        ("hadith:bukhari:3658", "primary", ["quran:54:1"]),
+        ("hadith:muslim:274-13", "primary",
+         ["quran:2:260", "quran:4:142", "quran:11:6", "quran:18:57"]),
+        ("hadith:muslim:1473", "primary", ["quran:33:21"]),
+        ("hadith:muslim:2380-5", "primary", ["quran:18:77"]),
+    ]
+    assert disclosed == [
+        ("hadith:bukhari:3658", "primary", ["quran:54:1"]),
+        ("hadith:muslim:274-13", "primary",
+         ["quran:2:260", "quran:4:142", "quran:11:6", "quran:18:57"]),
+    ]
+
+
+# --- Task 11: Sahih Muslim ---------------------------------------------------
+#
+# Every Arabic literal below is a codepoint tuple read out of the built
+# database with a one-off script, per the top-of-file convention, never typed.
+
+
+def test_muslim_record_count_and_scorability():
+    """The measured, lockfile-pinned facts about the second hadith collection.
+
+    7,460 is `expected_records` in corpus.lock.toml, itself pinned from the
+    first measured build (Task 11), not assumed. 721 unscorable and 122 cut
+    are the audit's own output: see audit_lists.py's "muslim" section and the
+    task-11 report for what each of the 721 is and why.
+    """
+    conn = db.connect(DB_PATH)
+    total = conn.execute(
+        "SELECT count(*) FROM records WHERE kind='hadith' AND collection='muslim'"
+    ).fetchone()[0]
+    scorable = conn.execute(
+        "SELECT count(*) FROM records WHERE kind='hadith' AND collection='muslim'"
+        " AND unscorable_reason IS NULL").fetchone()[0]
+    unscorable = conn.execute(
+        "SELECT count(*) FROM records WHERE kind='hadith' AND collection='muslim'"
+        " AND unscorable_reason IS NOT NULL").fetchone()[0]
+    cut = conn.execute(
+        "SELECT count(*) FROM records WHERE kind='hadith' AND collection='muslim'"
+        " AND addenda_ar IS NOT NULL").fetchone()[0]
+    assert (total, scorable, unscorable, cut) == (7460, 6739, 721, 122)
+
+
+# "al-harb khud'a" -- war is deceit. The SAME codepoints as Bukhari's
+# _AL_HARB_KHUDA above: Sahih Muslim prints this saying too (1739, 1740).
+def test_a_genuine_short_hadith_shared_across_collections_still_verifies():
+    """Bukhari 2866 and Muslim 1739/1740 print the same three words.
+
+    The tie-break rule ("lowest id wins, the rest are disclosed") was proven
+    within one collection (383 and 774, both Bukhari); this is the first case
+    of it firing ACROSS collections, and it is exercised here rather than
+    assumed to generalise.
+    """
+    from sanad.verify.engine import Verdict, verify_spans
+    conn = db.connect(DB_PATH)
+    matches = verify_spans(conn, f"«{_AL_HARB_KHUDA}»")
+    assert len(matches) == 1
+    assert matches[0].verdict is Verdict.EXACT
+    assert matches[0].record.id == "hadith:bukhari:2866"
+    assert matches[0].also_at == ["hadith:muslim:1739", "hadith:muslim:1740"]
+
+
+# "da'hu" -- "leave him." The Prophet's own reply telling Abd al-Rahman ibn
+# Awf to keep leading the prayer at Tabuk. Two letters shorter than the
+# shortest record Bukhari's audit left genuine ("la tuki fa-yuka 'alayki",
+# 1366), and it is why Task 11's audit is a judgement about MEANING and not a
+# length rule: it sits in the exact same character range as the 721 records
+# just below it that are NOT genuine.
+_MUSLIM_DAHU = "".join(chr(c) for c in (0x062F, 0x0639, 0x0647))
+
+
+def test_the_shortest_genuine_muslim_hadith_still_verifies_exactly():
+    from sanad.verify.engine import Verdict, verify_spans
+    conn = db.connect(DB_PATH)
+    matches = verify_spans(conn, f"«{_MUSLIM_DAHU}»")
+    assert len(matches) == 1
+    assert matches[0].verdict is Verdict.EXACT
+    assert matches[0].record.id == "hadith:muslim:274-13"
+
+
+# "bi-hadha al-isnad mithlahu" -- "with this chain, the like of it." Sahih
+# Muslim's single most common editorial pointer (108 records print exactly
+# this string); a stand-in for the 721-record `UNSCORABLE["muslim"]` list the
+# same way Bukhari's "bi-hadha" stands in for its 17.
+_MUSLIM_POINTER = "".join(chr(c) for c in (
+    0x0628, 0x0647, 0x0630, 0x0627, 0x0020, 0x0627, 0x0644, 0x0625, 0x0633,
+    0x0646, 0x0627, 0x062F, 0x0020, 0x0645, 0x062B, 0x0644, 0x0647))
+
+
+def test_a_muslim_editorial_pointer_is_not_verified_as_a_hadith():
+    from sanad.verify.engine import Verdict, verify_spans
+    conn = db.connect(DB_PATH)
+    matches = verify_spans(conn, f"«{_MUSLIM_POINTER}»")
+    assert len(matches) == 1
+    assert matches[0].verdict is Verdict.NOT_FOUND
+    assert matches[0].record is None
+
+
+# "rafa'ahu" -- "he raised it [to the Prophet]." An isnad question-and-answer
+# about attribution, not a report of anything said. Its own reason
+# (_ATTRIBUTION_NOTE) because it is not a comparison to another narration
+# (_POINTER) or a mid-sentence deferral (_DEFERRAL) -- Bukhari's three
+# existing reasons do not fit it.
+_MUSLIM_ATTRIBUTION = "".join(chr(c) for c in (0x0631, 0x0641, 0x0639, 0x0647))
+
+
+def test_the_attribution_note_is_not_verified_as_a_hadith():
+    from sanad.verify.engine import Verdict, verify_spans
+    conn = db.connect(DB_PATH)
+    matches = verify_spans(conn, f"«{_MUSLIM_ATTRIBUTION}»")
+    assert len(matches) == 1
+    assert matches[0].verdict is Verdict.NOT_FOUND
+    assert matches[0].record is None
+
+
+# "marra bi-rajulin min al-ansari ya'izu akhahu" -- "[the Prophet] passed by a
+# man of the Ansar admonishing his brother." Unit 36's SECOND chain reports
+# only this narrative frame; the actual saying ("shyness is part of faith")
+# is unit 36's own primary matn and is not repeated here, and the source
+# starts a fresh numbered unit immediately after -- there is nothing to
+# reattach, so this is `_TRUNCATED_STUB`, Bukhari's `_STUB_OPENER` shape
+# (632, 6136) without a cut to reverse.
+_MUSLIM_STUB = "".join(chr(c) for c in (
+    0x0645, 0x0631, 0x0020, 0x0628, 0x0631, 0x062C, 0x0644, 0x0020, 0x0645,
+    0x0646, 0x0020, 0x0627, 0x0644, 0x0623, 0x0646, 0x0635, 0x0627, 0x0631,
+    0x0020, 0x064A, 0x0639, 0x0638, 0x0020, 0x0623, 0x062E, 0x0627, 0x0647))
+
+
+def test_the_truncated_stub_is_not_verified_as_a_hadith():
+    from sanad.verify.engine import Verdict, verify_spans
+    conn = db.connect(DB_PATH)
+    matches = verify_spans(conn, f"«{_MUSLIM_STUB}»")
+    assert len(matches) == 1
+    assert matches[0].verdict is Verdict.NOT_FOUND
+    assert matches[0].record is None
+    # ... and unit 36's own primary, the actual saying, still verifies.
+    rec = db.get_record(conn, "hadith:muslim:36")
+    whole = verify_spans(conn, f"«{rec.text_ar}»")
+    assert whole[0].verdict is Verdict.EXACT
+    assert whole[0].record.id == "hadith:muslim:36"

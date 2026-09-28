@@ -46,8 +46,25 @@ def _count_and_hash(src: LockedSource, raw: str) -> tuple[int, str]:
     The count is "records the parser found", whatever a record is for that
     format: a verse line for Tanzil, a numbered narration for OpenITI. Every
     parsed result defines __len__ so this function does not have to know.
+
+    openiti-markdown is special-cased to pass `collection` through, exactly
+    like `build._parse` -- without it, `parse_openiti` falls back to its own
+    "bukhari" default regardless of `src.collection`. That default was
+    harmless for Bukhari (its own collection IS "bukhari"), which is why this
+    call site was never exercised against the bug: for a second collection,
+    every id this function's parse minted would read `hadith:bukhari:N`, and
+    `_unscorable_reason`/`_audited_never_cut` would then apply BUKHARI's
+    audit lists to a different edition's text by accident of a colliding
+    number -- raising `ValueError` the moment a numbered unit collided with
+    an audited Bukhari id (measured: Sahih Muslim's own hadith 127 against
+    `UNSCORABLE["bukhari"]`'s "hadith:bukhari:127" entry). The Tanzil parsers
+    take no `collection` kwarg, so they are left untouched.
     """
-    parsed = parser_for(src.format)(raw)
+    parser = parser_for(src.format)
+    if src.format == "openiti-markdown":
+        parsed = parser(raw, collection=src.collection)
+    else:
+        parsed = parser(raw)
     return len(parsed), parsed.content_sha256
 
 

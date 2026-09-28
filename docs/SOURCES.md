@@ -10,7 +10,7 @@ Use the Tanzil text as the leading candidate for the production Arabic Qur’an 
 
 ### Hadith
 
-Do not ship scraped Hadith from a public website merely because it is accessible; accessibility is not a licence. What the production corpus needs for the exact text, edition and metadata is a recorded *basis* — either the work's own public-domain status or a redistribution grant that can actually be pointed at. **Status: shipped.** Sahih al-Bukhari (7,129 records, matn + isnad) is in the corpus on the first of those; the basis is recorded in full below (see **Sahih al-Bukhari: the licensing basis**), and `docs/superpowers/specs/2026-09-22-hadith-corpus-design.md` §4 has the complete source and parsing rationale. Each record carries collection, book, number, edition and provenance, and no grading: modern authenticity gradings are copyrighted scholarly work, and authenticity is not Sanad's to assert.
+Do not ship scraped Hadith from a public website merely because it is accessible; accessibility is not a licence. What the production corpus needs for the exact text, edition and metadata is a recorded *basis* — either the work's own public-domain status or a redistribution grant that can actually be pointed at. **Status: shipped.** Sahih al-Bukhari (7,129 records, matn + isnad) and Sahih Muslim (7,460 records, matn + isnad, Task 11) are in the corpus on the first of those; the basis for each is recorded in full below (see **Sahih al-Bukhari: the licensing basis** and **Sahih Muslim: the licensing basis**), and `docs/superpowers/specs/2026-09-22-hadith-corpus-design.md` §4 has the complete source and parsing rationale. Each record carries collection, book, number, edition and provenance, and no grading: modern authenticity gradings are copyrighted scholarly work, and authenticity is not Sanad's to assert.
 
 ### Translations and tafsir
 
@@ -68,11 +68,61 @@ modifications    = "mARkdown structural markers parsed and discarded; no text al
 
 `commit` is pinned (unlike the Tanzil entries, which publish stable versioned exports) because OpenITI is a live git repository whose files are re-OCRed in place, so a branch URL is not a real pin. `content_sha256` covers the complete raw file, verified byte-identical (5,524,762 bytes) via an authenticated `gh` session at commit `47dfd28d...` (2025-11-27, "ns update"). See `ingest/corpus.lock.toml` for the authoritative, machine-checked copy of this entry.
 
+## Sahih Muslim: the licensing basis
+
+The second collection ingested (Task 11), on the same basis as Sahih al-Bukhari above, carrying the same one-time numbering-scheme distinction the two editions require: Bukhari's al-Bugha numbering (`bugha-1987`) and Muslim's Muhammad Fu'ad 'Abd al-Baqi numbering (`abdalbaqi`) are recorded per source rather than assumed to be one scheme, because they are not.
+
+### The file
+
+`data/0261Muslim/0261Muslim.Sahih/0261Muslim.Sahih.JK000109-ara1` in `github.com/OpenITI/0275AH`. The file's own `#META#` header records the edition:
+
+```
+010.AuthorNAME  :: مسلم بن الحجاج أبو الحسين القشيري النيسابوري
+011.AuthorDIED  :: 261                        (AH)
+020.BookTITLE   :: صحيح مسلم
+040.EdEDITOR    :: محمد فؤاد عبد الباقي        (Muhammad Fu'ad 'Abd al-Baqi)
+043.EdPUBLISHER :: دار إحياء التراث العربي     (Dar Ihya al-Turath al-Arabi)
+044.EdPLACE     :: بيروت                       (Beirut)
+```
+
+Selected the same way Bukhari's file was: the JK-prefixed curated OpenITI version, not a `Shamela*`/`ShamAY*`/`Shia*` scrape.
+
+### Why we may ship it — the legal basis
+
+**Basis: the work's own public-domain status.** Muslim ibn al-Hajjaj al-Qushayri al-Naysaburi died in 261 AH (875 CE). The matn and the isnad are public domain in every jurisdiction, without qualification — the identical basis Sahih al-Bukhari ships on above, restated here rather than assumed, because a basis recorded once for one work is not automatically a basis for a second one by a different author.
+
+**Not an OpenITI licence grant, and the distinction is load-bearing here for exactly the reason it was for Sahih al-Bukhari.** OpenITI is the transcriber, not the rights holder of anything requiring a grant: what they contribute is transcription and structural markup, and a faithful mechanical transcription of a public-domain text attracts no new copyright. Their markup (mARkdown structural markers, page/volume anchors) is not carried into the corpus — the parser consumes it and discards it. 'Abd al-Baqi's editorial apparatus — his introductions, footnotes, and the vowelling/typesetting choices of his edition — is likewise not carried into the corpus; what is ingested is matn and isnad. His **numbering** is a separate matter from his apparatus: a sequential count of units is a fact about how the edition is organized, not a copyrightable expression, and it is recorded as `numbering_scheme = "abdalbaqi"` precisely so it is never confused with al-Bugha's Bukhari numbering or presented as if it were.
+
+**Attribution to OpenITI is given as credit, not as licence compliance**, on the same terms as the Bukhari entry: recorded in `sources` with file, edition, commit and retrieval date, and shown in the provenance panel.
+
+### The pinned commit and hash
+
+```toml
+[[source]]
+id                 = "openiti-muslim-jk000109"
+kind               = "hadith-arabic"
+format             = "openiti-markdown"
+collection         = "muslim"
+numbering_scheme   = "abdalbaqi"
+title              = "صحيح مسلم (Sahih Muslim)"
+publisher          = "OpenITI (transcription); Dar Ihya al-Turath al-Arabi, Beirut (edition)"
+edition            = "ed. Muhammad Fu'ad 'Abd al-Baqi; OpenITI JK000109, ara1"
+url                = "https://raw.githubusercontent.com/OpenITI/0275AH/44e1c36738a2bf5c14dafa232a6ae1891e6171cd/data/0261Muslim/0261Muslim.Sahih/0261Muslim.Sahih.JK000109-ara1"
+commit             = "44e1c36738a2bf5c14dafa232a6ae1891e6171cd"
+license_id         = "public-domain"
+license_url        = "https://github.com/OpenITI/0275AH"
+content_sha256     = "32b8b949d80d22d3db81be52d8749bc191f12510c8afe19868589bc4b08605e8"
+expected_records   = 7460
+modifications      = "mARkdown structural markers parsed and discarded; no text altered"
+```
+
+`commit` is pinned for the same reason as Bukhari's entry: OpenITI is a live git repository whose files are re-OCRed in place. `content_sha256` covers the complete raw file (4,560,879 bytes), computed by the build itself (`sanad-ingest build`, measured-then-pinned per the project's build-measured-placeholder convention) and re-verified green on every subsequent build. See `ingest/corpus.lock.toml` for the authoritative, machine-checked copy of this entry.
+
 ### The built corpus
 
-The committed `data/sanad-quran.db` holds 13,365 records: 6,236 ayat (Tanzil Uthmani, CC BY 3.0) + 7,129 Sahih al-Bukhari hadith (public-domain basis above). Its whole-file SHA-256 is verified at build time and printed by `sanad-ingest build`; see `README.md` for the currently-committed value and the reproducibility check.
+The committed `data/sanad-quran.db` holds 20,825 records: 6,236 ayat (Tanzil Uthmani, CC BY 3.0) + 7,129 Sahih al-Bukhari hadith + 7,460 Sahih Muslim hadith (public-domain bases above). Its whole-file SHA-256 is verified at build time and printed by `sanad-ingest build`; see `README.md` for the currently-committed value and the reproducibility check.
 
-**Product constraint, stated here because it follows directly from the basis above.** Sanad ships no hadith gradings — modern authenticity gradings are copyrighted scholarly work, and authenticity is not Sanad's to assert. Sanad may say "this text is in Sahih al-Bukhari"; it must never say or imply "this hadith is sahih."
+**Product constraint, stated here because it follows directly from the bases above.** Sanad ships no hadith gradings — modern authenticity gradings are copyrighted scholarly work, and authenticity is not Sanad's to assert. Sanad may say "this text is in Sahih al-Bukhari" or "this text is in Sahih Muslim"; it must never say or imply "this hadith is sahih."
 
 ## Source decisions
 
@@ -84,6 +134,7 @@ The committed `data/sanad-quran.db` holds 13,365 records: 6,236 ayat (Tanzil Uth
 | Sunnah.com | Reference only | Source/numbering information is useful, but no redistribution license is assumed |
 | OpenITI (general) | Discovery only | Texts have mixed provenance and fidelity; review per text |
 | OpenITI `0275AH`, JK000110 (Sahih al-Bukhari) | **Shipped** | Complete, internally-consistent per-file metadata; public-domain basis for the matn (see below), independent of OpenITI's own (absent) repository licence |
+| OpenITI `0275AH`, JK000109 (Sahih Muslim) | **Shipped** | Same basis as Sahih al-Bukhari above: author's death (261 AH) is the public-domain basis, not any OpenITI grant; JK-prefixed curated version |
 
 ## Review checklist
 

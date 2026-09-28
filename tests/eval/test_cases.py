@@ -142,16 +142,20 @@ def test_the_mutation_case_is_still_mutated(conn, hadith_cases):
 
 
 def test_texts_absent_from_the_corpus_really_are_absent(conn, hadith_cases):
-    """The two "not in this corpus" cases must not be in the corpus.
+    """The "not in this corpus" cases must not be in the corpus.
 
     Their Arabic cannot be copied out of the database -- that is the point of
-    them -- so it is the one Arabic in this suite that was typed. If either
-    string ever turns out to BE corpus text, the case is asserting the
-    opposite of what it says, so it is checked directly against every stored
-    representation rather than trusted.
+    them -- so it is Arabic in this suite that was built from explicit
+    codepoints rather than extracted from a build. If any string ever turns
+    out to BE corpus text, the case is asserting the opposite of what it
+    says, so it is checked directly against every stored representation
+    rather than trusted.
+
+    Three as of Task 11: the original two Bukhari-era cases plus
+    hadith-muslim-fabricated-attribution, the Muslim analogue.
     """
     absent = [c for c in hadith_cases if c.expect_scope_caveat]
-    assert len(absent) == 2
+    assert len(absent) == 3
     for case in absent:
         needle = case.text.strip()
         assert needle

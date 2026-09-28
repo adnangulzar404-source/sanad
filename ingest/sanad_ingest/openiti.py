@@ -33,6 +33,23 @@ _LEADING_NUMBER = re.compile(r"^\d+\s+")
 # A numbered unit whose text begins with "باب" is a chapter heading that the
 # edition happens to number, not a narration. Six of them exist in the file.
 _BAB_WORD = "باب"
+_KITAB_WORD = "كتاب"
+
+# Sahih Muslim's OpenITI file marks EVERY kitab/bab heading with a single
+# "#", not Bukhari's "###": measured against the pinned Muslim file, 1,392
+# lines start "# | 1" and 0 start "###|"; measured against the pinned
+# Bukhari file, the reverse (4,060 "###" lines, 0 "# |" lines beyond the
+# file's own "######OpenITI#" marker). "1" is a constant here, not a nesting
+# depth -- every one of the 1,392 lines has it, unlike Bukhari's pipe count,
+# which is how kitab and bab tell themselves apart there. Before this was
+# recognised, `_UNIT_START` matched these lines too (single "#") and
+# `_NUMBERED` did not (they start "|", not a digit), so every one fell into
+# the "verse inside a numbered unit" continuation guard below and was glued
+# onto whichever hadith happened to be open -- 1,353 of Muslim's 7,460 units
+# (measured) carried a swallowed heading fragment in their scored matn, and
+# kitab_no/kitab_ar/bab_ar stayed at their initial values for the entire
+# collection, because a heading line was never once recognised as one.
+_HASH_PIPE = re.compile(r"^#\s*\|\s*1\s*(.*)$")
 
 # Everything outside these ranges is flagged (never corrected) as OCR noise.
 _ALLOWED = re.compile(r"[؀-ۿ\s]")
@@ -367,6 +384,49 @@ def _strip_heading_markup(s: str) -> str:
     return _LEADING_NUMBER.sub("", s)
 
 
+def _unwrap_parens(s: str) -> str:
+    """Drop exactly one layer of wrapping parens, nothing else -- used only
+    for the "# | 1 ( ... )" lines `_heading_kind` rules are NOT a heading
+    (see its docstring). Unlike `_strip_heading_markup`, this never strips a
+    leading number: none of the measured non-heading cases carry one, and a
+    genuine one (e.g. a narrated quantity) would be matn, not markup."""
+    s = s.strip()
+    if s.startswith("("):
+        s = s[1:]
+    if s.endswith(")"):
+        s = s[:-1]
+    return s.strip()
+
+
+def _heading_kind(cleaned_content: str) -> str | None:
+    """"kitab", "bab", or None if a Muslim "# | 1 ( ... )" line's content is
+    not a heading at all.
+
+    The SAME wrapper marks 1,368 kitab/bab headings and 24 lines that are
+    not headings -- a narrator's aside ("qala fa-atamma lahu rasulu llahi ...
+    mi'a", "he said: the Messenger of God completed it for him to a
+    hundred") or a Qur'an citation ("fa-nazalat hadhihi l-aya ...") that
+    continues the narration already open. The wrapper cannot tell the two
+    apart -- both are "( ... )", sometimes with a leading number -- but the
+    first word inside it can: every one of the 1,368 opens on "kitab" (54)
+    or "bab" (1,314), and every one of the other 24 opens on ordinary prose.
+    `cleaned_content` must already be `_clean`-ed, so an embedded milestone
+    between the wrapper and the heading word (measured: four cases) is
+    already gone. Only the OPENING side is inspected -- not "is this
+    balanced" -- so a heading that spans a "~~" continuation before its
+    closing paren arrives still classifies correctly from its first line.
+    """
+    s = cleaned_content.strip()
+    if s.startswith("("):
+        s = s[1:].lstrip()
+    s = _LEADING_NUMBER.sub("", s, count=1)
+    if s.startswith(_KITAB_WORD):
+        return "kitab"
+    if s.startswith(_BAB_WORD):
+        return "bab"
+    return None
+
+
 def parse_openiti(
     raw: str,
     *,
@@ -410,20 +470,50 @@ def parse_openiti(
     # tested against _NUMBERED before being absorbed, so an actual narration
     # is never swallowed into a heading no matter how long the heading's
     # unresolved parenthesis run is.
+    #
+    # heading_kind tracks WHICH of kitab_ar/bab_ar an in-progress bab_parts
+    # span is updating. It exists for Muslim's sake (see `_HASH_PIPE` below):
+    # Bukhari's "###" marker tells kitab and bab apart by pipe count before
+    # start_heading is ever called, so for Bukhari heading_kind is always
+    # "bab" the moment bab_parts is non-None -- a kitab heading there is
+    # still handled inline, without continuation tracking, exactly as before.
     bab_parts: list[str] | None = None
     bab_balance = 0
+    heading_kind: str | None = None
 
-    def start_bab(text: str) -> None:
-        nonlocal bab_ar, bab_parts, bab_balance
+    def start_heading(kind: str, text: str) -> None:
+        nonlocal kitab_no, kitab_ar, bab_ar, bab_parts, bab_balance, heading_kind
+        heading_kind = kind
+        value = _strip_heading_markup(_clean(text)) or None
+        if kind == "kitab":
+            kitab_no += 1
+            kitab_ar, bab_ar = value, None
+        else:
+            bab_ar = value
         balance = text.count("(") - text.count(")")
-        bab_ar = _strip_heading_markup(_clean(text)) or None
         if balance <= 0:
-            bab_parts, bab_balance = None, 0
+            bab_parts, bab_balance, heading_kind = None, 0, None
         else:
             bab_parts, bab_balance = [text], balance
 
+    def absorb_heading(chunk: str) -> None:
+        """Add a continuation chunk to the in-progress bab_parts span and
+        recompute whichever of kitab_ar/bab_ar it is heading_kind says it is.
+        Shared by the "~~"-continuation path and flush()'s "#"-prefixed one,
+        so the two cannot drift into recomputing the wrong field."""
+        nonlocal kitab_ar, bab_ar, bab_parts, bab_balance, heading_kind
+        bab_parts.append(chunk)
+        bab_balance += chunk.count("(") - chunk.count(")")
+        value = _strip_heading_markup(_clean(" ".join(bab_parts))) or None
+        if heading_kind == "kitab":
+            kitab_ar = value
+        else:
+            bab_ar = value
+        if bab_balance <= 0:
+            bab_parts, bab_balance, heading_kind = None, 0, None
+
     def flush() -> None:
-        nonlocal buf, bab_ar, bab_parts, bab_balance
+        nonlocal buf, bab_parts, bab_balance, heading_kind
         if buf is None:
             return
         text, buf = " ".join(buf), None
@@ -432,17 +522,13 @@ def parse_openiti(
         if bab_parts is not None:
             if m is None:
                 # Heading continuation, not a narration -- absorb it.
-                bab_parts.append(text)
-                bab_balance += text.count("(") - text.count(")")
-                bab_ar = _strip_heading_markup(_clean(" ".join(bab_parts))) or None
-                if bab_balance <= 0:
-                    bab_parts, bab_balance = None, 0
+                absorb_heading(text)
                 return
             # A real numbered hadith starts here: the heading is done,
             # resolved or not (an unresolved case is a genuine missing
             # paren in the source -- roughly 25 of the 774 -- which no
             # amount of continuation-reading can close).
-            bab_parts, bab_balance = None, 0
+            bab_parts, bab_balance, heading_kind = None, 0, None
 
         if not m:
             return
@@ -509,23 +595,35 @@ def parse_openiti(
                 # "~~فريضة )" is one heading, "فريضة" ("obligatory") being
                 # the word that closes it. Dropping this line would lose
                 # real words, not just markup.
-                bab_parts.append(frag)
-                bab_balance += frag.count("(") - frag.count(")")
-                bab_ar = _strip_heading_markup(_clean(" ".join(bab_parts))) or None
-                if bab_balance <= 0:
-                    bab_parts, bab_balance = None, 0
+                absorb_heading(frag)
             continue
         if _SECTION.match(line):
             flush()
             if bab_parts is not None:
                 # A new section starts before the heading's paren closed --
                 # no more continuation text is coming; keep what we have.
-                bab_parts, bab_balance = None, 0
+                bab_parts, bab_balance, heading_kind = None, 0, None
             if (k := _KITAB.match(line)) is not None:
                 kitab_no += 1
                 kitab_ar, bab_ar = _strip_heading_markup(_clean(k.group(1))), None
             elif (b := _BAB.match(line)) is not None:
-                start_bab(b.group(1))
+                start_heading("bab", b.group(1))
+            continue
+        if (hp := _HASH_PIPE.match(line)) is not None:
+            content = hp.group(1)
+            kind = _heading_kind(_clean(content))
+            if kind is None:
+                # Not a heading -- a parenthesised aside that continues
+                # whatever narration is already open. See _heading_kind's
+                # docstring: the SAME "# | 1 ( ... )" envelope wraps both,
+                # and only the word inside tells them apart.
+                if buf is not None and bab_parts is None:
+                    buf.append(_unwrap_parens(content))
+                continue
+            flush()
+            if bab_parts is not None:
+                bab_parts, bab_balance, heading_kind = None, 0, None
+            start_heading(kind, content)
             continue
         if _UNIT_START.match(line):
             frag = line[2:]

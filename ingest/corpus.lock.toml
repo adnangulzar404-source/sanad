@@ -120,3 +120,39 @@ license_url      = "https://github.com/OpenITI/0275AH"
 content_sha256   = "69e95684acfde24171d29dd7ba43ff2c8f9b54ade5e3ab0a73899c06671082b7"
 expected_records = 7129
 modifications    = "mARkdown structural markers parsed and discarded; no text altered"
+
+# Hadith Arabic text: Sahih Muslim, OpenITI's JK000109 transcription.
+#
+# LEGAL BASIS: the work's own public-domain status. Muslim ibn al-Hajjaj died
+# in 261 AH / 875 CE. NOT an OpenITI licence grant -- same reasoning as the
+# Bukhari entry above: OpenITI's website states CC BY-SA, but the data
+# repository OpenITI/0275AH carries no LICENSE file, and the OpenITI/OpenITI
+# repo's MIT licence covers their Python tooling, not corpus text. Since
+# Sanad is MIT, relying on a grant we cannot point to would hand a downstream
+# commercial user the same problem the Pickthall and Bukhari entries avoid.
+# OpenITI's structural markup is parsed and discarded, so what we store is
+# the public-domain text and nothing else. See docs/SOURCES.md for the full
+# basis.
+#
+# numbering_scheme = "abdalbaqi": Muhammad Fu'ad 'Abd al-Baqi's standard
+# Muslim numbering, distinct from Bukhari's al-Bugha numbering (Task 11
+# precursor -- see the comment on `numbering_scheme` in lockfile.py).
+#
+# content_sha256/expected_records: build-measured placeholders, pinned after
+# the first measured build (see the report for this task).
+[[source]]
+id               = "openiti-muslim-jk000109"
+kind             = "hadith-arabic"
+collection       = "muslim"
+numbering_scheme = "abdalbaqi"
+format           = "openiti-markdown"
+title            = "صحيح مسلم (Sahih Muslim)"
+publisher        = "OpenITI (transcription); Dar Ihya al-Turath al-Arabi, Beirut (edition)"
+edition          = "ed. Muhammad Fu'ad 'Abd al-Baqi; OpenITI JK000109, ara1"
+url              = "https://raw.githubusercontent.com/OpenITI/0275AH/44e1c36738a2bf5c14dafa232a6ae1891e6171cd/data/0261Muslim/0261Muslim.Sahih/0261Muslim.Sahih.JK000109-ara1"
+commit           = "44e1c36738a2bf5c14dafa232a6ae1891e6171cd"
+license_id       = "public-domain"
+license_url      = "https://github.com/OpenITI/0275AH"
+content_sha256   = "32b8b949d80d22d3db81be52d8749bc191f12510c8afe19868589bc4b08605e8"
+expected_records = 7460
+modifications    = "mARkdown structural markers parsed and discarded; no text altered"

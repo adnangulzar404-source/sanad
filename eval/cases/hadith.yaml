@@ -353,3 +353,106 @@
     unscorable; applying that judgement to the narration behind it returned NOT_FOUND
     0.393 for a reader quoting the printed hadith. Unscorability is a judgement about
     one string, and this case is the other string.
+
+# --- Task 11: Sahih Muslim, the first non-Bukhari collection -----------------
+#
+# Same gate, same rules, applied to a second collection sharing this file and
+# this corpus. Every text below is either extracted byte-exact from the
+# MATERIALISED database (cases a, b, e) or built from explicit \u codepoints
+# and never hand-pasted (the fabricated saying and the editorial pointer in
+# c and d) -- the project's standing char-safety convention, restated here
+# because it is precisely as load-bearing for a second collection as it was
+# for the first.
+
+- id: hadith-muslim-famous-matn-bare
+  text: 'الدين النصيحة قلنا لمن قال لله ولكتابه ولرسوله ولائمة المسلمين وعامتهم'
+  expect_verdict: EXACT
+  expect_record: hadith:muslim:55
+  rationale: >-
+    "Religion is sincerity" -- one of Islam's most quoted maxims, Sahih Muslim's
+    own answer to "what is religion?", quoted the bare way people actually quote
+    it: no chain, no citation, no book number. The first Muslim case, and
+    deliberately the same shape as hadith-famous-matn-bare: a second collection
+    must clear the identical bar the first one did, not a weaker one because it
+    is newer.
+- id: hadith-muslim-wrong-number
+  text: 'الدين النصيحة قلنا لمن قال لله ولكتابه ولرسوله ولائمة المسلمين وعامتهم (Muslim 999)'
+  expect_verdict: WRONG_REFERENCE
+  expect_record: hadith:muslim:55
+  rationale: >-
+    The same genuine wording as the case above, cited under a number that is not
+    its own. MEASURED: WRONG_REFERENCE against hadith:muslim:55, score 1.0 --
+    the text is verbatim, so the only thing wrong is the citation, and that is
+    exactly what must be reported. Paired with hadith-right-text-wrong-number,
+    which cases the identical defect class against Bukhari.
+- id: hadith-muslim-fabricated-attribution
+  text: 'طلب العلم فريضة على كل مسلم ومسلمة'
+  expect_verdict: NOT_FOUND
+  expect_scope_caveat: true
+  rationale: >-
+    "Seeking knowledge is an obligation upon every Muslim, male and female" --
+    a saying in constant circulation, commonly attributed by memory to Sahih
+    Muslim, and not this edition's wording of anything it contains (it is a
+    narration usually traced to Ibn Majah). MEASURED: NOT_FOUND at 0.367,
+    with and without a fabricated "(Muslim 224)" citation attached -- an
+    invented citation must never manufacture a match, and the citation is left
+    off the pinned case so its text can be checked directly against every
+    stored representation (see test_texts_absent_from_the_corpus_really_are_absent)
+    rather than trusted. This is the Muslim analogue of
+    hadith-outside-this-corpus: absence from Sahih Muslim is a statement about
+    a database, not a grading of the saying, hence the scope caveat.
+- id: hadith-muslim-editorial-pointer-is-not-a-text
+  text: '«بهذا الإسناد مثله»'
+  expect_verdict: NOT_FOUND
+  rationale: >-
+    "bi-hadha al-isnad mithlahu" -- "with this chain, the like of it" -- Sahih
+    Muslim's single most common editorial back-reference, printed in place of a
+    narration that appears in full elsewhere under a different chain (108
+    records in this edition print exactly this string). The Muslim analogue of
+    hadith-editorial-pointer-is-not-a-text: a false EXACT here would be Sanad
+    telling a reader that an everyday four-word editorial gloss is a hadith of
+    the Prophet. All 721 records on `UNSCORABLE["muslim"]` are excluded by the
+    same mechanism that excludes this one.
+- id: hadith-muslim-quranic-primary-verifies-as-printed
+  text: 'لقد كان لكم في رسول الله أسوة حسنة'
+  expect_verdict: EXACT
+  expect_record: hadith:muslim:1473
+  rationale: >-
+    The Prophet's own recitation of the opening clause of Qur'an 33:21 --
+    "you have in the Messenger of Allah a good example" -- reported as a
+    hadith and printed as this edition's entire matn for 1473, with the rest
+    of the ayah not quoted. It must resolve to the hadith under its own
+    number and must not be reported as, or silently folded into, the ayah:
+    MEASURED EXACT against hadith:muslim:1473 with an empty `also_at`. The
+    Muslim analogue of hadith-quranic-primary-verifies-as-printed -- the same
+    hazard class Bukhari 4575 was built to catch (memory
+    sanad-hadith-quranic-matn-hazard), now confirmed to recur exactly as
+    predicted the moment a second collection's tafsir-adjacent chapters
+    entered the corpus.
+
+# --- R-A3-15: a common English word that is also a collection name ----------
+#
+# "muslim" reads as an ordinary English adjective far more often than it reads
+# as a citation, and Sahih Muslim's numbering now runs from 1. The risk named
+# when this rule was pinned (progress.md, Task 11 dispatch): once
+# hadith:muslim:5 existed, would ordinary prose naming "the muslim 5 pillars"
+# resolve as a citation to it and hand back a verdict about text nobody quoted?
+- id: hadith-muslim-five-pillars-prose-is-not-a-citation
+  text: 'One of the muslim 5 pillars of faith is charity.'
+  expect_no_quotation: true
+  rationale: >-
+    MEASURED, the day Sahih Muslim's numbering entered the corpus and
+    hadith:muslim:5 became a real record: `parse_citations` DOES read "muslim
+    5" here as HadithReference(collection="muslim", hadith_no="5") -- the same
+    grammar that lets "Yusuf 5" resolve to an ayah in prose, applied to a
+    collection name that also happens to be a common English word. But
+    `verify_spans` returns no match at all for this sentence: the citation
+    span is excluded from ever being offered up as a quotation (the same
+    mechanism `hadith-arabic-citation-alone-is-not-a-quotation` exercises for
+    an Arabic-script citation with nothing beside it), and there is no other
+    Arabic or guillemet-quoted text here for it to attach to. No span means no
+    verdict, so `expect_no_quotation` is the only assertion that can state
+    this without also asserting a verdict that does not exist. If a future
+    change ever lets a bare citation surface a verdict on its own, this case
+    is what would catch a reader being told something about "the muslim 5
+    pillars" that nobody quoted.

@@ -605,3 +605,48 @@
     NOT_FOUND against the fixed corpus: too small a fraction of the record's
     "full" (matn-plus-addendum) representation to score as that record, and
     not indexed as a primary text of its own.
+- id: hadith-abudawud-near-miss-gap-commentary-now-verifies
+  text: 'لا تركبوا الخز ولا النمار'
+  expect_verdict: EXACT
+  expect_record: hadith:abudawud:4129
+  rationale: >-
+    "Do not ride on khazz [silk-mixed cloth] or leopard-skin [saddle-cloths]" --
+    the well-known Prophetic wording of hadith:abudawud:4129, byte-exact from
+    the MATERIALISED database. Fix round 1's marker required the verb
+    ("qala"/"su'ila") immediately in front of "Abu Dawud"; here the source
+    reads "... qala LANA Abu Dawud ..." with one word between them, so the
+    marker never fired and this quotation returned NOT_FOUND (R-A3-22). Two
+    more nested narrator remarks ("wa-kana Mu'awiya la yuttaham fi l-hadith
+    ... qala lana Abu Sa'id ...") sat between the genuine matn and that marker
+    with no chain-transmission verb for `_split_secondary` to anchor on, and
+    needed a second, hand-audited cut (`NEAR_MISS_CUT_OVERRIDE`) to reach this
+    exact wording. MEASURED EXACT 1.0 against hadith:abudawud:4129.
+- id: hadith-abudawud-near-miss-duplicated-abu-now-verifies
+  text: 'من قطع سدرة صوب الله رأسه في النار'
+  expect_verdict: EXACT
+  expect_record: hadith:abudawud:5239
+  rationale: >-
+    "Whoever cuts a lote tree, Allah plunges his head into the Fire" -- the
+    well-known Prophetic wording of hadith:abudawud:5239, byte-exact from the
+    MATERIALISED database. The source itself prints a duplicated "abu" --
+    "su'ila ABU Abu Dawud 'an ma'na hadha l-hadith ..." -- so fix round 1's
+    marker, which required the verb immediately in front of "Abu Dawud",
+    never fired and this quotation returned NOT_FOUND (R-A3-22). The
+    one-token-gap fallback (`_ABUDAWUD_COMMENTARY_NEAR`) now finds it.
+    MEASURED EXACT 1.0 against hadith:abudawud:5239.
+- id: hadith-abudawud-lului-commentary-fused-matn-now-verifies
+  text: 'أن رسول الله صلى الله عليه وسلم رئي على جبهته وعلى أرنبته أثر طين من صلاة صلاها بالناس'
+  expect_verdict: EXACT
+  expect_record: hadith:abudawud:894
+  rationale: >-
+    hadith:abudawud:911's genuine matn -- the Prophet was seen with a trace of
+    mud from a prayer he led -- fused with a remark by Abu Ali al-Lu'lu'i, the
+    primary transmitter of Abu Dawud's own Sunan, not the compiler himself
+    ("qala Abu Ali: this hadith Abu Dawud did not read out in the fourth
+    reading [of his own book]"), and no marker existed for that voice before
+    R-A3-22's `_split_lului_commentary`. The winning record is
+    hadith:abudawud:894, not 911: the two are byte-identical apart from
+    911 carrying the now-excised remark, and the tie-break rule (lowest full
+    record id) selects 894 -- the same behaviour already proven for the
+    al-harb-khud'a duplicate (see test_real_corpus.py), not a new rule.
+    MEASURED EXACT 1.0, record hadith:abudawud:894.

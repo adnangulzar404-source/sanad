@@ -764,6 +764,13 @@ def test_the_appended_narrations_are_stored_but_never_scored(real_corpus):
     `collection == "abudawud"` and proven so by the byte-identity check in
     the fix-round report.
 
+    Fix round 2 (R-A3-22) moves this again, to 1,385: the marker's own two
+    near-misses (4129, 5239, one via a widened fallback pattern and one via a
+    second hand-audited cut-override boundary) plus 7 newly-split "qala Abu
+    Ali" remarks in Abu Ali al-Lu'lu'i's own voice (911, 1096, 1391, 3220,
+    3437, 4924, 5190) -- 9 more addendum-bearing records total, none of them
+    Bukhari or Muslim.
+
     hadith 22 is one of the three boundaries named in the fix brief: the
     primary matn ends at "...as the seed grows beside a stream", and a second
     chain ("Wuhayb said: Amr narrated to us...") follows it with a variant
@@ -778,7 +785,7 @@ def test_the_appended_narrations_are_stored_but_never_scored(real_corpus):
     conn = db.connect(out)
     n = conn.execute(
         "SELECT count(*) FROM records WHERE addenda_ar IS NOT NULL").fetchone()[0]
-    assert n == 1376
+    assert n == 1385
     rec = db.get_record(conn, "hadith:bukhari:22")
     assert rec.addenda_ar and _HADDATHANA in rec.addenda_ar
     assert _HADDATHANA not in rec.text_ar
@@ -814,6 +821,13 @@ def test_no_addendum_reaches_the_primary_representation(real_corpus):
     an addendum the same way. The two counts are asserted separately rather
     than relaxed into one, so that a record silently falling out of the index
     cannot hide inside this total.
+
+    1,344, not 1,335, after fix round 2 (R-A3-22): the unscorable-with-
+    addendum count itself is unchanged at 41 -- none of the 9 newly
+    addendum-bearing records (see the test above) is also unscorable, so
+    every one of them adds a row here. Confirmed directly, not by arithmetic
+    alone: `41` was re-measured against the round-2 DB before this docstring
+    was written.
     """
     out, _, _ = real_corpus
     conn = db.connect(out)
@@ -825,7 +839,7 @@ def test_no_addendum_reaches_the_primary_representation(real_corpus):
         "       f.norm_aggressive FROM records r"
         " JOIN records_fts f ON f.record_id = r.id AND f.variant = 'primary'"
         " WHERE r.addenda_ar IS NOT NULL").fetchall()
-    assert len(rows) == 1335
+    assert len(rows) == 1344
     for row in rows:
         assert row["addenda_ar"] not in row["text_ar"], row["id"]
         for form in ("standard", "aggressive"):
@@ -851,7 +865,7 @@ def test_the_full_printed_text_is_scored_alongside_the_primary(real_corpus):
         "       v.norm_aggressive FROM records r"
         " LEFT JOIN record_variants v ON v.record_id = r.id"
         " WHERE r.addenda_ar IS NOT NULL").fetchall()
-    assert len(rows) == 1376
+    assert len(rows) == 1385
     checked = 0
     for row in rows:
         # 237 (and Task 11's Muslim 1915-3, 546-3, and fix round 1's 41
@@ -863,7 +877,7 @@ def test_the_full_printed_text_is_scored_alongside_the_primary(real_corpus):
         for form in ("light", "standard", "aggressive"):
             assert row[f"norm_{form}"] == normalize(row["whole"], form), row["id"]
         checked += 1
-    assert checked == 1376
+    assert checked == 1385
 
 
 def test_a_record_with_no_addendum_has_no_second_representation(real_corpus):

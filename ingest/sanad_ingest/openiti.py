@@ -362,6 +362,34 @@ def _apply_cut_override(matn: str, addenda: str | None, record_id: str,
 _ABUDAWUD_COMMENTARY = re.compile(
     rf"(?<![{_ARABIC}])[وف]?(?:قال|سئل)\s+أبو\s+داود(?![{_ARABIC}])")
 
+# R-A3-22 (Task 12 fix round 2): two records have exactly ONE word between the
+# verb and the compiler's name, so the marker above never fires on them at
+# all -- 4129 ("... qala LANA Abu Dawud abu al-Mu'tamir ismuhu ...", a later
+# transmitter's "Abu Dawud told us", the "lana" reporting it) and 5239 ("...
+# su'ila ABU Abu Dawud 'an ma'na hadha l-hadith ...", a duplicated "abu" in
+# the source itself, not a second name). A dedicated per-record sweep of every
+# unit in the file -- comparing the tight marker above against a one-token-gap
+# widening, record by record, not a raw match count (which double-counts runs
+# like "... qala QALA Abu Dawud ..." at 1741/3596, see below) -- found these
+# two and no others: every other record either already matches the tight
+# marker or matches nothing even with the gap.
+#
+# This is deliberately a FALLBACK, tried only when the tight marker finds no
+# match anywhere in the matn, never a replacement for it or an alternation
+# joined into one pattern. 1741 and 3596 both read "... qala QALA Abu Dawud
+# ..." -- two verbs in a row, the outer one plain reported speech ("... shakka
+# 'Abd Allah ayyatuhuma QALA", "which of the two, he said"), the inner one the
+# genuine marker. The tight marker already finds the inner, correct
+# occurrence in both. A single widened regex would have let `re.search`'s
+# leftmost-match rule jump to the OUTER "qala" instead (it also satisfies a
+# one-token gap, by treating the inner "qala" as the filler token) and pulled
+# that extra word out of the narration and into addenda -- an over-cut this
+# fix must not introduce while fixing an under-cut. Trying the tight pattern
+# first and only falling back when it finds nothing keeps those two records
+# byte-for-byte as they already were.
+_ABUDAWUD_COMMENTARY_NEAR = re.compile(
+    rf"(?<![{_ARABIC}])[وف]?(?:قال|سئل)\s+\S+\s+أبو\s+داود(?![{_ARABIC}])")
+
 
 def _split_compiler_commentary(matn: str, addenda: str | None
                                ) -> tuple[str, str | None]:
@@ -375,6 +403,8 @@ def _split_compiler_commentary(matn: str, addenda: str | None
     """
     m = _ABUDAWUD_COMMENTARY.search(matn)
     if m is None:
+        m = _ABUDAWUD_COMMENTARY_NEAR.search(matn)
+    if m is None:
         return matn, addenda
     head = matn[: m.start()].rstrip()
     if not head:
@@ -383,6 +413,57 @@ def _split_compiler_commentary(matn: str, addenda: str | None
         # on the same principle as _split_secondary's one-word guard: an
         # empty scored text is worse than the fused-commentary bug this
         # function exists to fix.
+        return matn, addenda
+    tail = matn[m.start() :]
+    return head, tail if addenda is None else f"{tail} {addenda}"
+
+
+# --- Abu Ali al-Lu'lu'i's own voice (Task 12 fix round 2, ruling R-A3-22) ---
+#
+# The same defect class -- post-matn editorial prose fused into the scored
+# matn, with no structural marker -- but a different speaker: Abu Ali
+# al-Lu'lu'i, the primary transmitter of Abu Dawud's own Sunan, remarking
+# about Abu Dawud or about an isnad. "qala Abu Ali" occurs 10 times in the
+# file (read individually, not sampled):
+#
+#   - 7 are a plain post-matn remark with nothing genuine trailing it --
+#     911, 1096, 1391, 3220, 3437, 4924, 5190 -- correctly cut by the same
+#     mechanism as the compiler's own commentary.
+#   - 2 already sit entirely inside an addendum some earlier cut produced
+#     (3040, inside `_split_compiler_commentary`'s own tail; 5113, inside
+#     `_split_secondary`'s), so this function's search over `matn` is
+#     already a no-op for them -- nothing further to do.
+#   - 1, hadith:abudawud:4068, is the one genuine exception, on
+#     `audit_lists.LULUI_NEVER_CUT`: "qala Abu Ali al-Lu'lu'i arahu wa-'alayya
+#     thawb..." sits IN THE MIDDLE of a single narration ("the Messenger of
+#     Allah saw me ..."), not after it -- Abu Ali is glossing an uncertain
+#     detail mid-narration, and the narration's own punchline ("why didn't
+#     you give it to your family instead?") depends on the clause a naive cut
+#     would discard into addenda. Read by hand; excluded, not patched around.
+#
+# 911's own duplicate, 894, is byte-identical apart from carrying no such
+# remark -- confirming this is the same fused-commentary shape, not
+# narration.
+_ABUDAWUD_LULUI = re.compile(
+    rf"(?<![{_ARABIC}])[وف]?قال\s+أبو\s+علي(?![{_ARABIC}])")
+
+
+def _split_lului_commentary(matn: str, addenda: str | None, record_id: str,
+                            never_cut: dict[str, tuple[str, str]]
+                            ) -> tuple[str, str | None]:
+    """Cut Abu Ali al-Lu'lu'i's own remark from a matn, same shape as
+    `_split_compiler_commentary` but for a different speaker's voice, and
+    honouring a dedicated do-not-cut audit list (see `_ABUDAWUD_LULUI` above)
+    for the one record where the marker sits inside the narration, not after
+    it.
+    """
+    if _audited_never_cut(record_id, matn, never_cut):
+        return matn, addenda
+    m = _ABUDAWUD_LULUI.search(matn)
+    if m is None:
+        return matn, addenda
+    head = matn[: m.start()].rstrip()
+    if not head:
         return matn, addenda
     tail = matn[m.start() :]
     return head, tail if addenda is None else f"{tail} {addenda}"
@@ -413,6 +494,44 @@ def full_text(unit: HadithUnit) -> str:
     is_cut_away` proves that against the raw file, not against the parser.
     """
     return full_text_from_parts(unit.matn_ar, unit.addenda_ar)
+
+
+def find_near_misses(units: list["HadithUnit"], configured: re.Pattern[str],
+                     sweep: re.Pattern[str]) -> list[str]:
+    """Record ids whose printed text (matn and addendum rejoined, so a marker
+    already cut into an addendum by an unrelated mechanism still counts) is
+    matched by `sweep` but not by `configured`.
+
+    Not a fix -- a reusable AUDIT, exactly like `NEVER_CUT`/`UNSCORABLE`/
+    `CUT_OVERRIDE`: it never changes what gets cut, only surfaces candidates
+    a human has not yet read. `configured` is whatever the collection's
+    shipped marker actually matches today (a single pattern, or several
+    joined with `|`); `sweep` is a DELIBERATELY widened variant of the same
+    marker, used only for this audit, never for the real split.
+
+    Task 12 fix round 1 shipped `_ABUDAWUD_COMMENTARY` (R-A3-18) without this
+    check and missed two records where the marker needed one more token of
+    slack (R-A3-22, `hadith:abudawud:4129`/`5239`) -- found by an outside
+    review, not by the build. Running this per collection, per marker,
+    whenever a marker is added or widened is how that class of miss gets
+    caught before shipping instead of after: R-A3-22 also used it to find
+    `hadith:abudawud:2237` for the `_ABUDAWUD_LULUI` marker, a narrator's
+    kunya ("Abu Ali al-Hanafi") that must NOT be cut, proving the audit finds
+    both shapes -- a genuine gap and a correct exclusion -- and leaves the
+    judgement to the person reading the result, not to the sweep itself.
+
+    Every call site should assert against a PINNED list of already-read
+    record ids (see `tests/ingest/test_real_corpus.py`), not merely that the
+    result is empty: a collection like Abu Ali's narrator name can have a
+    permanent, audited non-empty result, and a silently-added new entry is
+    exactly the thing this function exists to catch.
+    """
+    hits = []
+    for u in units:
+        text = full_text_from_parts(u.matn_ar, u.addenda_ar)
+        if configured.search(text) is None and sweep.search(text) is not None:
+            hits.append(u.record_id)
+    return sorted(hits)
 
 
 def _unscorable_reason(record_id: str, matn: str,
@@ -548,6 +667,8 @@ def parse_openiti(
     never_cut: dict[str, tuple[str, str]] | None = None,
     unscorable: dict[str, tuple[str, str]] | None = None,
     cut_override: dict[str, tuple[str, int]] | None = None,
+    lului_never_cut: dict[str, tuple[str, str]] | None = None,
+    near_miss_cut_override: dict[str, tuple[str, int]] | None = None,
 ) -> ParsedOpeniti:
     # None-then-resolve rather than a mutable dict default, and resolved
     # against `collection`: NEVER_CUT/UNSCORABLE are keyed by collection, so
@@ -563,6 +684,11 @@ def parse_openiti(
         unscorable = audit_lists.UNSCORABLE.get(collection, {})
     if cut_override is None:
         cut_override = audit_lists.CUT_OVERRIDE.get(collection, {})
+    if lului_never_cut is None:
+        lului_never_cut = audit_lists.LULUI_NEVER_CUT.get(collection, {})
+    if near_miss_cut_override is None:
+        near_miss_cut_override = audit_lists.NEAR_MISS_CUT_OVERRIDE.get(
+            collection, {})
 
     end = raw.find(_HEADER_END)
     if end == -1:
@@ -711,6 +837,18 @@ def parse_openiti(
             # never marked a boundary for either, and the marker search is a
             # no-op -- returns matn/addenda unchanged -- when absent.
             matn, addenda = _split_compiler_commentary(matn, addenda)
+            # 4129's near-miss cut (see NEAR_MISS_CUT_OVERRIDE) leaves two
+            # more nested "qala <name>" attributions fused onto the genuine
+            # matn -- a no-op for every other record, since the table holds
+            # exactly the one hand-read entry.
+            matn, addenda = _apply_cut_override(
+                matn, addenda, record_id, near_miss_cut_override)
+            # Al-Lu'lu'i's voice, same treatment, run second: 3040's "qala
+            # Abu Ali" already lives inside the tail the line above just cut,
+            # so by the time this runs it is a no-op for that record, not a
+            # double cut.
+            matn, addenda = _split_lului_commentary(
+                matn, addenda, record_id, lului_never_cut)
 
         units.append(
             HadithUnit(

@@ -220,13 +220,19 @@ def test_the_full_printed_text_of_every_cut_record_verifies():
     marker records were already cut by `_split_secondary`; some of the 36
     newly-excluded primaries are among the 806) in ways not worth re-deriving
     on top of a number the build itself reports.
+
+    Fix round 2 (R-A3-22): 1,344. `_ABUDAWUD_COMMENTARY_NEAR` (the one-token-
+    gap fallback) and `_split_lului_commentary` (Abu Ali al-Lu'lu'i's own
+    voice, the same defect class, a different speaker) together add 9 more
+    scorable cut records: `hadith:abudawud:4129`, `5239`, `911`, `1096`,
+    `1391`, `3220`, `3437`, `4924`, `5190`. 1,335 + 9 = 1,344.
     """
     from sanad.verify.engine import Verdict, verify_spans
     conn = db.connect(DB_PATH)
     rows = conn.execute(
         "SELECT id, text_ar, addenda_ar FROM records"
         " WHERE addenda_ar IS NOT NULL AND unscorable_reason IS NULL").fetchall()
-    assert len(rows) == 1335
+    assert len(rows) == 1344
     failures = []
     for row in rows:
         for quoted in (row["text_ar"], row["text_ar"] + " " + row["addenda_ar"]):
@@ -342,13 +348,18 @@ def test_the_index_holds_one_row_per_scorable_representation():
     test_abudawud_record_count_and_scorability below) and which records carry
     a second representation (69 -> 1,376 corpus-wide, since almost every one
     of the 806 marker records gains an addendum where most had none before).
+
+    Fix round 2 (R-A3-22) moves these to (25222, 1385, 26607): scorable is
+    unchanged (no record's scorability changes, only where 9 more primaries
+    are cut), variants gains the same 9 records as
+    `test_the_full_printed_text_of_every_cut_record_verifies` above.
     """
     conn = db.connect(DB_PATH)
     scorable = conn.execute(
         "SELECT count(*) FROM records WHERE unscorable_reason IS NULL").fetchone()[0]
     variants = conn.execute("SELECT count(*) FROM record_variants").fetchone()[0]
     indexed = conn.execute("SELECT count(*) FROM records_fts").fetchone()[0]
-    assert (scorable, variants, indexed) == (25222, 1376, 26598)
+    assert (scorable, variants, indexed) == (25222, 1385, 26607)
 
 
 # --- C1: nothing scorable as a hadith is wholly a Qur'anic quotation --------
@@ -413,6 +424,14 @@ def test_no_scorable_hadith_representation_is_wholly_quranic():
     total -- and materialize.py's own gate caught a second genuine
     wholly-Qur'anic report this round surfaced, hadith:abudawud:3980 (see
     audit_lists.py's `_QURANIC_QUOTE` group). The sweep is still zero.
+
+    Fix round 2 (R-A3-22) moves the representation count to 20,371 (1,385
+    full-text representations corpus-wide instead of 1,376; scorable primary
+    count unchanged). The sweep is still zero: none of the 9 newly-cut
+    primaries or their newly-added full-text representations is wholly
+    Qur'anic -- every one is either a well-known Prophetic saying (4129,
+    5239) or a narrator's/transmitter's remark, neither of which the sweep
+    would expect to find inside a surah.
     """
     conn = db.connect(DB_PATH)
     blobs = _quran_blobs(conn)
@@ -423,7 +442,7 @@ def test_no_scorable_hadith_representation_is_wholly_quranic():
     reps += [(r["record_id"], r["variant"], r["norm_standard"]) for r in conn.execute(
         "SELECT v.record_id, v.variant, v.norm_standard FROM record_variants v"
         " JOIN records r ON r.id = v.record_id")]
-    assert len(reps) == 20362, "the sweep stopped covering what it was written for"
+    assert len(reps) == 20371, "the sweep stopped covering what it was written for"
     offenders = [(rid, variant) for rid, variant, norm in reps
                  if norm.strip() and any(f" {norm} " in b for b in blobs)]
     assert offenders == []
@@ -663,6 +682,11 @@ def test_exactly_one_hadith_representation_sits_inside_an_ayah():
     representations corpus-wide instead of 69) without moving either list:
     re-run against the fixed build, still no Abu Dawud representation -- new
     or old -- sits inside an ayah at either tier.
+
+    Fix round 2 (R-A3-22) moves the representation count to 20,371 (1,385
+    full-text representations corpus-wide instead of 1,376) without moving
+    either list: re-run against the fixed build, none of the 9 newly-cut Abu
+    Dawud records sits inside an ayah at either tier.
     """
     from sanad.verify.engine import _ayat_containing, _contains_at
     conn = db.connect(DB_PATH)
@@ -673,7 +697,7 @@ def test_exactly_one_hadith_representation_sits_inside_an_ayah():
         "SELECT v.record_id, v.variant, v.text_ar FROM record_variants v"
         " JOIN records r ON r.id = v.record_id WHERE r.kind = 'hadith'"
     ).fetchall()
-    assert len(reps) == 20362, len(reps)
+    assert len(reps) == 20371, len(reps)
 
     withheld, disclosed = [], []
     for rep in reps:
@@ -758,6 +782,18 @@ def test_abudawud_record_count_and_scorability():
     out to be editorial apparatus (pointer/deferral/an editorial remark about
     a wording variant/two wholly-Qur'anic qira'a reports) and joined
     `UNSCORABLE["abudawud"]`; 103 + 36 = 139.
+
+    139 unscorable (unchanged) and 871 cut, fix round 2 (R-A3-22): the marker
+    missed two records where a word intervened between the verb and "Abu
+    Dawud" (`_ABUDAWUD_COMMENTARY_NEAR`, `hadith:abudawud:4129`/`5239`) --
+    4129 also needed `NEAR_MISS_CUT_OVERRIDE` for a nested attribution the
+    widened marker alone did not reach -- and Abu Ali al-Lu'lu'i's own voice
+    turned out to be the same defect, a different speaker
+    (`_split_lului_commentary`, 7 more records: 911, 1096, 1391, 3220, 3437,
+    4924, 5190). 862 + 2 + 7 = 871. Unscorable is unchanged because every
+    newly-cut primary is a genuine, complete, quotable matn -- see
+    `tests/ingest/test_real_corpus.py`'s fix-round-2 section below for each
+    one verified against the materialized DB.
     """
     conn = db.connect(DB_PATH)
     total = conn.execute(
@@ -772,7 +808,7 @@ def test_abudawud_record_count_and_scorability():
     cut = conn.execute(
         "SELECT count(*) FROM records WHERE kind='hadith' AND collection='abudawud'"
         " AND addenda_ar IS NOT NULL").fetchone()[0]
-    assert (total, scorable, unscorable, cut) == (5274, 5135, 139, 862)
+    assert (total, scorable, unscorable, cut) == (5274, 5135, 139, 871)
 
 
 # Three spot-checked Abu Dawud matns, read BYTE-EXACT from the materialized
@@ -961,3 +997,165 @@ def test_the_truncated_stub_is_not_verified_as_a_hadith():
     whole = verify_spans(conn, f"«{rec.text_ar}»")
     assert whole[0].verdict is Verdict.EXACT
     assert whole[0].record.id == "hadith:muslim:36"
+
+
+# --- Task 12 fix round 2 (R-A3-22): the marker's two near-misses, plus a ----
+# different speaker's own voice ------------------------------------------
+
+# "la tarkabu l-khazz wa-la l-nimar" -- "do not ride on khazz [silk-mixed
+# cloth] or leopard-skin [saddle-cloths]." hadith:abudawud:4129's genuine
+# matn. Fix round 1's marker required the verb immediately in front of "Abu
+# Dawud"; the source here reads "... qala LANA Abu Dawud ..." with one word
+# between them, so the marker never fired and this returned NOT_FOUND. Two
+# further nested "qala <name>" remarks sat between the genuine matn and that
+# marker, with no chain-transmission verb for `_split_secondary` to anchor
+# on -- `NEAR_MISS_CUT_OVERRIDE` is the hand-audited second cut that reaches
+# this exact wording.
+_ABUDAWUD_4129_MATN = "".join(chr(c) for c in (
+    0x0644, 0x0627, 0x0020, 0x062A, 0x0631, 0x0643, 0x0628, 0x0648, 0x0627,
+    0x0020, 0x0627, 0x0644, 0x062E, 0x0632, 0x0020, 0x0648, 0x0644, 0x0627,
+    0x0020, 0x0627, 0x0644, 0x0646, 0x0645, 0x0627, 0x0631))
+
+# "man qata'a sidratan sawwaba Allahu ra'sahu fi l-nar" -- "whoever cuts a
+# lote tree, Allah plunges his head into the Fire." hadith:abudawud:5239's
+# genuine matn. The source itself prints a duplicated "abu" -- "su'ila ABU
+# Abu Dawud 'an ma'na hadha l-hadith ..." -- so the tight marker never fired.
+_ABUDAWUD_5239_MATN = "".join(chr(c) for c in (
+    0x0645, 0x0646, 0x0020, 0x0642, 0x0637, 0x0639, 0x0020, 0x0633, 0x062F,
+    0x0631, 0x0629, 0x0020, 0x0635, 0x0648, 0x0628, 0x0020, 0x0627, 0x0644,
+    0x0644, 0x0647, 0x0020, 0x0631, 0x0623, 0x0633, 0x0647, 0x0020, 0x0641,
+    0x064A, 0x0020, 0x0627, 0x0644, 0x0646, 0x0627, 0x0631))
+
+
+def test_the_two_near_miss_gap_records_now_verify():
+    """4129 and 5239: the marker's own near-misses, not on Task 12's original
+    792-record population (the marker never matched their fused text_ar
+    either, before or after fix round 1), found instead by an outside review
+    sweeping for the verb within a few tokens of the compiler's name.
+    """
+    from sanad.verify.engine import Verdict, verify_spans
+    conn = db.connect(DB_PATH)
+    assert db.get_record(conn, "hadith:abudawud:4129").text_ar == _ABUDAWUD_4129_MATN
+    assert db.get_record(conn, "hadith:abudawud:5239").text_ar == _ABUDAWUD_5239_MATN
+    for record_id, matn in (("hadith:abudawud:4129", _ABUDAWUD_4129_MATN),
+                            ("hadith:abudawud:5239", _ABUDAWUD_5239_MATN)):
+        matches = verify_spans(conn, f"«{matn}»")
+        assert len(matches) == 1, record_id
+        assert matches[0].verdict is Verdict.EXACT, record_id
+        assert matches[0].record.id == record_id, record_id
+
+
+# "anna rasula Llahi ... ru'iya 'ala jabhatihi wa-'ala arnabatihi atharu tinin
+# min salatin sallaha bi-l-nas" -- "the Messenger of Allah was seen, on his
+# forehead and the tip of his nose, the trace of mud from a prayer he had led
+# the people in." hadith:abudawud:911's genuine matn, fused with a remark by
+# Abu Ali al-Lu'lu'i -- the primary transmitter of Abu Dawud's own Sunan, not
+# the compiler himself -- for which no marker existed before this fix round.
+# hadith:abudawud:894 prints the identical matn with no such remark, proving
+# this is the same fused-commentary shape and not a difference in narration.
+_ABUDAWUD_911_MATN = "".join(chr(c) for c in (
+    0x0623, 0x0646, 0x0020, 0x0631, 0x0633, 0x0648, 0x0644, 0x0020, 0x0627,
+    0x0644, 0x0644, 0x0647, 0x0020, 0x0635, 0x0644, 0x0649, 0x0020, 0x0627,
+    0x0644, 0x0644, 0x0647, 0x0020, 0x0639, 0x0644, 0x064A, 0x0647, 0x0020,
+    0x0648, 0x0633, 0x0644, 0x0645, 0x0020, 0x0631, 0x0626, 0x064A, 0x0020,
+    0x0639, 0x0644, 0x0649, 0x0020, 0x062C, 0x0628, 0x0647, 0x062A, 0x0647,
+    0x0020, 0x0648, 0x0639, 0x0644, 0x0649, 0x0020, 0x0623, 0x0631, 0x0646,
+    0x0628, 0x062A, 0x0647, 0x0020, 0x0623, 0x062B, 0x0631, 0x0020, 0x0637,
+    0x064A, 0x0646, 0x0020, 0x0645, 0x0646, 0x0020, 0x0635, 0x0644, 0x0627,
+    0x0629, 0x0020, 0x0635, 0x0644, 0x0627, 0x0647, 0x0627, 0x0020, 0x0628,
+    0x0627, 0x0644, 0x0646, 0x0627, 0x0633))
+
+
+def test_the_lului_fused_matn_verifies_via_its_byte_identical_sibling():
+    from sanad.verify.engine import Verdict, verify_spans
+    conn = db.connect(DB_PATH)
+    assert db.get_record(conn, "hadith:abudawud:911").text_ar == _ABUDAWUD_911_MATN
+    assert db.get_record(conn, "hadith:abudawud:894").text_ar == _ABUDAWUD_911_MATN
+    matches = verify_spans(conn, f"«{_ABUDAWUD_911_MATN}»")
+    assert len(matches) == 1
+    assert matches[0].verdict is Verdict.EXACT
+    # Byte-identical duplicate, lowest-id tie-break: 894, not 911 -- the same
+    # rule already proven for the al-harb-khud'a duplicate above, applied to
+    # a pair this fix round created rather than one the original ingest did.
+    assert matches[0].record.id == "hadith:abudawud:894"
+    assert matches[0].also_at == ["hadith:abudawud:911"]
+
+
+# --- Task 12 fix round 2 (R-A3-22): the reusable near-miss detector ---------
+#
+# `find_near_misses` (openiti.py) is a reusable AUDIT: run a collection's
+# shipped marker against a deliberately widened variant of the same marker,
+# over the collection's real printed text, and report every record the
+# widened variant finds that the shipped one does not. It never changes what
+# gets cut -- it only surfaces candidates a human has not yet read.
+#
+# Both calls below are PINNED to an exact, already-read result, not merely
+# asserted empty: an unexpectedly non-empty (or newly-grown) result is
+# exactly the class of miss R-A3-22 found by outside review instead of by the
+# build, and a test that only asserted "no new near-misses" would go on
+# passing the moment a genuinely new one appeared, the same way the shipped
+# tight marker went on passing for 4129 and 5239.
+#
+# The window (one intervening token) is deliberately NOT widened further:
+# gaps of 2, 3 and 4 tokens were swept by hand during this fix round and
+# added no further genuine record beyond the two already fixed (see the
+# task-12 report's fix-round-2 section for the full sweep). A wider window
+# than the fix actually needs is exactly the over-cut risk this whole round
+# exists to avoid.
+
+
+def _real_abudawud_units():
+    from pathlib import Path
+
+    from sanad_ingest.fetch import fetch_source
+    from sanad_ingest.lockfile import load_lockfile
+    from sanad_ingest.openiti import parse_openiti
+
+    sources = {s.id: s for s in load_lockfile(Path("ingest/corpus.lock.toml"))}
+    locked = sources["openiti-abudawud-jk000142"]
+    raw = fetch_source(locked, Path(".corpus-cache"))
+    return parse_openiti(raw, collection="abudawud").units
+
+
+def test_no_unaudited_near_miss_for_the_abudawud_compiler_marker():
+    """R-A3-22's own detector, committed: sweep the real corpus for any
+    "<verb> <=1-token-gap> Abu Dawud" the shipped marker (tight, or the
+    one-token fallback) does not already catch. Clean: both records the
+    fallback exists for are matched by the CONFIGURED pattern itself, so
+    `find_near_misses` (which only reports what `configured` misses) has
+    nothing left to find even at a four-token sweep.
+    """
+    import re
+
+    from sanad_ingest.openiti import (
+        _ABUDAWUD_COMMENTARY, _ABUDAWUD_COMMENTARY_NEAR, _ARABIC,
+        find_near_misses)
+
+    configured = re.compile(
+        f"{_ABUDAWUD_COMMENTARY.pattern}|{_ABUDAWUD_COMMENTARY_NEAR.pattern}")
+    sweep = re.compile(
+        rf"(?<![{_ARABIC}])[وف]?(?:قال|سئل)(?:\s+\S+){{0,4}}\s+أبو\s+داود"
+        rf"(?![{_ARABIC}])")
+    assert find_near_misses(_real_abudawud_units(), configured, sweep) == []
+
+
+def test_the_abudawud_lului_near_miss_is_found_and_correctly_excluded():
+    """The same sweep for `_ABUDAWUD_LULUI`, deliberately NOT widened in the
+    shipped marker: `hadith:abudawud:2237` is a genuine near-miss the sweep
+    finds ("... qala nasr akhbarani ABU ALI al-hanafi ..."), but "Abu Ali
+    al-Hanafi" here is a NARRATOR'S NAME inside a fresh isnad `_split_
+    secondary` already cut into this record's own addendum, not Abu Ali
+    al-Lu'lu'i's voice -- read by hand, correctly left unmatched. Pinned to
+    exactly this one record: the detector finding it and a human reading it
+    out is what this test proves, not that the collection has zero near
+    misses.
+    """
+    import re
+
+    from sanad_ingest.openiti import _ABUDAWUD_LULUI, _ARABIC, find_near_misses
+
+    sweep = re.compile(
+        rf"(?<![{_ARABIC}])[وف]?قال(?:\s+\S+){{0,4}}\s+أبو\s+علي(?![{_ARABIC}])")
+    assert find_near_misses(_real_abudawud_units(), _ABUDAWUD_LULUI, sweep) == [
+        "hadith:abudawud:2237",
+    ]

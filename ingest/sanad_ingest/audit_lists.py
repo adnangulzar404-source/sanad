@@ -164,6 +164,70 @@ CUT_OVERRIDE: dict[str, dict[str, tuple[str, int]]] = {
     },
 }
 
+# --- hand-corrected cut, second stage (Task 12 fix round 2, ruling R-A3-22) -
+#
+# Widening `_ABUDAWUD_COMMENTARY` to a one-token gap (see `openiti.py`'s
+# `_ABUDAWUD_COMMENTARY_NEAR`) finds hadith:abudawud:4129's marker -- "qala
+# LANA Abu Dawud" -- but that alone is not enough: the source prints TWO more
+# "qala <name>" attributions in front of it, an isnad-linked narrator vouching
+# for Mu'awiya's reliability and then a further transmitter, neither of them
+# introduced by a chain-transmission verb `_split_secondary` would ever
+# anchor on ("qala wa-kana Mu'awiya la yuttaham fi l-hadith 'an Rasul Allah
+# ... qala lana Abu Sa'id qala lana Abu Dawud ..."). Left alone, the near-miss
+# cut still leaves "la tarkabu l-khazz wa-la l-nimar QALA WA-KANA MU'AWIYA LA
+# YUTTAHAM ... QALA LANA ABU SA'ID" as the scored matn -- the well-known
+# Prophetic saying plus two more narrators' asides fused onto it, which is
+# the SAME defect this whole fix round exists to close, one level further
+# back. This is exactly `CUT_OVERRIDE`'s "nested reported speech" shape
+# above, at a different call site (after `_split_compiler_commentary`, not
+# after `_split_secondary`), which is why it is a separate dict: its digest
+# is of the matn as it stands after that split, not before it, and reusing
+# one dict keyed by the same record id at two pipeline stages with two
+# different expected digests would make one of the checks raise every build.
+# The value has the same shape as `CUT_OVERRIDE`: (sha256-of-the-primary-
+# after-the-compiler-commentary-split, count-of-trailing-tokens-to-move).
+NEAR_MISS_CUT_OVERRIDE: dict[str, dict[str, tuple[str, int]]] = {
+    "abudawud": {
+        "hadith:abudawud:4129":
+            ("f5638b9dd3517aabb7a92e055bb6ad366aa01371bd6e3e533cda4eb8a3dc294e", 18),
+    },
+}
+
+# --- Abu Ali al-Lu'lu'i's own voice: the one do-not-cut exception -----------
+# (Task 12 fix round 2, ruling R-A3-22)
+#
+# A dedicated dict, not a reuse of `NEVER_CUT` below: `NEVER_CUT` is checked
+# by `_audited_never_cut` against the matn as it stands BEFORE
+# `_split_secondary` runs, but this entry's digest is of the matn as it
+# stands AFTER `_split_compiler_commentary` has already run (see
+# `openiti.py`'s `flush()`) -- a different string at a different pipeline
+# stage. Reusing one dict keyed by the same record id for both checks would
+# make one of the two raise a spurious "text has drifted" error every build.
+#
+# hadith:abudawud:4068: "qala rani rasul Allah ... qala Abu Ali al-Lu'lu'i
+# arahu wa-'alayya thawb musbagh bi-'usfur mawrad fa-qala ma hadha
+# fa-intalaqtu fa-ahraqtuhu ..." -- Abu Ali's remark sits IN THE MIDDLE of a
+# single narration, glossing which colour word the garment was described
+# with, not commenting on the hadith after it ends. The narration's own
+# continuation ("the Prophet said: what did you do with your garment? I
+# said: I burned it. He said: why didn't you give it to some of your family
+# instead?") only makes sense with Abu Ali's clause still attached -- cutting
+# here would leave "the Messenger of Allah saw me" as the entire scored matn
+# and discard the rest of the hadith into addenda. Read by hand against the
+# source; excluded, not patched around.
+_LULUI_MID_NARRATION = (
+    "mid-narration parenthetical: Abu Ali al-Lu'lu'i's remark sits inside a "
+    "single narration, not after it, and the narration's own continuation "
+    "depends on the clause the naive cut would discard")
+
+LULUI_NEVER_CUT: dict[str, dict[str, tuple[str, str]]] = {
+    "abudawud": {
+        "hadith:abudawud:4068":
+            ("31e484c9d5b9cf0d8706075599f8a2e2f1136fa8efc848f9e5725e17dbd6b77a",
+             _LULUI_MID_NARRATION),
+    },
+}
+
 NEVER_CUT: dict[str, dict[str, tuple[str, str]]] = {
     "bukhari": {
         # "The Prophet passed by a man." The man praying two rak'as after the

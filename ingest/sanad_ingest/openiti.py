@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import hashlib
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from . import audit_lists
@@ -982,8 +983,12 @@ _NASAI_COMMENTARY, _NASAI_COMMENTARY_NEAR, _NASAI_HEARD = \
 _NASAI_FORMULA = re.compile(
     rf"(?<![{_ARABIC}])[وف]?(?:خالفه(?:ما|م)?|وافقه(?:ما)?|تابعه|أرسله|رفعه|"
     rf"وقفه|أوقفه|أسنده|مرسل|موقوفا|هذا\s+خطأ|هذا\s+حديث|هذا\s+الصواب|"
-    rf"لم\s+يسمع(?:ه)?|لم\s+يرفعه)(?![{_ARABIC}])"
-    rf"|(?<![{_ARABIC}])والصواب(?![{_ARABIC}])")
+    rf"لم\s+يسمع(?:ه)?|لم\s+يرفعه|مختصر|لم\s+يذكر|رواه|روى|"
+    rf"اختلف\s+(?:على|عليه(?:ما)?))"
+    rf"(?![{_ARABIC}])"
+    rf"|(?<![{_ARABIC}])والصواب(?![{_ARABIC}])"
+    rf"|(?<![{_ARABIC}])[وف]?اللفظ\s+ل"
+    rf"|(?<![{_ARABIC}])غير\s+محفوظ(?![{_ARABIC}])")
 
 
 _COMPILER_MARKERS: dict[
@@ -1135,7 +1140,7 @@ def _fix_nasai_400_isnad_matn_split(
             "Read the record in the source, decide the boundary again, and "
             "update or remove the override.")
     attributions = list(_ATTRIBUTION.finditer(isnad))
-    new_isnad = isnad[: attributions[1].start()].rstrip()
+    new_isnad = isnad[: attributions[1].end()].rstrip()
     new_matn = isnad[attributions[1].end() : attributions[2].start()].strip()
     tail_from_isnad = isnad[attributions[2].start() :].strip()
     new_addenda = f"{tail_from_isnad} {matn}" if addenda is None \
@@ -1299,6 +1304,70 @@ def find_near_misses(units: list["HadithUnit"], configured: re.Pattern[str],
     return sorted(hits)
 
 
+def find_prefix_collisions(
+    norms: dict[str, str], *, max_dropped: int = 8, min_head_tokens: int = 3
+) -> list[tuple[str, int, str]]:
+    """Fix round 2's own vocabulary-free false-negative detector (R-A3-27).
+
+    `find_near_misses` above only widens a parameter of a marker someone
+    already configured -- it can never find a formula nobody named. This
+    function names nothing: for every record's `norm_standard`, it drops 1
+    to `max_dropped` trailing TOKENS and checks whether what remains is
+    byte-identical to some OTHER record's COMPLETE `norm_standard`, anywhere
+    in the corpus. A hit means "this record's head, once you delete a short
+    tail, is a hadith some other record already states in full" -- exactly
+    the shape of a fused editorial tail the marker tables in this file are
+    built to cut, found by a structural property (a duplicated head) rather
+    than by recognising any particular Arabic word.
+
+    Deliberately DB-agnostic and collection-agnostic, unlike `find_near_
+    misses` (which takes in-memory `HadithUnit`s from a single collection's
+    parse): the corpus-wide comparison this needs -- one record's head
+    against every OTHER record's complete text, hadith or Qur'an, any
+    collection -- only exists in `norm_standard`, a column `materialize.py`
+    populates from the built DB, not in anything a single collection's
+    parser holds while it runs. `norms` is therefore keyed by record id
+    across the WHOLE corpus, supplied by the caller (a DB query), not
+    derived here.
+
+    A LOWER BOUND, not a completeness proof: a genuine fused tail is only
+    findable this way if some OTHER record happens to preserve the same
+    head in full elsewhere in the corpus. A unique hadith whose only copy
+    carries a fused editorial tail, with no parallel narration anywhere
+    else, produces no collision and is invisible to this function --
+    exactly as it was invisible to the review that first measured this
+    fix round's six shapes by other means (direct reading, not this
+    detector, is what closed the family; this detector is what discovered
+    that a family existed in the first place).
+
+    Raw output is NOISY and needs a human pass, not a bare emptiness
+    assertion: the majority of collisions in a hadith corpus are the
+    ordinary, correctly-scored feature of multiple narrations of the same
+    report agreeing on a shared head and differing only at the edges (see
+    `tests/ingest/test_real_corpus.py`'s own gate, keyed to a pinned,
+    hand-read residue list for al-Nasai -- the only collection this fix
+    round audited -- not to "zero hits"). `min_head_tokens` guards against
+    matching on a handful of common opening words shared by unrelated
+    reports (e.g. "قال رسول الله صلى الله عليه وسلم") with no real
+    provenance content.
+    """
+    index: dict[str, str] = {}
+    for record_id, norm in norms.items():
+        index.setdefault(norm, record_id)
+    hits: list[tuple[str, int, str]] = []
+    for record_id, norm in norms.items():
+        tokens = norm.split()
+        for dropped in range(1, min(max_dropped, len(tokens) - min_head_tokens) + 1):
+            head = " ".join(tokens[:-dropped])
+            if len(head) < 1:
+                continue
+            other = index.get(head)
+            if other is not None and other != record_id:
+                hits.append((record_id, dropped, other))
+                break
+    return sorted(hits)
+
+
 def _unscorable_reason(record_id: str, matn: str,
                        unscorable: dict[str, tuple[str, str]]) -> str | None:
     audited = unscorable.get(record_id)
@@ -1435,6 +1504,7 @@ def parse_openiti(
     lului_never_cut: dict[str, tuple[str, str]] | None = None,
     near_miss_cut_override: dict[str, tuple[str, int]] | None = None,
     commentary_never_cut: dict[str, tuple[str, str]] | None = None,
+    on_presplit: Callable[[str, str | None, str], None] | None = None,
 ) -> ParsedOpeniti:
     # None-then-resolve rather than a mutable dict default, and resolved
     # against `collection`: NEVER_CUT/UNSCORABLE are keyed by collection, so
@@ -1599,6 +1669,21 @@ def parse_openiti(
         seen[number] = seen.get(number, 0) + 1
         suffix = "" if seen[number] == 1 else f"-{seen[number]}"
         record_id = f"hadith:{collection}:{number}{suffix}"
+
+        # R-A3-28's byte-conservation invariant needs a snapshot of `isnad`/
+        # `matn` exactly here -- already `_clean`-ed, but before ANY of the
+        # split functions below (`_split_secondary`, `_apply_cut_override`,
+        # `_split_compiler_commentary`, `_split_lului_commentary`,
+        # `_split_heard_commentary`, `_fix_nasai_400_isnad_matn_split`) has
+        # had a chance to move or drop a single byte. A test comparing THIS
+        # tuple to the unit's final isnad_ar/matn_ar/addenda_ar is therefore
+        # independent of every one of those functions' own internal logic --
+        # exactly the discipline `_NASAI_400_ISNAD_SHA256`'s own bug escaped,
+        # because the only existing guard (the row-for-row guard) compares
+        # committed output to freshly-rebuilt output, and a bug shared by
+        # both is invisible to it. `on_presplit` is `None` outside tests.
+        if on_presplit is not None:
+            on_presplit(record_id, isnad, matn)
 
         if isnad is None:
             # No source-marked boundary anywhere in this unit, so its leading

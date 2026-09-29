@@ -265,7 +265,7 @@ def test_the_full_printed_text_of_every_cut_record_verifies():
     rows = conn.execute(
         "SELECT id, text_ar, addenda_ar FROM records"
         " WHERE addenda_ar IS NOT NULL AND unscorable_reason IS NULL").fetchall()
-    assert len(rows) == 5358
+    assert len(rows) == 5452  # fix round 2 (R-A3-27): +94 Nasai
     failures = []
     for row in rows:
         for quoted in (row["text_ar"], row["text_ar"] + " " + row["addenda_ar"]):
@@ -425,7 +425,9 @@ def test_the_index_holds_one_row_per_scorable_representation():
         "SELECT count(*) FROM records WHERE unscorable_reason IS NULL").fetchone()[0]
     variants = conn.execute("SELECT count(*) FROM record_variants").fetchone()[0]
     indexed = conn.execute("SELECT count(*) FROM records_fts").fetchone()[0]
-    assert (scorable, variants, indexed) == (34832, 5478, 40310)
+    # fix round 2 (R-A3-27): scorable -2 (207-2, 353 to UNSCORABLE), variants
+    # +96 (the six-shape sweep's new cuts), indexed +94 net.
+    assert (scorable, variants, indexed) == (34830, 5574, 40404)
 
 
 # --- C1: nothing scorable as a hadith is wholly a Qur'anic quotation --------
@@ -529,6 +531,13 @@ def test_no_scorable_hadith_representation_is_wholly_quranic():
     variants rise by 62 across Nasai and Tirmidhi). The sweep is still
     zero: none of the newly-covered comparative-isnad-family cuts, nor
     the two newly-unscorable pointer records, is wholly Qur'anic.
+
+    Fix round 2 (R-A3-27) moves the representation count to 34,168 (Nasai's
+    scorable primaries drop by another 2 -- 207-2, 353 to `UNSCORABLE`'s
+    `_CHAIN_LEAK` group -- and variants rise by 96 across the six-shape
+    sweep). The sweep is still zero: none of the newly-covered "مختصر"/"لم
+    يذكر"/"رواه"/"روى"/"اللفظ ل"/"اختلف على"/"غير محفوظ" cuts is wholly
+    Qur'anic.
     """
     conn = db.connect(DB_PATH)
     blobs = _quran_blobs(conn)
@@ -539,7 +548,7 @@ def test_no_scorable_hadith_representation_is_wholly_quranic():
     reps += [(r["record_id"], r["variant"], r["norm_standard"]) for r in conn.execute(
         "SELECT v.record_id, v.variant, v.norm_standard FROM record_variants v"
         " JOIN records r ON r.id = v.record_id")]
-    assert len(reps) == 34074, "the sweep stopped covering what it was written for"
+    assert len(reps) == 34168, "the sweep stopped covering what it was written for"
     offenders = [(rid, variant) for rid, variant, norm in reps
                  if norm.strip() and any(f" {norm} " in b for b in blobs)]
     assert offenders == []
@@ -699,13 +708,19 @@ def test_every_other_excluded_record_is_excluded_whole():
     -- already excluded, already in this table with `n=0` -- correctly
     cut their own "wa hadha asahh"-shaped tail for the first time, so they
     now carry an addendum too.
+
+    Fix round 2 (R-A3-27): 2 more excluded records join this count (1,014
+    total) -- 207-2 and 353 move from scorable to `UNSCORABLE["nasai"]`'s
+    `_CHAIN_LEAK` group once the new "لم يذكر" arm cuts a trailing
+    "and he did not mention <name>" remark off each, both already carrying
+    that remark as an addendum.
     """
     conn = db.connect(DB_PATH)
     rows = conn.execute(
         "SELECT r.id, count(v.record_id) AS n FROM records r"
         " LEFT JOIN record_variants v ON v.record_id = r.id"
         " WHERE r.unscorable_reason IS NOT NULL GROUP BY r.id").fetchall()
-    assert len(rows) == 1012
+    assert len(rows) == 1014
     assert {r["id"]: r["n"] for r in rows if r["n"]} == {
         "hadith:bukhari:237": 1,
         "hadith:muslim:1915-3": 1,
@@ -827,6 +842,8 @@ def test_every_other_excluded_record_is_excluded_whole():
         "hadith:nasai:4098": 1,
         "hadith:nasai:4360": 1,
         "hadith:nasai:4787": 1,
+        "hadith:nasai:207-2": 1,
+        "hadith:nasai:353": 1,
     }
 
 
@@ -919,6 +936,12 @@ def test_exactly_one_hadith_representation_sits_inside_an_ayah():
     fix-round note) without moving either list: re-run against the fixed
     build, none of the newly-cut Nasai or Tirmidhi representations sits
     inside an ayah at either tier.
+
+    Fix round 2 (R-A3-27) moves the representation count to 34,168 (same
+    breakdown as `test_no_scorable_hadith_representation_is_wholly_quranic`'s
+    fix-round note) without moving either list: re-run against the fixed
+    build, none of the six-shape sweep's newly-cut Nasai representations
+    sits inside an ayah at either tier.
     """
     from sanad.verify.engine import _ayat_containing, _contains_at
     conn = db.connect(DB_PATH)
@@ -929,7 +952,7 @@ def test_exactly_one_hadith_representation_sits_inside_an_ayah():
         "SELECT v.record_id, v.variant, v.text_ar FROM record_variants v"
         " JOIN records r ON r.id = v.record_id WHERE r.kind = 'hadith'"
     ).fetchall()
-    assert len(reps) == 34074, len(reps)
+    assert len(reps) == 34168, len(reps)
 
     withheld, disclosed = [], []
     for rep in reps:
@@ -1904,6 +1927,29 @@ def test_nasai_record_count_and_scorability():
     own "~~" line-wrap continuation marker do not match a bare `\\s+`
     pattern. Every count in this docstring and test file was measured
     against `raw.replace("~~", " ")`, not the raw file directly.
+
+    Fix round 2 (R-A3-27) moves this to (5769, 5712, 57, 430): the
+    re-review's own probe found six further shapes `_NASAI_FORMULA` did not
+    yet cover -- bare "مختصر" (abridged), "لم يذكر <name>" (did not mention),
+    "رواه <name>"/"روى" (comparative citation, widened during derivation to
+    also cover the bare, object-less form), "اللفظ ل<name>" (the wording is
+    so-and-so's), "اختلف على/عليه <name>" (narrators differed over so-and-so
+    -- note the irregular على -> عليه inflection under pronoun suffixation),
+    and "غير محفوظ" (not preserved). Every occurrence was read in context,
+    not sampled; `find_prefix_collisions` (a new, reusable, vocabulary-free
+    detector: drop 1-8 trailing tokens from a scorable record's norm and
+    check whether the head matches another record's complete text anywhere
+    in the corpus) both derived the initial candidate list and, after the
+    fix, still finds a 121-record residue -- overwhelmingly ordinary shared-
+    head narration families, with a handful of documented, deliberately
+    unfixed exceptions (see
+    `test_prefix_collision_detector_nasai_residue_is_fully_read`).
+    Unscorable rises by 2 (207-2, 353, `_CHAIN_LEAK`: the "لم يذكر" arm
+    leaves each with zero narrative content ahead of it). `_fix_nasai_400_
+    isnad_matn_split`'s own off-by-one (R-A3-28: `.start()` instead of
+    `.end()` on the "قال" attribution, silently dropping that token from
+    every field) is also fixed this round; see
+    `test_isnad_matn_addenda_conserve_every_byte_of_the_presplit_unit`.
     """
     conn = db.connect(DB_PATH)
     total = conn.execute(
@@ -1918,7 +1964,7 @@ def test_nasai_record_count_and_scorability():
     cut = conn.execute(
         "SELECT count(*) FROM records WHERE kind='hadith' AND collection='nasai'"
         " AND addenda_ar IS NOT NULL").fetchone()[0]
-    assert (total, scorable, unscorable, cut) == (5769, 5714, 55, 334)
+    assert (total, scorable, unscorable, cut) == (5769, 5712, 57, 430)
 
 
 # hadith:nasai:1, "idha istayqaza ahadukum min nawmihi fa-la yaghmis yadahu fi
@@ -2390,3 +2436,203 @@ def test_the_committed_db_matches_a_fresh_build_row_for_row():
             f"{len(mismatches)} record(s) in the committed DB do not match a "
             f"fresh build from the same lockfile, cache and code -- the "
             f"committed artifact is stale: {mismatches}")
+
+
+import pytest as _pytest
+
+
+@_pytest.mark.parametrize("source_id,collection", [
+    ("openiti-bukhari-jk000110", "bukhari"),
+    ("openiti-muslim-jk000109", "muslim"),
+    ("openiti-abudawud-jk000142", "abudawud"),
+    ("openiti-tirmidhi-jk000140", "tirmidhi"),
+    ("openiti-nasai-jk000130", "nasai"),
+])
+def test_isnad_matn_addenda_conserve_every_byte_of_the_presplit_unit(
+        source_id, collection):
+    """R-A3-28's corpus-wide byte-conservation invariant.
+
+    `isnad_ar` + `matn_ar` + `addenda_ar` must reconstruct the same text as
+    the unit's own `isnad`/`matn` pair BEFORE any split function
+    (`_split_secondary`, `_apply_cut_override`, `_split_compiler_commentary`,
+    `_split_lului_commentary`, `_split_heard_commentary`,
+    `_fix_nasai_400_isnad_matn_split`) touched it -- captured directly from
+    inside `parse_openiti` via `on_presplit`, not re-derived from the raw
+    file, so this is independent of every one of those functions' own
+    internal logic, not a self-comparison that could share their bug.
+
+    This is exactly the invariant `_fix_nasai_400_isnad_matn_split`'s own
+    off-by-one broke (R-A3-28): `new_isnad = isnad[: attributions[1].start()]`
+    silently dropped the "قال" token attributions[1] itself matched -- present
+    in neither `new_isnad` nor `new_matn`. No existing test could see it: the
+    row-for-row guard only compares committed output to a fresh rebuild, and
+    both share the same bug. Fixed by slicing to `.end()` instead; this test
+    is the guard against a repeat, for this function and any future one.
+
+    Whitespace is the only tolerance: every string here was already
+    `_clean`-ed before capture, collapsing internal whitespace runs to a
+    single space, so joining pieces back together can only ever disagree by
+    how many separator spaces land between them, never by content.
+    """
+    import re
+    from pathlib import Path
+
+    from sanad_ingest.fetch import fetch_source
+    from sanad_ingest.lockfile import load_lockfile
+    from sanad_ingest.openiti import full_text_from_parts, parse_openiti
+
+    sources = {s.id: s for s in load_lockfile(Path("ingest/corpus.lock.toml"))}
+    raw = fetch_source(sources[source_id], Path(".corpus-cache"))
+
+    presplit: dict[str, tuple[str | None, str]] = {}
+    parsed = parse_openiti(raw, collection=collection,
+                           on_presplit=lambda rid, isnad, matn:
+                               presplit.__setitem__(rid, (isnad, matn)))
+
+    def squash(s: str) -> str:
+        s = re.sub(r"\s+", " ", s).strip()
+        if collection == "tirmidhi":
+            # The ONE other intentional, documented content removal in the
+            # whole pipeline: `_strip_reference_numbers` deletes Shakir's own
+            # bracketed cross-reference numbers ("[4]", "see hadith N") from
+            # the primary matn -- editorial apparatus of the PRINTED EDITION,
+            # not the hadith's own text, exactly like every marker this fix
+            # round covers, just with its own dedicated function instead of
+            # `_NASAI_FORMULA`'s table. Stripped from both sides here so this
+            # test does not misreport tirmidhi's own well-understood,
+            # already-tested behaviour as a NEW conservation violation.
+            s = re.sub(r"\[\d+\]", "", s)
+            s = re.sub(r"\s+", " ", s).strip()
+        return s
+
+    checked = 0
+    for u in parsed.units:
+        pre_isnad, pre_matn = presplit[u.record_id]
+        before = squash(pre_matn if pre_isnad is None
+                        else f"{pre_isnad} {pre_matn}")
+        reassembled = full_text_from_parts(u.matn_ar, u.addenda_ar)
+        after = squash(reassembled if u.isnad_ar is None
+                       else f"{u.isnad_ar} {reassembled}")
+        assert before == after, (
+            f"{u.record_id}: presplit {before!r} != reconstructed {after!r}")
+        checked += 1
+    assert checked == len(parsed.units)
+
+
+_NASAI_PREFIX_COLLISION_RESIDUE = [
+    "hadith:nasai:1207", "hadith:nasai:1361", "hadith:nasai:1375",
+    "hadith:nasai:1613", "hadith:nasai:1729", "hadith:nasai:1740",
+    "hadith:nasai:1973", "hadith:nasai:2025", "hadith:nasai:2134",
+    "hadith:nasai:2186", "hadith:nasai:2260", "hadith:nasai:231",
+    "hadith:nasai:2374", "hadith:nasai:2377", "hadith:nasai:2773",
+    "hadith:nasai:2788", "hadith:nasai:2789", "hadith:nasai:2847",
+    "hadith:nasai:2848", "hadith:nasai:2849", "hadith:nasai:2869",
+    "hadith:nasai:2941", "hadith:nasai:3177", "hadith:nasai:3241",
+    "hadith:nasai:3297", "hadith:nasai:3335", "hadith:nasai:338",
+    "hadith:nasai:339", "hadith:nasai:3574", "hadith:nasai:3575",
+    "hadith:nasai:3576", "hadith:nasai:3577", "hadith:nasai:3590",
+    "hadith:nasai:37", "hadith:nasai:3733", "hadith:nasai:3735",
+    "hadith:nasai:3774", "hadith:nasai:3812", "hadith:nasai:3834",
+    "hadith:nasai:3835", "hadith:nasai:3836", "hadith:nasai:3837",
+    "hadith:nasai:3838", "hadith:nasai:3839", "hadith:nasai:3840",
+    "hadith:nasai:3841", "hadith:nasai:3847", "hadith:nasai:3850",
+    "hadith:nasai:3851", "hadith:nasai:3879", "hadith:nasai:3884",
+    "hadith:nasai:3885", "hadith:nasai:3909", "hadith:nasai:3910",
+    "hadith:nasai:3921", "hadith:nasai:3976", "hadith:nasai:4049",
+    "hadith:nasai:411", "hadith:nasai:4125", "hadith:nasai:4126",
+    "hadith:nasai:4127", "hadith:nasai:4175", "hadith:nasai:4277",
+    "hadith:nasai:4279", "hadith:nasai:4334", "hadith:nasai:4342",
+    "hadith:nasai:4420", "hadith:nasai:4447", "hadith:nasai:4493",
+    "hadith:nasai:4495", "hadith:nasai:4519", "hadith:nasai:4521",
+    "hadith:nasai:4524", "hadith:nasai:4535", "hadith:nasai:4537",
+    "hadith:nasai:4568", "hadith:nasai:4598", "hadith:nasai:4634",
+    "hadith:nasai:4668", "hadith:nasai:4691", "hadith:nasai:48",
+    "hadith:nasai:4908", "hadith:nasai:4917", "hadith:nasai:4918",
+    "hadith:nasai:4919", "hadith:nasai:4922", "hadith:nasai:4923",
+    "hadith:nasai:4938", "hadith:nasai:4939", "hadith:nasai:4967",
+    "hadith:nasai:4996", "hadith:nasai:5094", "hadith:nasai:5096",
+    "hadith:nasai:5248", "hadith:nasai:5348", "hadith:nasai:5499",
+    "hadith:nasai:5548", "hadith:nasai:5582", "hadith:nasai:5583",
+    "hadith:nasai:5585", "hadith:nasai:5586", "hadith:nasai:5591",
+    "hadith:nasai:5621", "hadith:nasai:5622", "hadith:nasai:5629",
+    "hadith:nasai:5630", "hadith:nasai:5632", "hadith:nasai:5637",
+    "hadith:nasai:5649", "hadith:nasai:5678", "hadith:nasai:5699",
+    "hadith:nasai:5701", "hadith:nasai:605", "hadith:nasai:619",
+    "hadith:nasai:687", "hadith:nasai:7", "hadith:nasai:911",
+    "hadith:nasai:951", "hadith:nasai:986", "hadith:nasai:987",
+    "hadith:nasai:996",
+]
+
+
+def test_prefix_collision_detector_nasai_residue_is_fully_read():
+    """R-A3-27 item 1/4: `find_prefix_collisions`, run corpus-wide and
+    gated as a test for al-Nasai ONLY.
+
+    `find_prefix_collisions` is a LOWER BOUND (see its own docstring): a
+    fused editorial tail is only findable this way if some other record
+    happens to preserve the same head in full elsewhere in the corpus. This
+    is exactly how the re-review's own probe found the six shapes this fix
+    round covers -- dropping 1-8 trailing tokens from a scorable record and
+    checking whether the head matches another record's complete text,
+    corpus-wide.
+
+    Run here against every collection (reported below, not asserted -- see
+    the printed per-collection breakdown this test emits on failure) but
+    PINNED only for nasai: bukhari/muslim/abudawud/tirmidhi/quran are
+    Task 16's own scope (they were never audited by this fix round, and
+    gating them here would fail immediately on collections nobody has read
+    yet -- exactly the ruling's own instruction not to turn this on
+    corpus-wide before Task 16 clears them).
+
+    Every one of the 121 nasai ids below was read in context (fix round 2's
+    own report has the full disposition). The overwhelming majority are the
+    ordinary, correctly-scored feature of hadith literature -- multiple
+    narrations of the same report sharing a head and differing only at the
+    edges (e.g. the 3833 oath-expiation family: 3812/3834-3841/3847/3850/
+    3851; the 4916 family: 4917-4923; the 5624 vessel-prohibition family:
+    5629/5630/5632/5637/5649/5678). A handful are GENUINE residual defects
+    this round's six named shapes do not cover, deliberately left unfixed
+    and documented rather than silently dropped:
+
+      - hadith:nasai:1207 ("زاد بن المثنى في الصلاة"): the "زاد <name> في
+        حديثه" family the coordinator's own ruling named "mixed" and
+        excluded this round (see openiti.py's comment on hadith:nasai:1838,
+        where the same marker introduces substantial genuine continuing
+        Prophetic speech -- cutting it in general is unsafe, even though
+        this ONE occurrence, read alone, would be a clean cut).
+      - hadith:nasai:3733 ("قال عطاء هو للآخر"), 4420 ("وقال قتيبة في
+        حديثه فأكلنا لحمه"), 4938 ("وزعم أن عروة قال المجن أربعة دراهم"),
+        5591 ("قال قتيبة عن النبي صلى الله عليه وسلم"), 3297 ("قال سمعت
+        هذا من جابر"): a bare "قال <name> <remark>" shape with no
+        anchoring vocabulary at all -- structurally the same hazard
+        `_apply_cut_override`'s own docstring already rejected a generic
+        fix for (a one-hop nested-attribution walk that also fired on
+        454/3988's genuine narrative content). Out of scope for this
+        round's six named shapes; left for a dedicated future pass.
+
+    `hadith:nasai:5039` -- found while deriving the "روى" arm above, not by
+    this detector (it produces no collision) -- is the one record this fix
+    round protected with `COMMENTARY_NEVER_CUT` precisely because a bare
+    marker match landing at the wrong position is worse than no match.
+    """
+    from sanad_ingest.openiti import find_prefix_collisions
+
+    conn = db.connect(str(MATERIALIZED_DB))
+    rows = conn.execute(
+        "SELECT id, norm_standard FROM records WHERE norm_standard IS NOT "
+        "NULL AND (kind != 'hadith' OR unscorable_reason IS NULL)"
+    ).fetchall()
+    norms = {r["id"]: r["norm_standard"] for r in rows if r["norm_standard"]}
+
+    hits = find_prefix_collisions(norms)
+    from collections import Counter
+    per_collection = Counter(
+        rid.split(":")[1] if rid.startswith("hadith:") else "quran"
+        for rid, _dropped, _other in hits)
+
+    nasai_hits = sorted(rid for rid, _d, _o in hits
+                        if rid.startswith("hadith:nasai:"))
+    assert nasai_hits == _NASAI_PREFIX_COLLISION_RESIDUE, (
+        f"al-Nasai's prefix-collision residue changed -- a new hit needs "
+        f"reading before this pin is widened, or a fixed one needs "
+        f"removing from it. Per-collection counts: {dict(per_collection)}")

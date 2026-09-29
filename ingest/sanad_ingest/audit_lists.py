@@ -264,14 +264,14 @@ NEAR_MISS_CUT_OVERRIDE: dict[str, dict[str, tuple[str, int]]] = {
             ("88bd4d59e6f70b2019aed435ffdafb19ca8510c2d7c53920e2d372388fbd9c11", 4),
         "hadith:nasai:5707":
             ("f54c94f1c7ef194405c64ce6d7165aa0ace69f259d4bfe56d87910dbcd6c33ea", 4),
-        # "... bi-dhahabin aw fiddatin WA-RAWA AL-ZUHRI AL-KALAM AL-AWWAL 'AN
-        # SA'ID fa-arsalahu" -- the "أرسله" arm cuts correctly at "فأرسله",
-        # but "وروى الزهري الكلام الأول عن سعيد" (a note about a DIFFERENT
-        # narrator's, al-Zuhri's, variant route for only the first half of
-        # the report) is itself editorial and was left dangling in front of
-        # it. 6 trailing tokens moved.
-        "hadith:nasai:3892":
-            ("359e4b5ccebe46435596f25a36b72006cae96ad3036ceab0b8bd1d93e064e031", 6),
+        # hadith:nasai:3892's own entry ("... bi-dhahabin aw fiddatin
+        # WA-RAWA AL-ZUHRI AL-KALAM AL-AWWAL 'AN SA'ID fa-arsalahu") was
+        # REMOVED in fix round 2 (R-A3-27): `_NASAI_FORMULA` now has a bare
+        # "روى" arm too (alongside "رواه", found by the prefix-collision
+        # detector's own probe on 1777/3881/3894 -- see `openiti.py`'s
+        # comment above `_NASAI_FORMULA`), an EARLIER match than "أرسله"
+        # here, reaching "... bi-dhahabin aw fiddatin" in one step with no
+        # dangling attribution left to correct.
         # "... al-mar'a al-ha'id wal-kalb QALA YAHYA rafa'ahu Shu'ba" -- the
         # "رفعه" arm cuts at "رفعه", but "قال يحيى" (Yahya introducing the
         # remark) is left dangling. 2 trailing tokens moved.
@@ -284,19 +284,22 @@ NEAR_MISS_CUT_OVERRIDE: dict[str, dict[str, tuple[str, int]]] = {
         # 'Uthman) is left dangling. 5 trailing tokens moved.
         "hadith:nasai:2054":
             ("4ad0b8a3b92219627f3d4964ff3285f06c7ed41f99f26e35682b5d229d5559cb", 5),
-        # "... dhalika fard al-ard RAWAHU YAHYA IBN SA'ID 'AN HANZALA IBN
-        # QAYS wa-rafa'ahu kama rawahu Malik 'an Rabi'a" -- the "رفعه" arm
-        # cuts at "ورفعه", but "رواه يحيى بن سعيد عن حنظلة بن قيس" (a note
-        # about a different narrator's route) is left dangling. 8 trailing
-        # tokens moved.
-        "hadith:nasai:3901":
-            ("184a5c00e62113cb4078ed00555e4a1be3a7ca19291312220a27c4c9da3b693b", 8),
-        # "... aw ka'annahu adrakahu RAWAHU HUMAYD IBN 'ABD AL-RAHMAN IBN
-        # 'AWF mawqufan" -- the bare "موقوفا" tag cuts at "موقوفا", but "رواه
-        # حميد بن عبد الرحمن بن عوف" (the attribution introducing the tag) is
-        # left dangling. 7 trailing tokens moved.
-        "hadith:nasai:1792":
-            ("ba2f0340ca29691620da8d5ef7e3aea80c6ab68ffe14c9860a35af511c407c1a", 7),
+        # hadith:nasai:3901's own entry ("... dhalika fard al-ard RAWAHU
+        # YAHYA IBN SA'ID 'AN HANZALA IBN QAYS wa-rafa'ahu kama rawahu Malik
+        # 'an Rabi'a") was REMOVED in fix round 2 (R-A3-27) for the same
+        # reason as 1792's and 3900's, both below: `_NASAI_FORMULA`'s new
+        # bare "رواه" arm is an EARLIER match than "رفعه" here and reaches
+        # "... dhalika fard al-ard" in one step, with no dangling attribution
+        # left to correct.
+        # hadith:nasai:1792's own entry ("... aw ka'annahu adrakahu RAWAHU
+        # HUMAYD IBN 'ABD AL-RAHMAN IBN 'AWF mawqufan") was REMOVED in fix
+        # round 2 (R-A3-27): `_NASAI_FORMULA` now has its own bare "رواه"
+        # arm, which is an EARLIER match than "موقوفا" here and reaches the
+        # correct boundary ("... أو كأنه أدركه") in one step, with no
+        # dangling attribution left to correct -- this override's own
+        # sha256 stopped matching (the intermediate string it corrected no
+        # longer occurs), confirmed by re-deriving the cut from scratch
+        # rather than widening the pin.
         # "... fa-salla kullu insanin minhum li-nafsihi rak'atan wa-sajdatayn
         # QALA ABU BAKR IBN AL-SUNNI AL-ZUHRI SAMI'A MIN IBN 'UMAR
         # HADITHAYN wa-lam yasma' hadha minhu" -- Ibn al-Sunni (al-Nasai's
@@ -342,13 +345,79 @@ NEAR_MISS_CUT_OVERRIDE: dict[str, dict[str, tuple[str, int]]] = {
         # "بن شبرمة" is left dangling. 2 trailing tokens moved.
         "hadith:nasai:5683":
             ("8fc0107b13a849d77c0e844d11e88f9939bd1da957f245d2513b2721100306ea", 2),
-        # "... fa-amma al-dhahab wal-fidda fala ba's RAWAHU SUFYAN AL-THAWRI
-        # RADIYA LLAHU 'ANHU 'AN RABI'A wa-lam yarfa'hu" -- the negated "لم
-        # يرفعه" arm cuts at "ولم يرفعه", but "رواه سفيان الثوري رضي الله
-        # عنه عن ربيعة" (the attribution introducing it) is left dangling. 8
-        # trailing tokens moved.
-        "hadith:nasai:3900":
-            ("0c14eb420783f7cb1ab08b9e2bef9c975392f92c08af002127e7eff2957ec096", 8),
+        # hadith:nasai:3900's own entry ("... fala ba's RAWAHU SUFYAN
+        # AL-THAWRI RADIYA LLAHU 'ANHU 'AN RABI'A wa-lam yarfa'hu") was
+        # REMOVED in fix round 2 (R-A3-27) for the same reason as 1792's,
+        # immediately above: `_NASAI_FORMULA`'s new bare "رواه" arm is an
+        # EARLIER match than "لم يرفعه" here and reaches "... fala ba's" in
+        # one step, with no dangling attribution left to correct. This is
+        # also R-A3-27's own required resolution of the 3900/3891/3896/3925
+        # inconsistency -- all four now cut via the same "رواه" family
+        # (3900 here; 3891 via its own override below; 3896/3925 need no
+        # override at all, see `openiti.py`'s comment above `_NASAI_FORMULA`).
+        # --- Fix round 2 (R-A3-27): the six vocabulary-free shapes the
+        # prefix-collision detector's own probe found, none of which any
+        # prior round's marker table named -- see `openiti.py`'s comment
+        # above `_NASAI_FORMULA`'s widened definition.
+        #
+        # "... fa-bala qa'iman QALA SULAYMAN FI HADITHIHI wa-masaha 'ala
+        # khuffayhi wa-lam yadhkur Mansur al-mash" -- the isnad names BOTH
+        # Sulayman and Mansur as co-narrators from the same chain; the "لم
+        # يذكر" arm cuts at "ولم يذكر", but "قال سليمان في حديثه ومسح على
+        # خفيه" (Sulayman's own variant addition, introduced the same way a
+        # "قال <name>" narrator-note always is elsewhere in this family) is
+        # left dangling in front of it. 7 trailing tokens moved.
+        "hadith:nasai:28":
+            ("eeddaf5e63484d367597a9847deb5c1ca07b6780556d5784ef869c6fc4b3d83b", 7),
+        # "... ma qadara 'alayhi ILLA ANNA BUKAYRAN lam yadhkur 'Abd al-Rahman
+        # wa-qala fi al-tib wa-law min tibi al-mar'a" -- the "لم يذكر" arm
+        # cuts at "لم يذكر", but "إلا أن بكيرا" (introducing which narrator's
+        # version is being compared) is left dangling. 3 trailing tokens
+        # moved.
+        "hadith:nasai:1375":
+            ("34753524ce2e349526677f367845fa17d536b3e9c1f417f68101ecf3c8274531", 3),
+        # "... yamshuna bayna yaday al-janaza BAKRUN WAHDAHU lam yadhkur
+        # 'Uthman" -- the "لم يذكر" arm cuts at "لم يذكر", but "بكر وحده"
+        # (naming which of the isnad's several co-narrators is meant) is left
+        # dangling. 2 trailing tokens moved.
+        "hadith:nasai:1945":
+            ("dbb7079a8978b3ebf1742e56ccb7f241cb5ef22814f5113f6c0df440c57b4f46", 2),
+        # "... la nakhafu fi Llahi lawmata la'im QALA SHU'BA SAYYAR lam
+        # yadhkur hadha al-harf haythuma kana wa-dhakarahu Yahya ..." -- the
+        # "لم يذكر" arm cuts at "لم يذكر", but "قال شعبة سيار" (introducing
+        # whose wording is being compared) is left dangling. 3 trailing
+        # tokens moved.
+        "hadith:nasai:4154":
+            ("a6d23146f2765b73c77ded80a84b3960f5a264c200f6e99abc3b9760e231bea8", 3),
+        # "... illa al-ma' wal-sawiq GHAYRA ANNAHU lam yadhkur al-nabidh" --
+        # the "لم يذكر" arm cuts at "لم يذكر", but "غير أنه" (the
+        # subordinating connective introducing the remark) is left dangling.
+        # 2 trailing tokens moved.
+        "hadith:nasai:5755":
+            ("17ab2f7c8c4013b2fd60c35e83cefa45f4ccc75cd282129c541f15a5ae43eecb", 2),
+        # "... nahy 'an al-muhaqala QALA SA'ID FADHAKARAHU NAHWAHU rawahu
+        # Sufyan al-Thawri 'an Tariq" -- the bare "رواه" arm cuts at "رواه",
+        # but "قال سعيد فذكره نحوه" (Sa'id's own remark that he narrated it
+        # similarly) is left dangling. 4 trailing tokens moved.
+        "hadith:nasai:3891":
+            ("4f452c258e7febce457533dc4032fb20d93668ba7484b0b94f17b0c0dd0ae22f", 4),
+        # The bare "روى" arm (added alongside "رواه" once the prefix-
+        # collision detector's own probe found this pair of records) cuts at
+        # "روى", but "وقد" (attached as "WA-QAD", not "WA-ROWA" -- Arabic's
+        # "qad" proclitic-of-a-different-word, not this word's own proclitic)
+        # is left dangling in front of it on both. 1 trailing token moved on
+        # each.
+        "hadith:nasai:3881":
+            ("e9b38344ebedfe330225620fffffe87129c56709c006f3707575e11b96285771", 1),
+        "hadith:nasai:3894":
+            ("032ed54cc99e2709c095b8af41fde795deadef6979aa5d53f8fec814546cd5bc", 1),
+        # "... ghayyiru al-shayba wa-la tashabbahu bil-Yahud WA-KILAHUMA
+        # ghayru mahfuz" -- the "غير محفوظ" arm cuts at "غير محفوظ", but
+        # "وكلاهما" (naming WHICH TWO things the grading applies to) is left
+        # dangling. Found by the prefix-collision detector's own probe. 1
+        # trailing token moved.
+        "hadith:nasai:5074":
+            ("a4a42a24f467447d13f4b9fd88428d8141653b49698d75e8b001cccc11729ed3", 1),
     },
 }
 
@@ -469,6 +538,38 @@ _NASAI_GENUINE_LAM_YASMA_FIRST_PERSON = (
     "night-prayer story), not al-Nasai's third-person isnad-critique shape "
     "\"so-and-so did not hear it FROM so-and-so\"")
 
+# --- Fix round 2 (R-A3-27): "لم يذكر <name>" family's own genuine exceptions
+_NASAI_GENUINE_LAM_YADHKUR_DIALOGUE = (
+    "genuine narrative: first-person dialogue (\"fa-in lam yadhkur\", \"and "
+    "if he does not mention [Allah]\"), not al-Nasai's third-person "
+    "narrator-omission note \"so-and-so did not mention <name/detail>\" -- "
+    "no name follows the verb here at all")
+_NASAI_GENUINE_LAM_YADHKUR_QURAN = (
+    "genuine narrative: a literal Qur'an quotation (6:121, \"wa-la "
+    "ta'kulu mimma lam yudhkar ismu Llahi 'alayhi\"), not al-Nasai's "
+    "narrator-omission note -- cutting here would truncate the ayah itself")
+_NASAI_GENUINE_BARE_RAWA_QADI_DIGRESSION = (
+    "the bare \"روى\" arm (added alongside \"رواه\" once the prefix-collision "
+    "detector's own probe found hadith:nasai:1777/3881/3894 sharing the "
+    "same isnad-comparison shape without the attached object pronoun) finds "
+    "a match here too, but 322 characters TOO LATE: the genuine matn is only "
+    "the opening clause (\"none of you truly believes until he loves for "
+    "his brother what he loves for himself\"); everything from \"qala "
+    "al-qadi\" onward is a QADI's own manuscript/isnad-transmission "
+    "digression (about a possible scribal error, \"hafs ibn 'Umar\" vs "
+    "\"hafs ibn 'Amr\", and an unrelated hadith of Anas), a much larger, "
+    "differently-shaped defect this fix round's six named shapes were never "
+    "meant to reach -- cutting at the LATE \"روى\" this arm finds would still "
+    "leave the entire digression fused onto the scored matn. Left for a "
+    "dedicated future fix (its own marker, \"qala al-qadi\"), not patched "
+    "around by narrowing this arm.")
+_NASAI_GENUINE_LAM_YADHKUR_CONTINUING = (
+    "genuine editorial remark, but embedded MID-matn with substantial "
+    "further genuine narrative continuing after it (Mu'awiya and 'Ubada's "
+    "exchange), not at the tail -- cutting at this occurrence of \"لم "
+    "يذكر\" would discard real content, unlike every other member of this "
+    "family")
+
 COMMENTARY_NEVER_CUT: dict[str, dict[str, tuple[str, str]]] = {
     "nasai": {
         "hadith:nasai:3047":
@@ -513,6 +614,18 @@ COMMENTARY_NEVER_CUT: dict[str, dict[str, tuple[str, str]]] = {
         "hadith:nasai:1612":
             ("8003dafed7913961cb6d0900ecef9e8aac61bf6d45eee224795e4c3c9508e88c",
              _NASAI_GENUINE_LAM_YASMA_FIRST_PERSON),
+        "hadith:nasai:4081":
+            ("2c1709396c3299dc15fbcdac86d93ec6fa5cd5c9072a346c0a5c8150818616b1",
+             _NASAI_GENUINE_LAM_YADHKUR_DIALOGUE),
+        "hadith:nasai:4437":
+            ("a0e501e9149737b2850fd1da70da6ec8679cd1c80c3815e8478eddf7d0167cf0",
+             _NASAI_GENUINE_LAM_YADHKUR_QURAN),
+        "hadith:nasai:4566":
+            ("f0414f38ae4b2521e9028968d4746aea5f49507ab3cf4bbbc46e898c40e28326",
+             _NASAI_GENUINE_LAM_YADHKUR_CONTINUING),
+        "hadith:nasai:5039":
+            ("bb7d1c5bbdcab2c79a95127aa256e4e619f582af6b270a2e972288688a97dac5",
+             _NASAI_GENUINE_BARE_RAWA_QADI_DIGRESSION),
     },
 }
 
@@ -2317,8 +2430,8 @@ UNSCORABLE: dict[str, dict[str, tuple[str, str]]] = {
             ("679bd6365682eb58b61672e51ee004259253fe08f00e9cd3c8b4c180fed190b7", _POINTER),
         "hadith:nasai:4033":  # "نحوه"
             ("da5b06f32a8be960e4896498557c3a5abf0318f6aa354cf9a2f1cdff8bc7dcbe", _POINTER),
-        "hadith:nasai:3492":  # "أن ثلاثة نفر اشتركوا في طهر فذكر نحوه ولم يذكر زيد بن أرقم" ("ولم يرفعه ..." now in addenda_ar, R-A3-25)
-            ("f5155bf78f835e6aa2c6a7c7e27e9fa0ff85811d03932f998ed86db3f6d8859c", _POINTER),
+        "hadith:nasai:3492":  # "أن ثلاثة نفر اشتركوا في طهر فذكر نحوه" ("ولم يذكر زيد بن أرقم ولم يرفعه ..." now in addenda_ar, R-A3-25 then R-A3-27's own "لم يذكر" arm)
+            ("ecd5f84bdf40c9b08c23f87359eee690f30914159780421ede9594ddbb15def4", _POINTER),
         "hadith:nasai:4098":  # "بهذا الإسناد مثله" ("ولم يرفعه" now in addenda_ar, R-A3-25)
             ("6171d4fcec64e9b37d51c524f9249b44aa576d350ab174931c8f4283b55d0bb5", _POINTER),
         "hadith:nasai:4176":  # "فذكر نحوه"
@@ -2356,6 +2469,18 @@ UNSCORABLE: dict[str, dict[str, tuple[str, str]]] = {
             ("bd98eef6ecc633d7976c0044674e035f002bcefd8b02563446eaf5edb34477f0", _CHAIN_LEAK),
         "hadith:nasai:4893":  # "حدثه نحوه"
             ("a738ddc43000c877a0cabbdb44a928e7f50447a84e54174080f4bb04155c97d7", _CHAIN_LEAK),
+        # Fix round 2 (R-A3-27): these two have no isnad line at all -- their
+        # ENTIRE text_ar is an isnad-continuation pointer ("Qutayba informed
+        # us again ...") with a al-Nasai's new "لم يذكر" marker fused
+        # straight onto it, zero narrative predicate either side. Pinned
+        # POST-cut (the "لم يذكر" arm has already moved "ولم يذكر جعفرا"/
+        # "ولم يذكر فيه جعفر بن ربيعة" to addenda_ar by the time this check
+        # runs), matching 2232/2295/4787's own "مرسل now in addenda_ar"
+        # convention above.
+        "hadith:nasai:207-2":  # "أخبرنا قتيبة مرة أخرى" ("لم يذكر جعفرا" now in addenda_ar)
+            ("a49c409d1ebbcb7272e675464e0db72c32a25e2c4837edb94483d865137bdc65", _CHAIN_LEAK),
+        "hadith:nasai:353":  # "أخبرنا به قتيبة مرة أخرى" ("لم يذكر فيه جعفر بن ربيعة" now in addenda_ar)
+            ("1671e0304da33a47f49d7dae621023b7d2e08c3e87b55aa702f45987267906a5", _CHAIN_LEAK),
 
         # _CLASSIFICATION_TAG group (4 records) -- bare classification tag
         "hadith:nasai:1788":  # "موقوفا"

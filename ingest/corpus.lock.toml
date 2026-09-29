@@ -214,3 +214,33 @@ license_url      = "https://github.com/OpenITI/0300AH"
 content_sha256   = "5bc99d3d942ceaa729a83c11389016d940ae11fb0b641a4e012c743f9e44b647"
 expected_records = 3976
 modifications    = "mARkdown structural markers parsed and discarded; no text altered"
+
+# Sunan an-Nasai / al-Mujtaba (Task 14): al-Nasai (kunya Abu 'Abd al-Rahman)
+# d. 303 AH. A THIRD OpenITI repo and commit from Bukhari/Muslim/Abu Dawud/
+# Tirmidhi -- Nasai lives in 0325AH. This is al-Sughra/al-Mujtaba, the
+# canonical one of the six books -- NOT SunanKubra (JK000475).
+# numbering_scheme = "abughudda": Abd al-Fattah Abu Ghudda's edition. This is
+# the only A3 source that clears the FULL strict #META# bar -- EdNUMBER,
+# EdPUBLISHER, EdPLACE and EdYEAR are all filled (see docs/SOURCES.md).
+# Annotation stage is ".mARkdown", the first use of that stage in this
+# project -- OpenITI is the transcriber, not the licensor; the underlying
+# work is public domain by age.
+#
+# content_sha256/expected_records: build-measured, pinned after the first
+# measured build (see the report for this task).
+[[source]]
+id               = "openiti-nasai-jk000130"
+kind             = "hadith-arabic"
+collection       = "nasai"
+numbering_scheme = "abughudda"
+format           = "openiti-markdown"
+title            = "المجتبى من السنن (Sunan an-Nasai)"
+publisher        = "OpenITI (transcription); Maktab al-Matbuat al-Islamiyya, Aleppo (edition)"
+edition          = "ed. Abd al-Fattah Abu Ghudda, 2nd ed., 1406/1986; OpenITI JK000130, ara1.mARkdown"
+url              = "https://raw.githubusercontent.com/OpenITI/0325AH/089e665b4958e0f145a46941987fb81cf3dda1b8/data/0303Nasai/0303Nasai.SunanSughra/0303Nasai.SunanSughra.JK000130-ara1.mARkdown"
+commit           = "089e665b4958e0f145a46941987fb81cf3dda1b8"
+license_id       = "public-domain"
+license_url      = "https://github.com/OpenITI/0325AH"
+content_sha256   = "5afdd931303a85babd351afd72063cad455327b13263f16c5de2f6df5f30a4d1"
+expected_records = 5769
+modifications    = "mARkdown structural markers parsed and discarded; no text altered"

@@ -60,10 +60,11 @@ def client(tmp_path_factory):
 
 
 # 6,236 ayat + 7,129 Bukhari narrations + 7,460 Muslim narrations (Task 11)
-# + 5,274 Abu Dawud narrations (Task 12) + 3,976 Tirmidhi narrations (Task 13).
+# + 5,274 Abu Dawud narrations (Task 12) + 3,976 Tirmidhi narrations (Task 13)
+# + 5,769 Nasai narrations (Task 14).
 # Written as the sum so that a change to any one collection has to be stated,
 # not absorbed into one opaque total.
-CORPUS_RECORDS = 6236 + 7129 + 7460 + 5274 + 3976
+CORPUS_RECORDS = 6236 + 7129 + 7460 + 5274 + 3976 + 5769
 
 
 def test_health_reports_corpus_loaded(client):
@@ -92,8 +93,9 @@ def test_corpus_endpoint_matches_its_response_model(client):
     body = client.get("/api/corpus").json()
     assert body["stats"]["records"] == CORPUS_RECORDS
     # Tanzil Arabic, Pickthall, OpenITI Bukhari, OpenITI Muslim (Task 11),
-    # OpenITI Abu Dawud (Task 12), OpenITI Tirmidhi (Task 13).
-    assert len(body["sources"]) == 6
+    # OpenITI Abu Dawud (Task 12), OpenITI Tirmidhi (Task 13),
+    # OpenITI Nasai (Task 14).
+    assert len(body["sources"]) == 7
     assert {s["kind"] for s in body["sources"]} == {
         "quran-arabic", "quran-translation", "hadith-arabic"}
     tanzil = next(s for s in body["sources"] if s["kind"] == "quran-arabic")
@@ -144,16 +146,16 @@ def test_verify_english_only_prose_returns_empty_quotations(client):
 # The scope caveat is now DERIVED from the corpus (`corpus.scope.corpus_scope`,
 # Stage A3 ruling R-A3-17), computed once at startup from whatever the test
 # fixture's MATERIALIZED_DB actually contains (Qur'an + Sahih al-Bukhari +
-# Sahih Muslim + Sunan Abi Dawud + Jami at-Tirmidhi, as of Task 13). These
-# tests pin the exact expected output rather than a loose substring match -- a
-# rewritten sentence that quietly dropped either the PRESENT half or the
-# generic "absence does not establish fabrication" half would still pass a
-# substring check but not this one.
+# Sahih Muslim + Sunan Abi Dawud + Jami at-Tirmidhi + Sunan an-Nasai, as of
+# Task 14). These tests pin the exact expected output rather than a loose
+# substring match -- a rewritten sentence that quietly dropped either the
+# PRESENT half or the generic "absence does not establish fabrication" half
+# would still pass a substring check but not this one.
 CORPUS_SCOPE = (
     "This corpus contains the Qur'an, Sahih al-Bukhari, Sahih Muslim, Sunan "
-    "Abi Dawud, and Jami at-Tirmidhi. It does not contain any other hadith "
-    "collection. Absence from this corpus does not establish that a "
-    "quotation is fabricated."
+    "Abi Dawud, Jami at-Tirmidhi, and Sunan an-Nasai. It does not contain "
+    "any other hadith collection. Absence from this corpus does not "
+    "establish that a quotation is fabricated."
 )
 
 

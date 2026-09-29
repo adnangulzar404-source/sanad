@@ -158,10 +158,12 @@ def test_texts_absent_from_the_corpus_really_are_absent(conn, hadith_cases):
     Sahih Muslim), so this loop checks it twice against the corpus rather than
     once, which is a stronger guarantee, not a weaker one. Five as of Task 13:
     hadith-tirmidhi-fabricated-attribution reuses the same string again (it is
-    absent from Jami at-Tirmidhi too), checking it a third time.
+    absent from Jami at-Tirmidhi too), checking it a third time. Six as of
+    Task 14: hadith-nasai-fabricated-attribution reuses the same string once
+    more (absent from Sunan an-Nasai too), checking it a fourth time.
     """
     absent = [c for c in hadith_cases if c.expect_scope_caveat]
-    assert len(absent) == 5
+    assert len(absent) == 6
     for case in absent:
         needle = case.text.strip()
         assert needle

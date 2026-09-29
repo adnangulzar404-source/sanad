@@ -652,6 +652,185 @@ def _strip_reference_numbers(matn: str) -> str:
     return stripped if stripped else matn
 
 
+# --- Nasai's own compiler commentary (Task 14, ruling R-A3-20) ------------
+#
+# Al-Nasai (kunya "أبو عبد الرحمن") appends his own voice after a matn --
+# "قال أبو عبد الرحمن" measured 139 times across the file, far lower than
+# Tirmidhi's 2,996 but the SAME Class-B defect (R-A3-18): fused editorial
+# prose makes the genuine matn beneath it fail verification. Derived, not
+# hand-written, from `_compiler_commentary_markers("أبو عبد الرحمن")`.
+#
+# This kunya is an extremely common one among narrators (most famously
+# 'Abdullah ibn Mas'ud, but this file's own isnads also carry it for 'Abdallah
+# ibn 'Umar, Abu 'Abd al-Rahman al-Sulami, al-Hubuli and al-Shami), so the
+# over-cut risk the ruling calls out is real, not theoretical -- measured
+# directly rather than assumed:
+#
+#   - Bare kunya (any case): 201 raw occurrences, 1 of which is the #META#
+#     AuthorNAME line itself (outside any unit), leaving 200 in the body.
+#   - Nominative "أبو عبد الرحمن": 170, of which 139 are "قال أبو عبد الرحمن"
+#     (the compiler's voice, cut) and 31 are bare -- read individually, every
+#     one of the 31 is either (a) already inside a tail `tight` has already
+#     cut in the same unit ("قال أبو عبد الرحمن ... قال أبو عبد الرحمن
+#     الأوزاعي ...", a second self-reference inside his own remark) or
+#     (b) a narrator's kunya inside an isnad or inside reported speech,
+#     correctly left untouched because no verb governs it.
+#   - Accusative "أبا عبد الرحمن": 14, ALL of the vocative shape "يا أبا عبد
+#     الرحمن" ("O Abu 'Abd al-Rahman") addressed to 'Abdallah ibn 'Umar (4),
+#     Abu 'Abd al-Rahman al-Hubuli (3), al-Shami (1) and others inside genuine
+#     narration -- NEVER "سمعت أبا عبد الرحمن يقول" (measured: that exact verb
+#     + accusative shape occurs 0 times in this file, unlike Abu Dawud's 8).
+#     `heard`'s own pattern therefore matches nothing here, correctly: the
+#     namesake collision is real but is resolved by verb-gating exactly as
+#     Abu Dawud/al-Tayalisi's was, not by an identity check, and this is
+#     recorded as measurement, not assumption.
+#   - Genitive "أبي عبد الرحمن": the brief's own naive raw-text count (17)
+#     undercounts, for the same reason the raw "هذا حديث" count below does --
+#     a naive `\s+`-only regex does not span the source's own "~~" line-wrap
+#     continuation marker, so an occurrence broken across two printed lines is
+#     invisible to it. Re-measured tolerant of "~~": 19. Read individually,
+#     all 19 name a narrator inside an isnad chain ("عن أبي عبد الرحمن الحبلي
+#     عن ...", "عن ربيعة بن أبي عبد الرحمن عن ...") or, once
+#     (hadith:nasai:1856), inside a Companion's own reported speech ("قالت
+#     عائشة يغفر الله لأبي عبد الرحمن ...", 'A'isha invoking one by his kunya)
+#     -- never the compiler speaking. Unlike Abu Dawud, this is NOT structural
+#     luck: 1856's occurrence sits inside a unit's MATN (post-"*"), not its
+#     isnad, so nothing about position alone protects it here. What protects
+#     every one of the 19 is that `_compiler_commentary_markers` builds no
+#     genitive pattern at all (see its own docstring) -- "أبي" is a different
+#     string from the "أبو"/"أبا" every marker below requires, so none of
+#     tight/near/heard/`_NASAI_FORMULA` can ever match a genitive occurrence
+#     regardless of what verb or preposition precedes it. Confirmed by
+#     construction and by `find_near_misses` (see the ingest report): zero of
+#     the 19 are reachable even at a widened, case-varying sweep.
+#   - "هذا حديث" (Tirmidhi's own grading-tail opener): the brief's raw count
+#     (8) has the same "~~"-undercounting defect as the genitive above --
+#     re-measured tolerant of line wraps: 11. Read individually: 6 already sit
+#     inside a tail `tight` has already cut in the same unit; 1 ("وهذا حديث
+#     القاسم قال * ...") is isnad-side prose before the unit's own "*" split,
+#     never reaching matn at all; 3 are new and are covered by
+#     `_NASAI_FORMULA` below.
+#   - "وفي الباب" (Tirmidhi's other non-kunya formula): 0 occurrences,
+#     measured -- Nasai's edition does not use this cross-reference formula.
+#
+# A further, independent sweep -- not named in the brief's own marker table,
+# and NOT measured there -- found al-Nasai's single most common editorial
+# formula in this edition: a terse comparative-isnad note, "خالفه/خالفهما/
+# خالفهم <narrator>[, رواه/فرواه عن ...]" ("so-and-so DIFFERED from him [in
+# the transmission], narrating it from ..."), noting a variant chain for the
+# same hadith. This is Class-B (R-A3-18) on ~70 further records the brief's
+# own table does not cover, at a higher raw count than the kunya marker
+# itself (measured: "خالفه" 64, "خالفهما" 6, "خالفهم" 7 = 77 raw, tolerant of
+# "~~"). It is NEVER preceded by "قال أبو عبد الرحمن" in the same breath --
+# it is al-Nasai's own voice by convention throughout the book, not by an
+# explicit self-naming each time, exactly like Tirmidhi's own elliptical
+# "qala hadha hadith" continuations. Left unhandled, quoting the genuine matn
+# of any of these ~70 records reproduces R-A3-18 exactly: the fused
+# isnad-critique tail makes the stored `text_ar` narration-plus-commentary,
+# not the narration.
+#
+# Read individually, all 77 raw occurrences but one are the tail-position
+# critique shape, immediately followed by a narrator's name: `hadith:
+# nasai:3047` is the ONE genuine exception -- "... وإن رسول الله صلى الله
+# عليه وسلم خالفهم ثم أفاض قبل أن تطلع الشمس" ("... and the Messenger of
+# Allah DIFFERED FROM THEM [the pre-Islamic practice] and hastened [the
+# descent from Muzdalifah] before sunrise") is genuine narrative describing
+# the Prophet's OWN act, using the same verb form for an entirely different
+# sense ("differed from [a practice]" vs. "differed from him [in narrating
+# it]") -- "خالفهم" here is followed by "ثم" (a narrative connective), never a
+# narrator's name, so cutting here would truncate the hadith's own point
+# (that he acted before sunrise, unlike the Jahiliyya) into addenda. On
+# `COMMENTARY_NEVER_CUT["nasai"]`, read and excluded by hand, exactly the
+# over-cut risk this task's raised bar calls for. A second false match was
+# found and fixed by construction, not by an exception: "قيل ... ولا تخالفه
+# في نفسها ومالها" (hadith:nasai:3231, "she does not DISOBEY him") is a
+# different word ("تخالفه", imperfect + object pronoun) that a boundary-free
+# substring search would wrongly match inside; `_NASAI_FORMULA` requires the
+# same `(?<![{_ARABIC}])`/`(?![{_ARABIC}])` word-boundary discipline every
+# other marker in this file already uses, so it is never reached.
+#
+# Two further formula phrases, each measured to add exactly ONE further
+# record beyond the kunya marker and the "خالف*" family above:
+#   - "هذا خطأ" ("this is an error", 22 raw occurrences) -- 21 already sit
+#     inside an existing cut tail; the 22nd, hadith:nasai:4088, is new
+#     ("... فهو شهيد هذا خطأ والصواب حديث سعير بن الخمس").
+#   - "والصواب" ("and the correct [version] is", 21 raw occurrences) -- 20
+#     already cut (mostly the same tails "هذا خطأ" already covers); included
+#     for the same reason "هذا خطأ" is, as a second, independent anchor on
+#     the same self-correcting remark, in case a future edit ever separates
+#     them. Redundant with "هذا خطأ" on every record measured today (4088 is
+#     the only new record either phrase reaches, and "هذا خطأ" precedes
+#     "والصواب" in it, so `_NASAI_FORMULA`'s "earliest match wins" rule finds
+#     the same boundary regardless of which is present). Always fused as one
+#     word ("والصواب"), never a separate "فالصواب" (measured: 0), so unlike
+#     "خالفه" it needs no optional `[وف]?` proclitic of its own.
+#
+# `_NASAI_FORMULA`'s first draft omitted the optional `[وف]?` proclitic on
+# the "خالفه" arm, on the (wrong) assumption that a verb beginning a fresh
+# clause would never be crossed by the conjunction's own compulsory boundary
+# check. A full re-sweep of the built matns (never trust the count that
+# justified the pattern -- read what it actually produced) found
+# hadith:nasai:3899 uncut: "... وافقه مالك بن أنس على إسناده وخالفه في لفظه"
+# -- "وخالفه" ("and he differed from him") is the fused conjunction + verb,
+# and `(?<![{_ARABIC}])` correctly refused to match with an Arabic letter
+# ("و") immediately in front, exactly as designed -- the marker itself needed
+# the same `[وف]?` optional proclitic every other verb-initial marker in this
+# file already carries (`_ABUDAWUD_COMMENTARY`, `_TIRMIDHI_COMMENTARY`,
+# `_compiler_commentary_markers`'s own `tight`/`near`/`heard`). Fixed below;
+# 3899 now cuts correctly, leaving "... وافقه مالك بن أنس على إسناده" as
+# genuine matn and "وخالفه في لفظه" in addenda.
+#
+# Two dangling-attribution corrections, the same nested-attribution shape
+# `NEAR_MISS_CUT_OVERRIDE` already exists for (Abu Dawud's 4129/1234,
+# Tirmidhi's 2239), applied here via `NEAR_MISS_CUT_OVERRIDE["nasai"]`:
+#   - hadith:nasai:5583 ("... كل مسكر حرام وكل مسكر خمر قال الحسين قال أحمد
+#     وهذا حديث صحيح"): after the formula cuts at "وهذا حديث صحيح", "قال
+#     الحسين قال أحمد" (a sub-narrator relaying Ahmad ibn Hanbal's own grading
+#     remark, not al-Nasai's voice) is left dangling on the genuine Prophetic
+#     saying.
+#   - hadith:nasai:5707 ("... قد خلل ومما يدل على صحة هذا حديث السائب"): the
+#     formula's "هذا حديث" arm cuts at "هذا", but "هذا" is the grammatical
+#     subject of the PRECEDING clause ("and among what indicates the
+#     correctness of THIS is..."), not the start of the remark -- the remark
+#     itself begins 4 tokens earlier, at "ومما".
+#
+# KNOWN, DELIBERATELY UNFIXED GAP, same posture as R-A3-23's bare "qultu"
+# note above: "لم يسمع"/"لم يسمعه" ("did not hear [it]"), al-Nasai's other
+# common isnad-critique idiom ("[narrator] لم يسمع هذا الحديث من [narrator]"
+# -- "so-and-so did not hear this hadith from so-and-so"), reaches 8 further
+# records after the cuts above (2926, 3844, 3872, 3880, 3895, 4971, 4972,
+# 5683 -- measured). Not added to `_NASAI_FORMULA`: unlike "خالفه", the bare
+# verb has a confirmed genuine-narrative shape in this same file --
+# hadith:nasai:906's "فلم يسمعنا قراءة بسم الله الرحمن الرحيم" ("he did not
+# make us hear the recitation of the Basmala aloud", part of the narration
+# itself) and 1612's "فلم يسمع لنا حسا" ("he did not hear a sound from us")
+# both use the same bare verb with a first-person object, not the third-
+# person "X did not hear it FROM Y" isnad-critique shape. Telling the two
+# shapes apart needs a "من + name" anchor this task did not have time to
+# measure and audit to the same standard as the rest of this table -- given
+# this task's own raised over-cut bar, left uncut rather than shipped on an
+# unaudited heuristic. Pinned here, not silently dropped, for whichever task
+# next does a corpus-wide sweep of this phenomenon.
+# `_split_secondary`'s own audit for Nasai (a separate mechanism from the
+# kunya markers above -- it cuts a SECOND narration embedded inside a matn
+# whose leading isnad the source's own "*" already removed, not al-Nasai's
+# editorial voice). Instrumented directly: every call that actually returned
+# an addendum was captured while parsing the real file. Result: 26 records
+# (77, 101, 362, 478, 618, 633, 675, 1231, 1287, 1991, 1993, 2208, 2329, 2847,
+# 2966, 3367, 3422, 3455, 3811, 3918, 3919, 4070, 4521, 4532, 4729, 5110),
+# each read by hand at its exact boundary. Every primary ends on a complete
+# clause and every addendum opens a fresh attribution ("qala X akhbarani/
+# haddathani Y ..."), never a mid-sentence truncation -- no over-cut found, so
+# `NEVER_CUT["nasai"]` has no entries (matching Muslim/Abu Dawud/Tirmidhi,
+# which also needed none; only Bukhari's original 3 remain in that dict).
+_NASAI_COMMENTARY, _NASAI_COMMENTARY_NEAR, _NASAI_HEARD = \
+    _compiler_commentary_markers("أبو عبد الرحمن")
+
+_NASAI_FORMULA = re.compile(
+    rf"(?<![{_ARABIC}])[وف]?(?:خالفه(?:ما|م)?|هذا\s+خطأ|هذا\s+حديث)"
+    rf"(?![{_ARABIC}])|(?<![{_ARABIC}])والصواب(?![{_ARABIC}])")
+
+
 _COMPILER_MARKERS: dict[
     str, tuple[re.Pattern[str], re.Pattern[str], re.Pattern[str],
                re.Pattern[str] | None]
@@ -662,12 +841,16 @@ _COMPILER_MARKERS: dict[
                  _ABUDAWUD_HEARD, None),
     "tirmidhi": (_TIRMIDHI_COMMENTARY, _TIRMIDHI_COMMENTARY_NEAR,
                  _TIRMIDHI_HEARD, _TIRMIDHI_FORMULA),
+    "nasai": (_NASAI_COMMENTARY, _NASAI_COMMENTARY_NEAR, _NASAI_HEARD,
+              _NASAI_FORMULA),
 }
 
 
 def _split_compiler_commentary(
     matn: str, addenda: str | None, tight: re.Pattern[str],
-    near: re.Pattern[str], extra: re.Pattern[str] | None = None,
+    near: re.Pattern[str], extra: re.Pattern[str] | None = None, *,
+    record_id: str | None = None,
+    never_cut: dict[str, tuple[str, str]] | None = None,
 ) -> tuple[str, str | None]:
     """Cut a collection's own compiler commentary from a matn, appending it
     to whatever addendum `_split_secondary` already found (or starting one).
@@ -675,19 +858,34 @@ def _split_compiler_commentary(
     `tight`/`near` are the (verb, kunya) pair `_compiler_commentary_markers`
     built for this collection; `extra`, when given, is a further,
     collection-specific formula that marks the SAME kind of boundary without
-    naming the compiler at all (Tirmidhi's "وفي الباب"/"هذا حديث" -- see
-    `_TIRMIDHI_FORMULA`). Between `tight` and `extra` the EARLIEST match wins,
-    per the ruling's instruction to cut at the earliest genuine boundary, not
-    merely the first one a single pattern happens to find; `near` is tried
-    only as a fallback when NEITHER of those finds anything, preserving the
-    "tight first, widen only if the tight search truly finds nothing"
-    discipline `near` was built for.
+    naming the compiler at all (Tirmidhi's "وفي الباب"/"هذا حديث", Nasai's
+    "خالفه"/"هذا خطأ"/"والصواب" -- see `_TIRMIDHI_FORMULA`/`_NASAI_FORMULA`).
+    Between `tight` and `extra` the EARLIEST match wins, per the ruling's
+    instruction to cut at the earliest genuine boundary, not merely the first
+    one a single pattern happens to find; `near` is tried only as a fallback
+    when NEITHER of those finds anything, preserving the "tight first, widen
+    only if the tight search truly finds nothing" discipline `near` was built
+    for.
+
+    `record_id`/`never_cut` are a hand-read do-not-cut audit exactly like
+    `_split_secondary`'s own (`_audited_never_cut`), but keyed to the matn as
+    it stands at THIS call site, not the earlier one -- see
+    `audit_lists.COMMENTARY_NEVER_CUT`'s own docstring for why it is a
+    separate dict rather than a reuse of `NEVER_CUT`. Needed for `extra`
+    formulas built from a general shape ("خالفه <name>" reads as "so-and-so
+    differed from him [in transmission]" on every measured occurrence but
+    one, hadith:nasai:3047, where the same verb form is genuine narrative
+    describing the Prophet's own act) rather than a name that never occurs in
+    ordinary speech.
 
     Cuts on what FOLLOWS the marker, not what precedes it -- the compiler's
     remark is itself the secondary material, exactly as a fresh narration's
     isnad is. Never invents a cut: if no marker is present, the matn and
     addendum returned are the ones passed in, unchanged.
     """
+    if (record_id is not None and never_cut
+            and _audited_never_cut(record_id, matn, never_cut)):
+        return matn, addenda
     candidates = [m for m in (tight.search(matn),
                                extra.search(matn) if extra else None)
                   if m is not None]
@@ -999,6 +1197,7 @@ def parse_openiti(
     cut_override: dict[str, tuple[str, int]] | None = None,
     lului_never_cut: dict[str, tuple[str, str]] | None = None,
     near_miss_cut_override: dict[str, tuple[str, int]] | None = None,
+    commentary_never_cut: dict[str, tuple[str, str]] | None = None,
 ) -> ParsedOpeniti:
     # None-then-resolve rather than a mutable dict default, and resolved
     # against `collection`: NEVER_CUT/UNSCORABLE are keyed by collection, so
@@ -1018,6 +1217,9 @@ def parse_openiti(
         lului_never_cut = audit_lists.LULUI_NEVER_CUT.get(collection, {})
     if near_miss_cut_override is None:
         near_miss_cut_override = audit_lists.NEAR_MISS_CUT_OVERRIDE.get(
+            collection, {})
+    if commentary_never_cut is None:
+        commentary_never_cut = audit_lists.COMMENTARY_NEVER_CUT.get(
             collection, {})
 
     end = raw.find(_HEADER_END)
@@ -1185,7 +1387,8 @@ def parse_openiti(
         if markers is not None:
             tight, near, heard, extra = markers
             matn, addenda = _split_compiler_commentary(
-                matn, addenda, tight, near, extra)
+                matn, addenda, tight, near, extra,
+                record_id=record_id, never_cut=commentary_never_cut)
             if collection == "abudawud":
                 # Al-Lu'lu'i's voice: a different speaker (Abu Dawud's own
                 # transmitter), unique to this collection, run BEFORE the

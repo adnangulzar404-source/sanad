@@ -227,6 +227,35 @@ NEAR_MISS_CUT_OVERRIDE: dict[str, dict[str, tuple[str, int]]] = {
         "hadith:tirmidhi:2239":
             ("1291e1e8e9ac6535dd9957c465370fe0f947d346e96b60b62aee61192dfbb5e8", 2),
     },
+    # Nasai (Task 14). Two records where `_NASAI_FORMULA`'s "هذا حديث" arm
+    # finds the right marker but the wrong boundary, leaving a dangling
+    # fragment on the primary -- the same nested-attribution shape as the
+    # entries above, one call site later.
+    #
+    # hadith:nasai:5583: "... kullu muskirin haramun wa-kullu muskirin khamrun
+    # QALA AL-HUSAYN QALA AHMAD wa-hadha hadith sahih" -- after the formula
+    # cuts at "wa-hadha hadith sahih", "qala al-Husayn qala Ahmad" (a
+    # sub-narrator relaying Ahmad ibn Hanbal's own grading remark, not
+    # al-Nasai's voice at all) is left dangling on the genuine Prophetic
+    # saying. 4 trailing tokens moved.
+    #
+    # hadith:nasai:5707: "... kana al-nabidhu alladhi yashrabuhu 'Umar ibn
+    # al-Khattab qad khallala WA-MIMMA YADULLU 'ALA SIHHATI hadha hadith
+    # al-Sa'ib" -- the formula's "hadha hadith" arm cuts at "hadha", but
+    # "hadha" here is the grammatical subject of "wa-mimma yadullu 'ala
+    # sihhati" ("and among what indicates the correctness of THIS is..."),
+    # not the start of the editorial remark -- the remark itself (a
+    # cross-reference to a corroborating report) begins 4 tokens earlier, at
+    # "wa-mimma". Left uncorrected, the primary ends on an incomplete clause
+    # ("... qad khallala wa-mimma yadullu 'ala sihhati", "... had turned [to
+    # vinegar] and among what indicates the correctness of") rather than the
+    # genuine, complete report that Umar's nabidh had turned to vinegar.
+    "nasai": {
+        "hadith:nasai:5583":
+            ("88bd4d59e6f70b2019aed435ffdafb19ca8510c2d7c53920e2d372388fbd9c11", 4),
+        "hadith:nasai:5707":
+            ("f54c94f1c7ef194405c64ce6d7165aa0ace69f259d4bfe56d87910dbcd6c33ea", 4),
+    },
 }
 
 # --- Abu Ali al-Lu'lu'i's own voice: the one do-not-cut exception -----------
@@ -261,6 +290,44 @@ LULUI_NEVER_CUT: dict[str, dict[str, tuple[str, str]]] = {
         "hadith:abudawud:4068":
             ("31e484c9d5b9cf0d8706075599f8a2e2f1136fa8efc848f9e5725e17dbd6b77a",
              _LULUI_MID_NARRATION),
+    },
+}
+
+# --- Nasai's "extra" formula do-not-cut exception (Task 14) -----------------
+#
+# A dedicated dict, not a reuse of `NEVER_CUT` below, for the same reason
+# `LULUI_NEVER_CUT` is its own dict: `NEVER_CUT` is checked by
+# `_audited_never_cut` inside `_split_secondary`, against the matn as it
+# stands BEFORE `_split_compiler_commentary` ever runs; this entry's digest is
+# of the matn as it stands immediately BEFORE `_split_compiler_commentary`'s
+# OWN search (after `_split_secondary` and `CUT_OVERRIDE` have already run) --
+# a record that also happened to be on `NEVER_CUT` would otherwise have its
+# digest checked against two different strings under one key.
+#
+# hadith:nasai:3047: "... wa-inna rasula Llahi sallallahu 'alayhi wa-sallam
+# KHALAFAHUM thumma afada qabla an tatlu'a al-shams" ("... and the Messenger
+# of Allah DIFFERED FROM THEM [the pre-Islamic practice of waiting for
+# sunrise] and hastened [from Muzdalifah] before the sun rose"). `_NASAI_
+# FORMULA`'s "khalafahu/khalafahuma/khalafahum" arm reads as al-Nasai's own
+# comparative-isnad note ("so-and-so differed from him in the narration") on
+# every one of the other 76 measured occurrences, immediately followed there
+# by a narrator's name -- but here the same verb form is genuine narrative
+# describing the Prophet's own act, immediately followed by "thumma" (a
+# narrative connective), never a name. Cutting here would truncate the
+# hadith's own point (he acted before sunrise, unlike the Jahiliyya) into
+# addenda. Read by hand against the source; excluded, not patched around.
+_NASAI_GENUINE_KHALAFAHUM = (
+    "genuine narrative: \"he differed from [a practice]\", describing the "
+    "Prophet's own act, not al-Nasai's comparative-isnad note \"so-and-so "
+    "differed from him [in narrating it]\" -- the same verb form, a "
+    "different sense, immediately followed by a narrative connective rather "
+    "than a narrator's name")
+
+COMMENTARY_NEVER_CUT: dict[str, dict[str, tuple[str, str]]] = {
+    "nasai": {
+        "hadith:nasai:3047":
+            ("993c3a1202f4590f223cddad0911b9267750260fe0447510fa0246245c18bcb7",
+             _NASAI_GENUINE_KHALAFAHUM),
     },
 }
 
@@ -363,6 +430,24 @@ _QURANIC_QUOTE = ("wholly Qur'anic matn: the unit reports a Qur'an-reading "
                    "(qira'a) variant, but the entire printed matn is nothing "
                    "but the ayah's own wording, with no narrative content of "
                    "its own and no addendum to reattach")
+
+# Nasai-specific reasons (Task 14). Al-Mujtaba's own pointer convention
+# ("nahwahu"/"mithlahu"/"mursal"/etc.) is the same PHENOMENON already seen in
+# Bukhari/Muslim/Abu Dawud, reusing _POINTER for the plain cases, but three
+# further shapes turned up under hand review of every candidate (54 read,
+# in context, isnad and addenda included; 53 confirmed unscorable, one --
+# hadith:nasai:4129 "la tarji'u ba'di kuffaran" -- rejected from this list
+# because it is a genuine, complete, independently-quotable imperative with
+# only a trailing "mursal" classification tag, unlike the rest of this group):
+_CHAIN_LEAK = ("chain-continuation phrase: describes who narrated to whom "
+               "(a fragment of the isnad itself), not a report of the "
+               "Prophet's words, with no independent content of its own")
+_CLASSIFICATION_TAG = ("bare isnad-classification term (e.g. \"mursal\", "
+                        "\"mawquf\"), not narrative content")
+_TRUNCATED_OPENING = ("truncated opening clause missing the sentence's "
+                       "predicate or ruling -- compare the fuller parallel "
+                       "matn printed elsewhere in this collection -- with no "
+                       "independent quotable meaning on its own")
 
 UNSCORABLE: dict[str, dict[str, tuple[str, str]]] = {
     "bukhari": {
@@ -1969,5 +2054,120 @@ UNSCORABLE: dict[str, dict[str, tuple[str, str]]] = {
             ("188208f2268639f9f177ab03f3dd14872c21233f730975f3f617f293c0df07cc", _EDITORIAL_DISCUSSION),
         "hadith:tirmidhi:566":
             ("6c9dd272a9e06f16bad2e6eb992cdb4aaee127c80f17d86a18b57ab1e8fa74cd", _EDITORIAL_DISCUSSION),
+    },
+    "nasai": {
+        # _POINTER group (42 records) -- plain pointer
+        "hadith:nasai:65":  # "مثله"
+            ("314cca838007660a1698a16457b10ca72a652448eb8fbf995ad46bf924011bcd", _POINTER),
+        "hadith:nasai:272":  # "بهذا الإسناد مثله"
+            ("6171d4fcec64e9b37d51c524f9249b44aa576d350ab174931c8f4283b55d0bb5", _POINTER),
+        "hadith:nasai:278":  # "مثل ذلك"
+            ("dc1e0c484c2c70fa0bd9beeb65693afd93fecb6cb65d45c0b131fc2bae48f273", _POINTER),
+        "hadith:nasai:384-2":  # "بهذا الإسناد مثله"
+            ("6171d4fcec64e9b37d51c524f9249b44aa576d350ab174931c8f4283b55d0bb5", _POINTER),
+        "hadith:nasai:434":  # "وساق الحديث"
+            ("3fb9392ed9b90344141c4b038fe5ce3f29b57822de50f91565aa7919044bb98a", _POINTER),
+        "hadith:nasai:568":  # "بنحوه"
+            ("836f144960a6a13399d667fd9bbbc4f02fcf5f21465d6261bcf0ee4ef02eb8ff", _POINTER),
+        "hadith:nasai:648":  # "بهذا الإسناد نحوه"
+            ("86a89cb71072246742402d58cdfdf1b83745b04c8829f5624f04e58c0d081b2a", _POINTER),
+        "hadith:nasai:651":  # "مثل ذلك"
+            ("dc1e0c484c2c70fa0bd9beeb65693afd93fecb6cb65d45c0b131fc2bae48f273", _POINTER),
+        "hadith:nasai:720":  # "نحوه"
+            ("da5b06f32a8be960e4896498557c3a5abf0318f6aa354cf9a2f1cdff8bc7dcbe", _POINTER),
+        "hadith:nasai:796":  # "نحوه"
+            ("da5b06f32a8be960e4896498557c3a5abf0318f6aa354cf9a2f1cdff8bc7dcbe", _POINTER),
+        "hadith:nasai:863":  # "نحوه"
+            ("da5b06f32a8be960e4896498557c3a5abf0318f6aa354cf9a2f1cdff8bc7dcbe", _POINTER),
+        "hadith:nasai:964":  # "مثله"
+            ("314cca838007660a1698a16457b10ca72a652448eb8fbf995ad46bf924011bcd", _POINTER),
+        "hadith:nasai:1197":  # "بمثله"
+            ("92d5f662cd531946a72590d721c4870f84847ca45e91a1907882dd20701105de", _POINTER),
+        "hadith:nasai:1198":  # "بمثله"
+            ("92d5f662cd531946a72590d721c4870f84847ca45e91a1907882dd20701105de", _POINTER),
+        "hadith:nasai:1234":  # "بمثله"
+            ("92d5f662cd531946a72590d721c4870f84847ca45e91a1907882dd20701105de", _POINTER),
+        "hadith:nasai:1786":  # "فذكر نحوه"
+            ("edc5862bd004c3bef89e0e4e3c8f0e64f1fa71d9a89a676789dd728c9d23ff4a", _POINTER),
+        "hadith:nasai:1990":  # "بنحو ذلك"
+            ("7faf342a441621b016c7a953470c422704b1aa214fabea432840e64df9722305", _POINTER),
+        "hadith:nasai:2270":  # "نحوه"
+            ("da5b06f32a8be960e4896498557c3a5abf0318f6aa354cf9a2f1cdff8bc7dcbe", _POINTER),
+        "hadith:nasai:2278":  # "نحوه"
+            ("da5b06f32a8be960e4896498557c3a5abf0318f6aa354cf9a2f1cdff8bc7dcbe", _POINTER),
+        "hadith:nasai:2398":  # "وساق الحديث"
+            ("3fb9392ed9b90344141c4b038fe5ce3f29b57822de50f91565aa7919044bb98a", _POINTER),
+        "hadith:nasai:2412":  # "نحوه مرسل"
+            ("5c7d50fa0c4b1593e6af676b0c7e056e1bcee9cf811ac4689f41eed1ce413bd9", _POINTER),
+        "hadith:nasai:2496":  # "بمثله"
+            ("92d5f662cd531946a72590d721c4870f84847ca45e91a1907882dd20701105de", _POINTER),
+        "hadith:nasai:2636":  # "مثله"
+            ("314cca838007660a1698a16457b10ca72a652448eb8fbf995ad46bf924011bcd", _POINTER),
+        "hadith:nasai:2724":  # "بهذا الإسناد مثله"
+            ("6171d4fcec64e9b37d51c524f9249b44aa576d350ab174931c8f4283b55d0bb5", _POINTER),
+        "hadith:nasai:3357":  # "مثله"
+            ("314cca838007660a1698a16457b10ca72a652448eb8fbf995ad46bf924011bcd", _POINTER),
+        "hadith:nasai:3419":  # "نحوه"
+            ("da5b06f32a8be960e4896498557c3a5abf0318f6aa354cf9a2f1cdff8bc7dcbe", _POINTER),
+        "hadith:nasai:3505":  # "نحوه"
+            ("da5b06f32a8be960e4896498557c3a5abf0318f6aa354cf9a2f1cdff8bc7dcbe", _POINTER),
+        "hadith:nasai:3598":  # "نحوه"
+            ("da5b06f32a8be960e4896498557c3a5abf0318f6aa354cf9a2f1cdff8bc7dcbe", _POINTER),
+        "hadith:nasai:3617":  # "قوله"
+            ("679bd6365682eb58b61672e51ee004259253fe08f00e9cd3c8b4c180fed190b7", _POINTER),
+        "hadith:nasai:4033":  # "نحوه"
+            ("da5b06f32a8be960e4896498557c3a5abf0318f6aa354cf9a2f1cdff8bc7dcbe", _POINTER),
+        "hadith:nasai:4098":  # "بهذا الإسناد مثله ولم يرفعه"
+            ("651f1d63ad104548967f68ce947bbef88597d2f02c1e7e9ac94acda31aa585ae", _POINTER),
+        "hadith:nasai:4176":  # "فذكر نحوه"
+            ("edc5862bd004c3bef89e0e4e3c8f0e64f1fa71d9a89a676789dd728c9d23ff4a", _POINTER),
+        "hadith:nasai:4271":  # "بمثل ذلك"
+            ("769ce066220566f0a2b9bab157034b61d51fba37d4b148d41a2b26ee7756f3b0", _POINTER),
+        "hadith:nasai:4360":  # "نحوه ولم يرفعه"
+            ("7f4c7b361b8296286c513c1e9b2a05cc8544e6329848d9505c15335137ae66b7", _POINTER),
+        "hadith:nasai:4588":  # "بمثله"
+            ("92d5f662cd531946a72590d721c4870f84847ca45e91a1907882dd20701105de", _POINTER),
+        "hadith:nasai:4725":  # "بمثله قال يحيى وهو أحسن منه"
+            ("66f2f531a87bce408c7920c65f87125c62f4d7a97919d3fc77d76ebfd9feee8b", _POINTER),
+        "hadith:nasai:4831":  # "مثله سواء"
+            ("1689c6318ec9c6db4fbe987b4477218c0855c4fbae2c69e357bf7a5909856513", _POINTER),
+        "hadith:nasai:4929":  # "مثل الأول"
+            ("b6615f8324b43210cf4f06e08ecc0eaea99ef2191bc94e6e114d7bb2b518ac39", _POINTER),
+        "hadith:nasai:5070":  # "بمثله"
+            ("92d5f662cd531946a72590d721c4870f84847ca45e91a1907882dd20701105de", _POINTER),
+        "hadith:nasai:5123":  # "نحوه"
+            ("da5b06f32a8be960e4896498557c3a5abf0318f6aa354cf9a2f1cdff8bc7dcbe", _POINTER),
+        "hadith:nasai:5194":  # "مرسل"
+            ("756615880a6aeadc073a731bc5c11aa883370710596aafc33d0cbbf0cd3b8b2f", _POINTER),
+        "hadith:nasai:5695":  # "بنحوه"
+            ("836f144960a6a13399d667fd9bbbc4f02fcf5f21465d6261bcf0ee4ef02eb8ff", _POINTER),
+
+        # _CHAIN_LEAK group (2 records) -- chain-continuation leak
+        "hadith:nasai:2259":  # "سمع جابرا نحوه"
+            ("bd98eef6ecc633d7976c0044674e035f002bcefd8b02563446eaf5edb34477f0", _CHAIN_LEAK),
+        "hadith:nasai:4893":  # "حدثه نحوه"
+            ("a738ddc43000c877a0cabbdb44a928e7f50447a84e54174080f4bb04155c97d7", _CHAIN_LEAK),
+
+        # _CLASSIFICATION_TAG group (4 records) -- bare classification tag
+        "hadith:nasai:1788":  # "موقوفا"
+            ("c1ce4bf5f715409da01f67c1ec732c54f2ec6f7fed1d5c81e2e227b810e08dcd", _CLASSIFICATION_TAG),
+        "hadith:nasai:2114":  # "مرسل"
+            ("756615880a6aeadc073a731bc5c11aa883370710596aafc33d0cbbf0cd3b8b2f", _CLASSIFICATION_TAG),
+        "hadith:nasai:2115":  # "مرسل"
+            ("756615880a6aeadc073a731bc5c11aa883370710596aafc33d0cbbf0cd3b8b2f", _CLASSIFICATION_TAG),
+        "hadith:nasai:4952":  # "مرسل"
+            ("756615880a6aeadc073a731bc5c11aa883370710596aafc33d0cbbf0cd3b8b2f", _CLASSIFICATION_TAG),
+
+        # _TRUNCATED_OPENING group (5 records) -- truncated opening clause
+        "hadith:nasai:2232":  # "دخل مطرف على عثمان نحوه مرسل"
+            ("3a18ace69f05faa7f6cc664f31cbb3261a614066cdd6331e35c0d20837f8d7f3", _TRUNCATED_OPENING),
+        "hadith:nasai:2295":  # "يا رسول الله مثله مرسل"
+            ("e55de58401fa71db6368ce6b6dd18983e870255e601156713efe6c4bf07e2dce", _TRUNCATED_OPENING),
+        "hadith:nasai:3965":  # "فقدته من الليل وساق الحديث"
+            ("5d379693b857be4d28f1c08179e6ba0b6ff1a0d8f53cf770ee985f03a56b642c", _TRUNCATED_OPENING),
+        "hadith:nasai:4787":  # "من قتل له قتيل مرسل"
+            ("c054c9b97b280e806ba0ceb88e125932ba2938ede58b2c1a48c05e55b2149ffe", _TRUNCATED_OPENING),
+        "hadith:nasai:5100":  # "المتفلجات وساق الحديث"
+            ("00dfb08ebae7ef777b409116f0088d0ed1be7c420040f51869cee3b692455d3c", _TRUNCATED_OPENING),
     },
 }

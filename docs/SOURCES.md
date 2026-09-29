@@ -179,7 +179,7 @@ modifications    = "mARkdown structural markers parsed and discarded; no text al
 
 The committed `data/sanad-quran.db` held 26,099 records before this task: 6,236 ayat (Tanzil Uthmani, CC BY 3.0) + 7,129 Sahih al-Bukhari hadith + 7,460 Sahih Muslim hadith + 5,274 Sunan Abi Dawud hadith (public-domain bases above). Its whole-file SHA-256 is verified at build time and printed by `sanad-ingest build`; see `README.md` for the currently-committed value and the reproducibility check. Adding this third collection was proven not to perturb either of the first two: the Bukhari and Muslim record sets are byte-identical, across every stored column, before and after Task 12.
 
-**Product constraint, stated here because it follows directly from the bases above.** Sanad ships no hadith gradings — modern authenticity gradings are copyrighted scholarly work, and authenticity is not Sanad's to assert. Sanad may say "this text is in Sahih al-Bukhari", "this text is in Sahih Muslim", "this text is in Sunan Abi Dawud", or "this text is in Jami at-Tirmidhi"; it must never say or imply "this hadith is sahih."
+**Product constraint, stated here because it follows directly from the bases above.** Sanad ships no hadith gradings — modern authenticity gradings are copyrighted scholarly work, and authenticity is not Sanad's to assert. Sanad may say "this text is in Sahih al-Bukhari", "this text is in Sahih Muslim", "this text is in Sunan Abi Dawud", "this text is in Jami at-Tirmidhi", or "this text is in Sunan an-Nasai"; it must never say or imply "this hadith is sahih."
 
 ## Jami at-Tirmidhi: the licensing basis
 
@@ -241,6 +241,66 @@ modifications    = "mARkdown structural markers parsed and discarded; no text al
 
 The committed `data/sanad-quran.db` now holds 30,075 records: 6,236 ayat (Tanzil Uthmani, CC BY 3.0) + 7,129 Sahih al-Bukhari hadith + 7,460 Sahih Muslim hadith + 5,274 Sunan Abi Dawud hadith + 3,976 Jami at-Tirmidhi hadith (public-domain bases above). Its whole-file SHA-256 is verified at build time and printed by `sanad-ingest build`; see `README.md` for the currently-committed value and the reproducibility check. Adding this fourth collection was proven not to perturb any of the first three: the Bukhari, Muslim and Abu Dawud record sets are byte-identical, across every stored column, before and after Task 13 — built in an isolated `git worktree add --detach` at the pre-Task-13 commit, with the shared `.venv`'s editable-install package mapping overridden (not merely assumed inert) so the "before" build actually runs the old commit's code rather than silently re-running HEAD's.
 
+## Sunan an-Nasai (al-Mujtaba): the licensing basis
+
+The fifth collection ingested (Task 14), on the same basis as the four collections above, with its own numbering-scheme distinction recorded per source rather than assumed: Abd al-Fattah Abu Ghudda's edition numbering is `numbering_scheme = "abughudda"`, distinct from Bukhari's `bugha-1987`, Muslim's `abdalbaqi`, Abu Dawud's `abdalhamid`, and Tirmidhi's `shakir`.
+
+### The file
+
+`data/0303Nasai/0303Nasai.SunanSughra/0303Nasai.SunanSughra.JK000130-ara1.mARkdown` in `github.com/OpenITI/0325AH`. The file's own `#META#` header records the edition:
+
+```
+010.AuthorNAME  :: أحمد بن شعيب أبو عبد الرحمن النسائي
+011.AuthorDIED  :: 303                        (AH)
+020.BookTITLE   :: المجتبى من السنن
+040.EdEDITOR    :: عبدالفتاح أبو غدة           (Abd al-Fattah Abu Ghudda)
+041.EdNUMBER    :: الثانية                     (2nd)
+043.EdPUBLISHER :: مكتب المطبوعات الإسلامية    (Maktab al-Matbuat al-Islamiyya)
+044.EdPLACE     :: حلب                         (Aleppo)
+045.EdYEAR      :: 1406 - 1986
+```
+
+Selected the same way the four preceding files were: the JK-prefixed curated OpenITI version, not a `Shamela*`/`ShamAY*`/`Shia*` scrape. Unlike Sunan Abi Dawud and Jami at-Tirmidhi, this file's `#META#` header has no gaps at all — `EdNUMBER`, `EdYEAR`, `EdPLACE`, and `EdPUBLISHER` are all filled — the most complete per-file metadata of the five hadith files this project has ingested, even though the file itself sits at the earlier `ara1` markup stage (like Abu Dawud) rather than `.completed` (like Tirmidhi). The stage affects only how much of OpenITI's own structural markup has been finished, not the licensing basis below.
+
+### Why we may ship it — the legal basis
+
+**Basis: the work's own public-domain status.** Ahmad ibn Shu'ayb Abu Abd al-Rahman al-Nasai died in 303 AH (915 CE). The matn and the isnad are public domain in every jurisdiction, without qualification — the identical basis the four collections above ship on, restated here rather than assumed, because a basis recorded once is not automatically a basis for a fifth work by a fifth author.
+
+**Not an OpenITI licence grant, and the distinction is load-bearing here for exactly the reason it was for the first four collections.** OpenITI is the transcriber, not the rights holder of anything requiring a grant: what they contribute is transcription and structural markup, and a faithful mechanical transcription of a public-domain text attracts no new copyright. Their markup (mARkdown structural markers, page/volume anchors) is not carried into the corpus — the parser consumes it and discards it. Abu Ghudda's editorial apparatus — his introductions, footnotes, and the vowelling/typesetting choices of his edition — is likewise not carried into the corpus; what is ingested is matn and isnad. His **numbering** is a separate matter from his apparatus: a sequential count of units is a fact about how the edition is organized, not a copyrightable expression, and it is recorded as `numbering_scheme = "abughudda"` precisely so it is never confused with the other four editions' numbering or presented as if it were.
+
+**Al-Nasai's own classical formulas are retained byte-exact as part of the canonical text, and are not exposed as a grading apparatus.** Modern authenticity gradings are copyrighted scholarly work outside this corpus's basis, exactly as for the rest of this corpus. Al-Nasai's own editorial remarks — comparative-isnad critiques such as "khalafahu ..."/"khalafahuma ..."/"khalafahum ...", and verdict phrases such as "hadha hadith ..."/"hadha khata'"/"wa al-sawab ..." (R-A3-20's split moves these into `addenda_ar`) — are a different thing: part of the primary source text itself, eleven centuries old, on the same public-domain basis as the matn and isnad around them. They are preserved, byte-exact, and still displayed as part of the record's full printed text; they are simply not scored as the matn, and Sanad never surfaces them as a grading verdict. Sanad confirms wording; it does not grade (R-A3-2).
+
+**A raised-bar note specific to this collection:** al-Nasai's own kunya, "Abu Abd al-Rahman", is *also* the kunya of the Companion Abdullah ibn Umar, who narrates extensively throughout this collection. R-A3-20 required the compiler-commentary split to be measured against this namesake collision specifically — every candidate boundary was audited by hand so that a narrator being addressed by his own kunya inside a quoted matn (e.g. "ya Aba Abd al-Rahman ...") is never mistaken for the compiler's own voice and cut. This is a fact about the split's precision, not about the licensing basis, but it is recorded here because it is unique to this file among the five ingested so far.
+
+**Attribution to OpenITI is given as credit, not as licence compliance**, on the same terms as the four entries above: recorded in `sources` with file, edition, commit and retrieval date, and shown in the provenance panel.
+
+### The pinned commit and hash
+
+```toml
+[[source]]
+id               = "openiti-nasai-jk000130"
+kind             = "hadith-arabic"
+collection       = "nasai"
+numbering_scheme = "abughudda"
+format           = "openiti-markdown"
+title            = "المجتبى من السنن (Sunan an-Nasai)"
+publisher        = "OpenITI (transcription); Maktab al-Matbuat al-Islamiyya, Aleppo (edition)"
+edition          = "ed. Abd al-Fattah Abu Ghudda, 2nd ed., 1406/1986; OpenITI JK000130, ara1.mARkdown"
+url              = "https://raw.githubusercontent.com/OpenITI/0325AH/089e665b4958e0f145a46941987fb81cf3dda1b8/data/0303Nasai/0303Nasai.SunanSughra/0303Nasai.SunanSughra.JK000130-ara1.mARkdown"
+commit           = "089e665b4958e0f145a46941987fb81cf3dda1b8"
+license_id       = "public-domain"
+license_url      = "https://github.com/OpenITI/0325AH"
+content_sha256   = "5afdd931303a85babd351afd72063cad455327b13263f16c5de2f6df5f30a4d1"
+expected_records = 5769
+modifications    = "mARkdown structural markers parsed and discarded; no text altered"
+```
+
+`commit` is pinned for the same reason as the four entries above: OpenITI is a live git repository whose files are re-OCRed in place. `content_sha256` covers the complete raw file, computed by the build itself (`sanad-ingest build`, measured-then-pinned per the project's build-measured-placeholder convention) and re-verified green on every subsequent build. `expected_records` (5,769) is the raw file's own count of numbered units. See `ingest/corpus.lock.toml` for the authoritative, machine-checked copy of this entry.
+
+### The built corpus
+
+The committed `data/sanad-quran.db` now holds 35,844 records: 6,236 ayat (Tanzil Uthmani, CC BY 3.0) + 7,129 Sahih al-Bukhari hadith + 7,460 Sahih Muslim hadith + 5,274 Sunan Abi Dawud hadith + 3,976 Jami at-Tirmidhi hadith + 5,769 Sunan an-Nasai hadith (public-domain bases above). Its whole-file SHA-256 is verified at build time and printed by `sanad-ingest build`; see `README.md` for the currently-committed value and the reproducibility check. Adding this fifth collection was proven not to perturb any of the first four: the Bukhari, Muslim, Abu Dawud, and Tirmidhi record sets are byte-identical, across every stored column, before and after Task 14 — built in an isolated `git worktree add --detach` at the pre-Task-14 commit, with the shared `.venv`'s editable-install package mapping overridden (not merely assumed inert) so the "before" build actually runs the old commit's code rather than silently re-running HEAD's.
+
 ## Source decisions
 
 | Source | Decision | Reason |
@@ -254,6 +314,7 @@ The committed `data/sanad-quran.db` now holds 30,075 records: 6,236 ayat (Tanzil
 | OpenITI `0275AH`, JK000109 (Sahih Muslim) | **Shipped** | Same basis as Sahih al-Bukhari above: author's death (261 AH) is the public-domain basis, not any OpenITI grant; JK-prefixed curated version |
 | OpenITI `0275AH`, JK000142 (Sunan Abi Dawud) | **Shipped** | Same basis as the two collections above: author's death (275 AH) is the public-domain basis, not any OpenITI grant; JK-prefixed curated version; per-file metadata incomplete (EdNUMBER/EdPLACE/EdYEAR unfilled) but shipped under the Stage A3 relaxed-bar ruling (R-A3-1) |
 | OpenITI `0300AH`, JK000140 (Jami at-Tirmidhi) | **Shipped** | Same basis as the three collections above: author's death (279 AH) is the public-domain basis, not any OpenITI grant; JK-prefixed curated version, uniquely at the `.completed` processing stage; per-file metadata incomplete (EdNUMBER/EdYEAR unfilled, EdPLACE/EdPUBLISHER filled) but shipped under the Stage A3 relaxed-bar ruling (R-A3-1) |
+| OpenITI `0325AH`, JK000130 (Sunan an-Nasai) | **Shipped** | Same basis as the four collections above: author's death (303 AH) is the public-domain basis, not any OpenITI grant; JK-prefixed curated version; per-file metadata fully complete (EdNUMBER/EdYEAR/EdPLACE/EdPUBLISHER all filled) even at the `ara1` markup stage |
 
 ## Review checklist
 

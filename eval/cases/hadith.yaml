@@ -794,3 +794,95 @@
     words, and MUST NOT verify as one -- a false EXACT here would be Sanad
     telling a reader that Abu Isa's own aside is scripture. MEASURED
     NOT_FOUND at 0.555 against the materialised corpus.
+
+# --- Task 14: Sunan an-Nasai -------------------------------------------------
+#
+# The same fabricated/mis-cited saying already used against the first four
+# collections, per the project's standing char-safety convention.
+
+- id: hadith-nasai-famous-matn-bare
+  text: 'السواك مطهرة للفم مرضاة للرب'
+  expect_verdict: EXACT
+  expect_record: hadith:nasai:5
+  rationale: >-
+    "The tooth-stick is purifying for the mouth, pleasing to the Lord" -- a
+    short, complete, famous Nasai-specific ruling on the siwak. Unique in the
+    corpus (no tie, no addendum). MEASURED EXACT 1.0 against hadith:nasai:5.
+- id: hadith-nasai-wrong-number
+  text: 'السواك مطهرة للفم مرضاة للرب (Nasai 999)'
+  expect_verdict: WRONG_REFERENCE
+  expect_record: hadith:nasai:5
+  rationale: >-
+    The same genuine wording as the case above, cited under a real-shaped but
+    wrong Nasai hadith number. MEASURED WRONG_REFERENCE against
+    hadith:nasai:5 -- the text is verbatim so the only thing wrong is the
+    citation. Paired with the equivalent case for each of the other four
+    collections, which case the identical defect class corpus-wide.
+- id: hadith-nasai-fabricated-attribution
+  text: 'طلب العلم فريضة على كل مسلم ومسلمة'
+  expect_verdict: NOT_FOUND
+  expect_scope_caveat: true
+  rationale: >-
+    "Seeking knowledge is an obligation upon every Muslim, male and female" --
+    the same widely-circulated saying cased against every other collection in
+    this corpus (usually traced to Ibn Majah), equally absent, byte-for-byte,
+    from this edition of al-Mujtaba. MEASURED NOT_FOUND at 0.37. Absence from
+    this collection is a statement about a database, not a grading of the
+    saying, hence the scope caveat.
+- id: hadith-nasai-editorial-pointer-is-not-a-text
+  text: '«نحوه»'
+  expect_verdict: NOT_FOUND
+  rationale: >-
+    "nahwahu" -- "similar to it" -- the same one-word editorial back-reference
+    already cased against Sunan Abi Dawud and Jami at-Tirmidhi, and one of
+    al-Mujtaba's own 42 plain-`_POINTER`-class records within
+    `UNSCORABLE["nasai"]`: printed in place of a narration given in full
+    elsewhere under a different chain, 24 of the 42 sharing this exact one-
+    word string. A false EXACT here would be Sanad telling a reader that a
+    one-word editorial gloss is a hadith of the Prophet. MEASURED NOT_FOUND
+    at 0.308 against the materialised corpus.
+- id: hadith-nasai-namesake-vocative-is-not-cut
+  text: 'كنت أمشي مع عبد الله بمنى فلقيه عثمان فقام معه يحدثه فقال يا أبا عبد الرحمن ألا أزوجك جارية شابة فلعلها أن تذكرك بعض ما مضى منك فقال عبد الله أما لئن قلت ذاك لقد قال لنا رسول الله صلى الله عليه وسلم يا معشر الشباب من استطاع منكم الباءة فليتزوج'
+  expect_verdict: EXACT
+  expect_record: hadith:nasai:3211
+  rationale: >-
+    R-A3-20's own named hazard, cased directly: "أبو عبد الرحمن" is al-
+    Nasai's kunya, but it is ALSO Abdullah ibn Umar's own kunya, and this
+    matn is Uthman vocatively addressing Ibn Umar by it ("يا أبا عبد
+    الرحمن ...") inside quoted speech -- not al-Nasai's own remark. The
+    "raised bar against over-cutting" this ruling calls for means the kunya
+    marker must NOT fire here. MEASURED EXACT 1.0 against hadith:nasai:3211,
+    the full genuine matn intact with no spurious cut.
+
+# --- Step 6a: false-NEGATIVE coverage for the R-A3-20 split -----------------
+#
+# The eval gate above measures false POSITIVES only. These two cases case the
+# same false-negative direction Task 12/13's own Step 6a closed for their
+# collections: a genuine matn with a comparative-isnad tail must still
+# VERIFY, and the tail moved into `addenda_ar` must NOT itself produce a
+# false EXACT.
+
+- id: hadith-nasai-formula-tail-now-verifies
+  text: 'سألت رافع بن خديج عن كراء الأرض بالدينار والورق فقال لا بأس بذلك إنما كان الناس على عهد رسول الله صلى الله عليه وسلم يؤاجرون على الماذيانات وإقبال الجداول فيسلم هذا ويهلك هذا ويسلم هذا ويهلك هذا فلم يكن للناس كراء إلا هذا فلذلك زجر عنه فأما شيء معلوم مضمون فلا بأس به وافقه مالك بن أنس على إسناده'
+  expect_verdict: EXACT
+  expect_record: hadith:nasai:3899
+  rationale: >-
+    Rafi' ibn Khadij's own genuine ruling on leasing land, byte-exact from
+    the MATERIALISED database. Before `_NASAI_FORMULA` existed, the source's
+    trailing "wa-khalafahu fi lafzihi" ("and he differed from him in his
+    wording") -- al-Nasai's own comparative-isnad note, never part of the
+    reported ruling -- was fused onto this matn with no boundary, and
+    quoting the genuine wording alone returned NOT_FOUND: the same R-A3-18
+    defect class found in a FIFTH collection by measuring a related phrase
+    family rather than assuming the brief's two named markers were
+    exhaustive. MEASURED EXACT 1.0 against hadith:nasai:3899.
+- id: hadith-nasai-formula-fragment-is-not-a-text
+  text: '«وخالفه في لفظه»'
+  expect_verdict: NOT_FOUND
+  rationale: >-
+    The other half of hadith:nasai:3899: al-Nasai's own comparative-isnad
+    note ("and he differed from him in his wording"), living in
+    `addenda_ar` after the split, quoted alone. It is editorial commentary
+    about isnad/wording transmission, not a report of the Prophet's words,
+    and MUST NOT verify as one. MEASURED NOT_FOUND at 0.297 against the
+    materialised corpus.

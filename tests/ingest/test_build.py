@@ -797,7 +797,7 @@ def test_the_appended_narrations_are_stored_but_never_scored(real_corpus):
     conn = db.connect(out)
     n = conn.execute(
         "SELECT count(*) FROM records WHERE addenda_ar IS NOT NULL").fetchone()[0]
-    assert n == 5416  # Task 14: +274 Nasai
+    assert n == 5478  # Task 14: +274 Nasai; fix round 1 (R-A3-25): +60 Nasai, +2 Tirmidhi
     rec = db.get_record(conn, "hadith:bukhari:22")
     assert rec.addenda_ar and _HADDATHANA in rec.addenda_ar
     assert _HADDATHANA not in rec.text_ar
@@ -856,13 +856,13 @@ def test_no_addendum_reaches_the_primary_representation(real_corpus):
     conn = db.connect(out)
     assert conn.execute(
         "SELECT count(*) FROM records WHERE addenda_ar IS NOT NULL"
-        " AND unscorable_reason IS NOT NULL").fetchone()[0] == 111  # +6 Nasai
+        " AND unscorable_reason IS NOT NULL").fetchone()[0] == 120  # +6 Nasai; fix round 1: +7 Nasai, +2 Tirmidhi
     rows = conn.execute(
         "SELECT r.id, r.text_ar, r.addenda_ar, f.norm_standard,"
         "       f.norm_aggressive FROM records r"
         " JOIN records_fts f ON f.record_id = r.id AND f.variant = 'primary'"
         " WHERE r.addenda_ar IS NOT NULL").fetchall()
-    assert len(rows) == 5305  # Task 14: +268 Nasai
+    assert len(rows) == 5358  # Task 14: +268 Nasai; fix round 1 (R-A3-25): +53 Nasai
     for row in rows:
         assert row["addenda_ar"] not in row["text_ar"], row["id"]
         for form in ("standard", "aggressive"):
@@ -891,7 +891,7 @@ def test_the_full_printed_text_is_scored_alongside_the_primary(real_corpus):
         "       v.norm_aggressive FROM records r"
         " LEFT JOIN record_variants v ON v.record_id = r.id"
         " WHERE r.addenda_ar IS NOT NULL").fetchall()
-    assert len(rows) == 5416  # Task 14: +274 Nasai
+    assert len(rows) == 5478  # Task 14: +274 Nasai; fix round 1 (R-A3-25): +60 Nasai, +2 Tirmidhi
     checked = 0
     for row in rows:
         # 237 (and Task 11's Muslim 1915-3, 546-3, and fix round 1's 41
@@ -903,7 +903,7 @@ def test_the_full_printed_text_is_scored_alongside_the_primary(real_corpus):
         for form in ("light", "standard", "aggressive"):
             assert row[f"norm_{form}"] == normalize(row["whole"], form), row["id"]
         checked += 1
-    assert checked == 5416  # Task 14: +274 Nasai
+    assert checked == 5478  # Task 14: +274 Nasai; fix round 1 (R-A3-25): +60 Nasai, +2 Tirmidhi
 
 
 def test_a_record_with_no_addendum_has_no_second_representation(real_corpus):
@@ -1015,6 +1015,9 @@ def test_editorial_pointers_are_kept_but_never_scored(real_corpus):
     `test_tirmidhi_record_count_and_scorability` for how that count was
     reached, including the one entry (2929) the by-hand audit missed and the
     materialize-time wholly-Qur'anic gate caught.
+
+    Task 14 (Nasai) adds 53. Fix round 1 (R-A3-25) adds 2 more (1738, 3492):
+    see `test_nasai_record_count_and_scorability`'s fix-round note for why.
     """
     out, _, _ = real_corpus
     conn = db.connect(out)
@@ -1029,7 +1032,7 @@ def test_editorial_pointers_are_kept_but_never_scored(real_corpus):
     assert len(flagged_muslim) == 721
     assert len(flagged_abudawud) == 139
     assert len(flagged_tirmidhi) == 80
-    assert len(flagged_nasai) == 53
+    assert len(flagged_nasai) == 55
     assert flagged == (flagged_bukhari | flagged_muslim | flagged_abudawud
                         | flagged_tirmidhi | flagged_nasai)
     for record_id in sorted(_UNSCORABLE_IDS):
@@ -1063,6 +1066,14 @@ def test_no_unscorable_primary_is_in_the_search_index(real_corpus):
     split gave each a genuine, scorable full-text representation), listed
     here in ascending string order (Python's default, so e.g. "111" sorts
     before "1194" and both sort before "30" -- not numeric order).
+
+    Task 14 (Nasai) raises this to 111 (the kunya marker's 6: 648, 1786,
+    4588, 5123, 5194, 5695). Fix round 1 (R-A3-25) raises this to 120: the
+    comparative-isnad family extension gives 7 more already-excluded Nasai
+    records their own addendum for the first time (2232, 2295, 2412, 3492,
+    4098, 4360, 4787), and the `_split_compiler_commentary` empty-head fix
+    lets Tirmidhi's 46 and 566 correctly cut for the first time too (see
+    `test_tirmidhi_record_count_and_scorability`'s fix-round note).
     """
     out, _, _ = real_corpus
     rows = db.connect(out).execute(
@@ -1113,7 +1124,14 @@ def test_no_unscorable_primary_is_in_the_search_index(real_corpus):
          ("hadith:muslim:1915-3", "full"),
          ("hadith:muslim:546-3", "full"),
          ("hadith:nasai:1786", "full"),
+         ("hadith:nasai:2232", "full"),
+         ("hadith:nasai:2295", "full"),
+         ("hadith:nasai:2412", "full"),
+         ("hadith:nasai:3492", "full"),
+         ("hadith:nasai:4098", "full"),
+         ("hadith:nasai:4360", "full"),
          ("hadith:nasai:4588", "full"),
+         ("hadith:nasai:4787", "full"),
          ("hadith:nasai:5123", "full"),
          ("hadith:nasai:5194", "full"),
          ("hadith:nasai:5695", "full"),
@@ -1155,11 +1173,13 @@ def test_no_unscorable_primary_is_in_the_search_index(real_corpus):
          ("hadith:tirmidhi:434", "full"),
          ("hadith:tirmidhi:441", "full"),
          ("hadith:tirmidhi:444", "full"),
+         ("hadith:tirmidhi:46", "full"),
          ("hadith:tirmidhi:504", "full"),
          ("hadith:tirmidhi:529", "full"),
          ("hadith:tirmidhi:535", "full"),
          ("hadith:tirmidhi:540", "full"),
          ("hadith:tirmidhi:559", "full"),
+         ("hadith:tirmidhi:566", "full"),
          ("hadith:tirmidhi:569", "full"),
          ("hadith:tirmidhi:574", "full"),
          ("hadith:tirmidhi:599", "full"),

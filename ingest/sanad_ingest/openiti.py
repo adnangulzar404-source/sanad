@@ -675,11 +675,16 @@ def _strip_reference_numbers(matn: str) -> str:
 #     الأوزاعي ...", a second self-reference inside his own remark) or
 #     (b) a narrator's kunya inside an isnad or inside reported speech,
 #     correctly left untouched because no verb governs it.
-#   - Accusative "أبا عبد الرحمن": 14, ALL of the vocative shape "يا أبا عبد
-#     الرحمن" ("O Abu 'Abd al-Rahman") addressed to 'Abdallah ibn 'Umar (4),
-#     Abu 'Abd al-Rahman al-Hubuli (3), al-Shami (1) and others inside genuine
-#     narration -- NEVER "سمعت أبا عبد الرحمن يقول" (measured: that exact verb
-#     + accusative shape occurs 0 times in this file, unlike Abu Dawud's 8).
+#   - Accusative "أبا عبد الرحمن": 16 ("~~"-tolerant; a naive `\s+`-only count
+#     gives 14 and undercounts for the same line-wrap reason the genitive and
+#     "هذا حديث" counts below do -- found in the Task 14 fix round, R-A3-25),
+#     ALL of the vocative shape "يا أبا عبد الرحمن" ("O Abu 'Abd al-Rahman")
+#     addressed to 'Abdallah ibn 'Umar or another Abu 'Abd al-Rahman inside
+#     genuine narration, or "أبا عبد الرحمن الحبلي" (al-Hubuli, a different
+#     person, inside an isnad) -- NEVER "سمعت أبا عبد الرحمن يقول" (measured:
+#     that exact verb + accusative shape occurs 0 times in this file, unlike
+#     Abu Dawud's 8). No disposition changes from the recount; corrected here
+#     so Task 15/16 do not inherit the naive number.
 #     `heard`'s own pattern therefore matches nothing here, correctly: the
 #     namesake collision is real but is resolved by verb-gating exactly as
 #     Abu Dawud/al-Tayalisi's was, not by an identity check, and this is
@@ -765,6 +770,171 @@ def _strip_reference_numbers(matn: str) -> str:
 #     word ("والصواب"), never a separate "فالصواب" (measured: 0), so unlike
 #     "خالفه" it needs no optional `[وف]?` proclitic of its own.
 #
+# --- Fix round 1 (R-A3-25): the rest of the comparative-isnad family --------
+#
+# An independent review of this task found that "خالفه" is one VERB of a
+# whole family al-Nasai uses with identical syntax -- critique verb (+
+# optional `[وف]?` proclitic) immediately followed by a narrator's name, in
+# the tail position after a complete matn -- and that shipping only "خالفه"
+# left ~100 further occurrences of sibling verbs fused into scored text. Each
+# member below was found by sweeping every record's matn AS IT STOOD
+# immediately before this function ran (instrumented directly, not
+# regenerated from the shipped DB, so isnad-side and already-cut occurrences
+# are correctly invisible), then reading every single occurrence in context --
+# not a sample -- because several of these verbs have a genuine narrative
+# sense ("he RAISED his hands", "he SENT a messenger", "Allah RAISES him a
+# degree") that looks identical to the critique sense out of context and a
+# blind verb match would over-cut the entire remainder of the matn, not just
+# a local remark (`_split_compiler_commentary` cuts from the earliest match to
+# the end of the string).
+#
+#   - "وافقه"/"وافقهما" ("so-and-so AGREED with him [on the isnad]", the
+#     positive mirror of "خالفه"): 7 raw occurrences, ALL tail-critique, no
+#     exceptions. Fixes hadith:nasai:3899 directly: cutting at "وافقه" (which
+#     precedes "وخالفه" in that record's matn, so "earliest match wins" finds
+#     it first) moves BOTH "وافقه مالك بن أنس على إسناده" and "وخالفه في
+#     لفظه" into addenda together -- the report's original claim that the
+#     first phrase was genuine matn was wrong; it is al-Nasai's own isnad
+#     note, not Rafi' ibn Khadij's ruling.
+#   - "تابعه" ("so-and-so CORROBORATED him"): 8 raw occurrences, ALL
+#     tail-critique. One (5677) already sits inside a tail "قال أبو عبد
+#     الرحمن" cuts earlier in the same matn, so adding this arm changes
+#     nothing there; confirmed by reading it.
+#   - "أرسله" ("so-and-so transmitted it MURSAL"): 18 occurrences in scored
+#     matn (19 raw; the 19th sits isnad-side, already unreachable). 13 are
+#     tail-critique and cut cleanly (fixes hadith:nasai:1614 and 2127
+#     directly, both named by the review). 4 are genuine narrative and are on
+#     `COMMENTARY_NEVER_CUT["nasai"]`: 164 ("فأرسله إلى بسرة" -- 'Urwa SENT a
+#     messenger to Busra), 938 (the Prophet's own speech "أرسله يا عمر" --
+#     "LET HIM GO, Umar"), 1526 ("ثم أرسله" -- Allah SENDING down rain), 4723
+#     ("فعفا عنه فأرسله" -- he pardoned and RELEASED him). One
+#     (hadith:nasai:3892) cuts correctly at "فأرسله" but leaves a second,
+#     also-editorial clause ("وروى الزهري الكلام الأول عن سعيد", describing a
+#     different narrator's variant route) dangling on the primary; corrected
+#     via `NEAR_MISS_CUT_OVERRIDE["nasai"]`, the same mechanism as the two
+#     entries below.
+#   - "رفعه" ("so-and-so RAISED it [attributed it] MARFU'"): 11 records. 2 are
+#     clean tail-critique cuts. 3 need `NEAR_MISS_CUT_OVERRIDE` for a dangling
+#     nested attribution left in front of the verb (751 "قال يحيى", 2054 "قال
+#     وحدثنا أبو عثمان مرارا", 3901 "رواه يحيى بن سعيد عن حنظلة بن قيس"). 6 are
+#     genuine narrative and are on `COMMENTARY_NEVER_CUT["nasai"]`: 1092
+#     ("وإذا رفعه فليرفعهما" -- RAISING the hands out of prostration, named by
+#     the review), 1139 ("إلا رفعه الله بها درجة", twice in the same matn --
+#     Allah RAISING him a degree), 3144 (same "رفعه الله به درجة" reward
+#     idiom), 4878/4879 ("فرفعه إلى النبي" -- BRINGING a thief before the
+#     Prophet), 5694 ("فرفعه إلى فيه", twice -- RAISING a cup to one's mouth).
+#   - "وقفه" ("so-and-so STOPPED it MAWQUF"): 3 raw occurrences, ALL clean
+#     tail-critique.
+#   - "أوقفه" (the same sense, causative form): 2 raw occurrences. 1
+#     (hadith:nasai:1702) is a clean tail-critique cut. 1 (hadith:nasai:4067,
+#     named by the review) is genuine narrative -- "حتى أوقفه على النبي" (he
+#     made the pardoned man STAND before the Prophet, part of the Fath Makka
+#     story) -- and is on `COMMENTARY_NEVER_CUT["nasai"]`.
+#   - "أسنده" ("so-and-so gave it a full chain"): 1 raw occurrence
+#     (hadith:nasai:4076), already inside a tail "قال أبو عبد الرحمن" cuts
+#     earlier in the same matn; adding this arm changes nothing there,
+#     confirmed by reading it, but it is added for completeness and so a
+#     future occurrence without a preceding kunya marker is covered too.
+#   - Bare classification tags "مرسل"/"موقوفا" (the tag alone, no verb): 22/2
+#     raw occurrences. Most already sit inside an existing "قال أبو عبد
+#     الرحمن" tail. 5 are new clean cuts, including the review's flagship
+#     example hadith:nasai:4129 ("لا ترجعوا بعدي كفارا مرسل" -- the primary
+#     becomes the famous "do not return to disbelief after me" hadith, with
+#     "مرسل" the whole addendum). 1 (hadith:nasai:4903) is genuine narrative --
+#     "في غزوة الفتح مرسل ففزع قومها ..." -- "مرسل" sits MID-matn, not at the
+#     tail, describing the isnad status of only the opening clause of a
+#     composite report that continues for ~600 further characters of the
+#     famous Makhzumiyya-thief story; on `COMMENTARY_NEVER_CUT["nasai"]`. 1
+#     (hadith:nasai:1792, "موقوفا") needs `NEAR_MISS_CUT_OVERRIDE` for a
+#     dangling "رواه حميد بن عبد الرحمن بن عوف" attribution. 1
+#     (hadith:nasai:1738) has NO genuine matn at all -- its entire text is
+#     "مرسل وقد رواه عطاء بن السائب عن سعيد بن عبد الرحمن بن أبزي عن أبيه", a
+#     transmission-route note with no Prophetic or Companion content -- moved
+#     to `UNSCORABLE["nasai"]` instead of cut, the same disposition already
+#     given to its structural siblings 1788/2114/2115/4952/5194 (missed by the
+#     original UNSCORABLE audit because nothing before this fix round swept
+#     for it; found by the same measurement, not a separate review comment).
+#   - "هذا الصواب" ("THIS is the correct one", distinct from "والصواب" above):
+#     of 38 raw "الصواب" occurrences, only 2 (hadith:nasai:4128, 4912) are new,
+#     clean tail cuts with no preceding kunya marker. Deliberately NOT
+#     generalised to bare "الصواب": six records (1240, 1242, 1244, 1245, 1246,
+#     1247) use "الصواب" inside genuine Prophetic speech about doubt during
+#     prayer ("فليتحر الذي يرى أنه الصواب" -- "let him seek out what he judges
+#     correct") with no "هذا" in front, and every one was read to confirm a
+#     bare pattern would have destroyed them.
+#   - "لم يسمع"/"لم يسمعه" ("so-and-so did NOT HEAR it [from so-and-so]"): the
+#     gap the original submission deferred as "the" known gap turned out to be
+#     one member of this larger family, not a special case, so it is in scope
+#     now. 27 raw occurrences. Most sit inside an existing "قال أبو عبد
+#     الرحمن" tail. Read individually, the survivors split into:
+#       - 2 clean tail cuts (4971, 4972 -- "ليس على خائن ولا منتهب ولا مختلس
+#         قطع" + "لم يسمعه سفيان/بن جريج أيضا من أبي الزبير"; 4971 is named by
+#         the review as resolving EXACT to `tirmidhi:1448` today).
+#       - 5 needing `NEAR_MISS_CUT_OVERRIDE` for a dangling name or clause in
+#         front of the verb (2926 "عروة"، 3844 "وقيل إن الزبير", 3872 "ومما
+#         يدل على أن طاوسا", 3880 "وفي رواية همام بن يحيى كالدليل على أن
+#         عطاء", 3895 "أيوب").
+#       - 1 more needing the same override, found by this sweep but NOT in the
+#         review's 7-record list (hadith:nasai:1541 -- "قال أبو بكر بن السني
+#         الزهري سمع من بن عمر حديثين ولم يسمع هذا منه"; "أبو بكر بن السني"
+#         here is al-Nasai's own transmitter relaying the report, a different
+#         person from "أبو عبد الرحمن" al-Nasai himself, so `tight` never
+#         fires and this record's dangling attribution was otherwise
+#         invisible) -- an example of the ruling's own instruction to keep
+#         measuring past the named list, not stop at it.
+#       - 2 confirmed genuine narrative, first-person, NOT the third-person
+#         critique shape, and placed on `COMMENTARY_NEVER_CUT["nasai"]`: 906
+#         ("فلم يسمعنا قراءة بسم الله") was already out of `_NASAI_FORMULA`'s
+#         reach entirely (no bare-verb arm existed before this fix round) and
+#         needs no entry; 1612 ("فلم يسمع لنا حسا" -- part of the 'Ali and
+#         Fatima night-prayer story) now falls inside the widened family and
+#         gets the entry.
+#     hadith:nasai:3461 is unaffected: its only "لم يسمع" match ("الحسن لم
+#     يسمع من أبي هريرة شيئا") sits after an existing "قال أبو عبد الرحمن"
+#     that already cuts earlier in the same matn (the record's OWN "لم أسمعه",
+#     a different, first-person verb form this family does not match, stays
+#     in the primary as it always has); reading it confirmed the boundary is
+#     unchanged by this fix round.
+#   - "لم يرفعه" ("so-and-so did NOT raise/attribute it MARFU'"), the negated
+#     counterpart of "رفعه" -- found only by re-reading `hadith:nasai:1806`,
+#     which the review itself named as a broken record ("... بنى الله عز وجل
+#     له بيتا في الجنة لم يرفعه حصين وأدخل بين عنبسة وبين المسيب ذكوان") but
+#     whose tail no arm of the family covered, since "يرفعه" (imperfect) is a
+#     different word from "رفعه" (perfect), not a proclitic variant of it --
+#     exactly the kind of sibling the ruling's own instruction to keep
+#     measuring past the named list was written for. 7 raw occurrences.
+#       - 2 clean tail cuts: hadith:nasai:1806 (fixes the review's own
+#         example directly) and hadith:nasai:3900 (after a
+#         `NEAR_MISS_CUT_OVERRIDE` for the dangling "رواه سفيان الثوري رضي
+#         الله عنه عن ربيعة" attribution in front of the verb).
+#       - 1 (hadith:nasai:3492, "... فذكر نحوه ولم يذكر زيد بن أرقم ولم
+#         يرفعه") cuts to a primary that is STILL a bare cross-reference
+#         ("three men shared in a state of purity, and he narrated something
+#         LIKE IT, and Zayd ibn Arqam did not mention [it]") with no
+#         standalone quotable content of its own -- moved to
+#         `UNSCORABLE["nasai"]` rather than left scored as a "cut" record,
+#         the same disposition as its structural sibling hadith:nasai:2232.
+#       - 2 (hadith:nasai:4098, 4360) already sit in `UNSCORABLE["nasai"]` as
+#         genuine pointers ("بهذا الإسناد مثله"/"نحوه") with "ولم يرفعه"
+#         appended; their sha256 pins are updated for the same reason
+#         2232/2295/2412/4787's were above -- the disposition is unchanged,
+#         only the pinned string is shorter now that "ولم يرفعه" moves to
+#         `addenda_ar`.
+#       - 1 (hadith:nasai:5183) is already inside an existing "خالفه" tail
+#         that cuts earlier in the same matn; adding this arm changes nothing
+#         there, confirmed by reading it.
+#       - 1 (hadith:nasai:400) sits inside the tail this record's own
+#         dedicated hand-fix already isolates into `addenda_ar` (see
+#         `_fix_nasai_400_isnad_matn_split` below); unaffected by this arm.
+#
+# `_split_compiler_commentary`'s own "earliest candidate wins, but an empty
+# head means try the next one" rule (see its own comment) matters for exactly
+# one record in this whole fix round: hadith:nasai:5194 opens directly on the
+# bare "مرسل" tag ("مرسل قال أبو عبد الرحمن والمراسيل أشبه بالصواب ..."),
+# which is now the earliest candidate and would otherwise abort the cut
+# entirely, discarding the perfectly good, later "قال أبو عبد الرحمن" boundary
+# this record has always been correctly cut at.
+#
 # `_NASAI_FORMULA`'s first draft omitted the optional `[وف]?` proclitic on
 # the "خالفه" arm, on the (wrong) assumption that a verb beginning a fresh
 # clause would never be crossed by the conjunction's own compulsory boundary
@@ -794,23 +964,6 @@ def _strip_reference_numbers(matn: str) -> str:
 #     correctness of THIS is..."), not the start of the remark -- the remark
 #     itself begins 4 tokens earlier, at "ومما".
 #
-# KNOWN, DELIBERATELY UNFIXED GAP, same posture as R-A3-23's bare "qultu"
-# note above: "لم يسمع"/"لم يسمعه" ("did not hear [it]"), al-Nasai's other
-# common isnad-critique idiom ("[narrator] لم يسمع هذا الحديث من [narrator]"
-# -- "so-and-so did not hear this hadith from so-and-so"), reaches 8 further
-# records after the cuts above (2926, 3844, 3872, 3880, 3895, 4971, 4972,
-# 5683 -- measured). Not added to `_NASAI_FORMULA`: unlike "خالفه", the bare
-# verb has a confirmed genuine-narrative shape in this same file --
-# hadith:nasai:906's "فلم يسمعنا قراءة بسم الله الرحمن الرحيم" ("he did not
-# make us hear the recitation of the Basmala aloud", part of the narration
-# itself) and 1612's "فلم يسمع لنا حسا" ("he did not hear a sound from us")
-# both use the same bare verb with a first-person object, not the third-
-# person "X did not hear it FROM Y" isnad-critique shape. Telling the two
-# shapes apart needs a "من + name" anchor this task did not have time to
-# measure and audit to the same standard as the rest of this table -- given
-# this task's own raised over-cut bar, left uncut rather than shipped on an
-# unaudited heuristic. Pinned here, not silently dropped, for whichever task
-# next does a corpus-wide sweep of this phenomenon.
 # `_split_secondary`'s own audit for Nasai (a separate mechanism from the
 # kunya markers above -- it cuts a SECOND narration embedded inside a matn
 # whose leading isnad the source's own "*" already removed, not al-Nasai's
@@ -827,8 +980,10 @@ _NASAI_COMMENTARY, _NASAI_COMMENTARY_NEAR, _NASAI_HEARD = \
     _compiler_commentary_markers("أبو عبد الرحمن")
 
 _NASAI_FORMULA = re.compile(
-    rf"(?<![{_ARABIC}])[وف]?(?:خالفه(?:ما|م)?|هذا\s+خطأ|هذا\s+حديث)"
-    rf"(?![{_ARABIC}])|(?<![{_ARABIC}])والصواب(?![{_ARABIC}])")
+    rf"(?<![{_ARABIC}])[وف]?(?:خالفه(?:ما|م)?|وافقه(?:ما)?|تابعه|أرسله|رفعه|"
+    rf"وقفه|أوقفه|أسنده|مرسل|موقوفا|هذا\s+خطأ|هذا\s+حديث|هذا\s+الصواب|"
+    rf"لم\s+يسمع(?:ه)?|لم\s+يرفعه)(?![{_ARABIC}])"
+    rf"|(?<![{_ARABIC}])والصواب(?![{_ARABIC}])")
 
 
 _COMPILER_MARKERS: dict[
@@ -886,24 +1041,106 @@ def _split_compiler_commentary(
     if (record_id is not None and never_cut
             and _audited_never_cut(record_id, matn, never_cut)):
         return matn, addenda
-    candidates = [m for m in (tight.search(matn),
-                               extra.search(matn) if extra else None)
-                  if m is not None]
-    m = min(candidates, key=lambda m: m.start()) if candidates else None
+    candidates = sorted(
+        (m for m in (tight.search(matn), extra.search(matn) if extra else None)
+         if m is not None),
+        key=lambda m: m.start())
+    # Try the earliest candidate first, but an empty head is a reason to try
+    # the NEXT one, not to give up on the record entirely (R-A3-25, Task 14
+    # fix round): Nasai's bare classification tags ("مرسل"/"موقوفا") are the
+    # first thing this file's marker table ever puts at a matn's own
+    # position 0 -- hadith:nasai:5194 opens "مرسل قال أبو عبد الرحمن
+    # والمراسيل أشبه بالصواب ..." and, with "مرسل" now in `extra`, the
+    # earliest candidate is that position-0 match, which must be rejected --
+    # but `tight`'s own later match ("قال أبو عبد الرحمن") is still a
+    # perfectly good boundary and must not be abandoned just because a
+    # different, earlier candidate happened to fail the head check first.
+    # Measured: for every marker that predates this fix round (Abu Dawud's,
+    # Tirmidhi's, and Nasai's own "خالفه"/"هذا خطأ"/"هذا حديث"/"والصواب"), no
+    # record's matn ever opens directly on the marker, so this loop is a
+    # strict no-op for all of them -- it changes behaviour only for the new
+    # bare-tag arms that can legitimately sit at position 0.
+    m = None
+    for cand in candidates:
+        if matn[: cand.start()].rstrip():
+            m = cand
+            break
     if m is None:
-        m = near.search(matn)
+        near_m = near.search(matn)
+        if near_m is not None and matn[: near_m.start()].rstrip():
+            m = near_m
     if m is None:
         return matn, addenda
     head = matn[: m.start()].rstrip()
-    if not head:
-        # Measured: no record's matn opens directly on the marker (every one
-        # of the 806 Abu Dawud instances, and every Tirmidhi one, has genuine
-        # narrative in front of it). Guarded anyway, on the same principle as
-        # _split_secondary's one-word guard: an empty scored text is worse
-        # than the fused-commentary bug this function exists to fix.
-        return matn, addenda
     tail = matn[m.start() :]
     return head, tail if addenda is None else f"{tail} {addenda}"
+
+
+# --- hadith:nasai:400's own isnad/matn boundary (Task 14 fix round, R-A3-25
+# item 5) -----------------------------------------------------------------
+#
+# The source's own "*" marks the FIRST isnad/matn boundary (see the
+# secondary-narration section above), but here it lands after a SECOND
+# narrator's discussion of the hadith, not after the hadith itself: "... عن
+# أبي هريرة قال لا يبولن أحدكم في الماء الدائم الذي لا يجري ثم يغتسل منه قال
+# سفيان قالوا لهشام يعني بن حسان أن أيوب إنما ينتهي بهذا الحديث إلى أبي هريرة
+# فقال * إن أيوب لو استطاع أن لا يرفع حديثا لم يرفعه" -- Sufyan relaying that
+# others asked Hisham (ibn Hassan) whether Ayyub always traces this hadith
+# back to Abu Hurayrah, and Hisham's reply ("if Ayyub could avoid raising a
+# hadith [to the Prophet], he would not raise it") is what the source's own
+# mark isolates. The genuine, famous matn -- "do not urinate in standing
+# water, then wash from it" -- sits BEFORE the "*", inside what the base
+# split treats as `isnad_ar`, so 100% of the scored `text_ar` was Hisham's
+# remark about Ayyub, not the hadith.
+#
+# `_ATTRIBUTION`'s own boundary discipline (used unmodified, not a new
+# pattern) finds this isnad's 4 "qala" attributions by construction: the 1st
+# is the chain's own "Qutayba SAID: Sufyan narrated to us ..."; the 2nd is
+# "'an Abi Hurayrah QALA" -- Abu Hurayrah's own attribution, where the
+# genuine matn actually begins; the 3rd is "QALA Sufyan", which opens the
+# narrator-to-narrator discussion that belongs in `addenda_ar`; the 4th is
+# the source's own "fa-qala" immediately before its "*". Splitting on the
+# 2nd and 3rd recovers the correct boundary the source's single "*" could
+# not express on its own.
+#
+# A corpus-wide sweep for the two idioms unique to this exact remark ("لو
+# استطاع" / "ينتهي بهذا الحديث") found ONE occurrence total -- this record.
+# A widened, non-idiom-specific heuristic (a "*" preceded by a nested
+# "qala ... fa-qala" discussion) surfaced 5 further raw candidates; every one
+# read in context has the genuine matn correctly AFTER its own "*" already
+# (the "qala X, Y said ..." shape is ordinary narrated dialogue there, not
+# editorial discussion) or is an artefact of scanning across a record
+# boundary, not a second instance of this defect. A fully exhaustive,
+# non-idiom-anchored sweep of every "*" boundary in the file is a Task 16
+# item (out-of-scope observation 2), not repeated here.
+_NASAI_400_ISNAD_SHA256 = (
+    "bbad24ad0dd214d4e5ed97942d8a81039a2b7de9de02fbff6b45a790721fa2fe")
+
+
+def _fix_nasai_400_isnad_matn_split(
+    isnad: str | None, matn: str, addenda: str | None, record_id: str
+) -> tuple[str | None, str, str | None]:
+    """No-op for every record except hadith:nasai:400 (verified by sha256 of
+    its ORIGINAL, unsplit isnad). See the comment above `_ATTRIBUTION`'s use
+    here for why this one record needs a hand-derived boundary rather than
+    the source's own "*".
+    """
+    if record_id != "hadith:nasai:400" or isnad is None:
+        return isnad, matn, addenda
+    digest = hashlib.sha256(isnad.encode("utf-8")).hexdigest()
+    if digest != _NASAI_400_ISNAD_SHA256:
+        raise ValueError(
+            "hadith:nasai:400 is on the isnad/matn split-boundary override "
+            "list, but its isnad is no longer the text that was audited. "
+            "Read the record in the source, decide the boundary again, and "
+            "update or remove the override.")
+    attributions = list(_ATTRIBUTION.finditer(isnad))
+    new_isnad = isnad[: attributions[1].start()].rstrip()
+    new_matn = isnad[attributions[1].end() : attributions[2].start()].strip()
+    tail_from_isnad = isnad[attributions[2].start() :].strip()
+    new_addenda = f"{tail_from_isnad} {matn}" if addenda is None \
+        else f"{tail_from_isnad} {matn} {addenda}"
+    return new_isnad, new_matn, new_addenda
 
 
 def _split_heard_commentary(matn: str, addenda: str | None,
@@ -1423,6 +1660,11 @@ def parse_openiti(
                 # PRIMARY matn is once every commentary cut above has already
                 # happened, never on `addenda_ar`.
                 matn = _strip_reference_numbers(matn)
+
+        # hadith:nasai:400 only -- see `_fix_nasai_400_isnad_matn_split`'s own
+        # comment; a no-op for every other record_id.
+        isnad, matn, addenda = _fix_nasai_400_isnad_matn_split(
+            isnad, matn, addenda, record_id)
 
         units.append(
             HadithUnit(

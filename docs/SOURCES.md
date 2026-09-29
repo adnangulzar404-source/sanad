@@ -260,7 +260,7 @@ The fifth collection ingested (Task 14), on the same basis as the four collectio
 045.EdYEAR      :: 1406 - 1986
 ```
 
-Selected the same way the four preceding files were: the JK-prefixed curated OpenITI version, not a `Shamela*`/`ShamAY*`/`Shia*` scrape. Unlike Sunan Abi Dawud and Jami at-Tirmidhi, this file's `#META#` header has no gaps at all — `EdNUMBER`, `EdYEAR`, `EdPLACE`, and `EdPUBLISHER` are all filled — the most complete per-file metadata of the five hadith files this project has ingested, even though the file itself sits at the earlier `ara1` markup stage (like Abu Dawud) rather than `.completed` (like Tirmidhi). The stage affects only how much of OpenITI's own structural markup has been finished, not the licensing basis below.
+Selected the same way the four preceding files were: the JK-prefixed curated OpenITI version, not a `Shamela*`/`ShamAY*`/`Shia*` scrape. Unlike Sunan Abi Dawud and Jami at-Tirmidhi, this file's `#META#` header has no gaps at all — `EdNUMBER`, `EdYEAR`, `EdPLACE`, and `EdPUBLISHER` are all filled — the most complete per-file metadata of the five hadith files this project has ingested. The file itself is `…JK000130-ara1.mARkdown`, the third and *richest* of the three OpenITI markup stages this project has now seen: bare `ara1` (Abu Dawud, the least annotated) precedes `.completed` (Tirmidhi, OpenITI's own markup pass finished), which in turn precedes `.mARkdown` (this file), a further, more detailed annotation pass on top of `.completed`. The stage affects only how much of OpenITI's own structural markup has been finished, not the licensing basis below.
 
 ### Why we may ship it — the legal basis
 
@@ -314,7 +314,7 @@ The committed `data/sanad-quran.db` now holds 35,844 records: 6,236 ayat (Tanzil
 | OpenITI `0275AH`, JK000109 (Sahih Muslim) | **Shipped** | Same basis as Sahih al-Bukhari above: author's death (261 AH) is the public-domain basis, not any OpenITI grant; JK-prefixed curated version |
 | OpenITI `0275AH`, JK000142 (Sunan Abi Dawud) | **Shipped** | Same basis as the two collections above: author's death (275 AH) is the public-domain basis, not any OpenITI grant; JK-prefixed curated version; per-file metadata incomplete (EdNUMBER/EdPLACE/EdYEAR unfilled) but shipped under the Stage A3 relaxed-bar ruling (R-A3-1) |
 | OpenITI `0300AH`, JK000140 (Jami at-Tirmidhi) | **Shipped** | Same basis as the three collections above: author's death (279 AH) is the public-domain basis, not any OpenITI grant; JK-prefixed curated version, uniquely at the `.completed` processing stage; per-file metadata incomplete (EdNUMBER/EdYEAR unfilled, EdPLACE/EdPUBLISHER filled) but shipped under the Stage A3 relaxed-bar ruling (R-A3-1) |
-| OpenITI `0325AH`, JK000130 (Sunan an-Nasai) | **Shipped** | Same basis as the four collections above: author's death (303 AH) is the public-domain basis, not any OpenITI grant; JK-prefixed curated version; per-file metadata fully complete (EdNUMBER/EdYEAR/EdPLACE/EdPUBLISHER all filled) even at the `ara1` markup stage |
+| OpenITI `0325AH`, JK000130 (Sunan an-Nasai) | **Shipped** | Same basis as the four collections above: author's death (303 AH) is the public-domain basis, not any OpenITI grant; JK-prefixed curated version; per-file metadata fully complete (EdNUMBER/EdYEAR/EdPLACE/EdPUBLISHER all filled); file is at the `ara1.mARkdown` stage, the richest markup pass of the three this project has ingested |
 
 ## Review checklist
 

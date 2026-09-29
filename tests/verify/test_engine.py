@@ -1011,7 +1011,9 @@ def test_no_correctly_cited_hadith_is_ever_flagged_wrong_reference(conn):
     18,986 as of fix round 1 (R-A3-18; + 5,135 Abu Dawud, the compiler-
     commentary split and cut-override table moving 36 records onto
     `UNSCORABLE["abudawud"]`), 22,882 as of Task 13 (+ 3,896 Tirmidhi),
-    28,598 as of Task 14 (+ 5,716 Nasai) --
+    28,598 as of Task 14 (+ 5,716 Nasai), 28,596 as of fix round 1 (R-A3-25;
+    Nasai's scorable count moves to 5,714 once two records move to
+    `UNSCORABLE["nasai"]`) --
     each quoted verbatim and cited with ITS OWN collection's name and its
     own printed number, in the Latin citation form."""
     bad = []
@@ -1025,7 +1027,7 @@ def test_no_correctly_cited_hadith_is_ever_flagged_wrong_reference(conn):
         if m.verdict is Verdict.WRONG_REFERENCE or m.record is None \
                 or m.record.hadith_no != r.hadith_no:
             bad.append((r.id, m.verdict, m.record.id if m.record else None))
-    assert checked == 28598, checked
+    assert checked == 28596, checked
     assert bad == [], f"{len(bad)} regressed, e.g. {bad[:5]}"
 
 
@@ -1046,7 +1048,7 @@ def test_no_correctly_cited_hadith_is_flagged_in_the_arabic_citation_form(conn):
         if m.verdict is Verdict.WRONG_REFERENCE or m.record is None \
                 or m.record.hadith_no != r.hadith_no:
             bad.append((r.id, m.verdict, m.record.id if m.record else None))
-    assert checked == 28598, checked
+    assert checked == 28596, checked
     assert bad == [], f"{len(bad)} regressed, e.g. {bad[:5]}"
 
 
@@ -1074,6 +1076,9 @@ def test_every_wrongly_cited_hadith_is_flagged(conn):
 
     28,593 as of Task 14 (Nasai): adds Nasai's own scorable hadith minus
     its own hadith 1 (5,716 scorable - 1 = 5,715; 22,878 + 5,715 = 28,593).
+
+    28,591 as of fix round 1 (R-A3-25): Nasai's scorable count moves to
+    5,714 (5,713 excluding its own hadith 1); 22,878 + 5,713 = 28,591.
     """
     bad = []
     checked = 0
@@ -1084,7 +1089,7 @@ def test_every_wrongly_cited_hadith_is_flagged(conn):
         checked += 1
         if m.verdict is not Verdict.WRONG_REFERENCE:
             bad.append((r.id, m.verdict))
-    assert checked == 28593, checked
+    assert checked == 28591, checked
     assert bad == [], f"{len(bad)} not flagged, e.g. {bad[:5]}"
 
 
@@ -1103,7 +1108,11 @@ def test_every_record_cited_as_the_other_kind_is_flagged(conn):
     count moves to 5,135 (20,087 + 5,135 = 25,222). 29,118 as of Task 13
     (Tirmidhi): adds Tirmidhi's 3,896 scorable hadith (25,222 + 3,896 =
     29,118). 34,834 as of Task 14 (Nasai): adds Nasai's 5,716 scorable
-    hadith (29,118 + 5,716 = 34,834). The citation used here (always "Bukhari" for a hadith,
+    hadith (29,118 + 5,716 = 34,834). 34,832 as of fix round 1 (R-A3-25):
+    two Nasai records (1738, 3492) move to `UNSCORABLE["nasai"]` once the
+    comparative-isnad family extension cuts a trailing pointer tag off
+    each, so Nasai's scorable count drops to 5,714 (29,118 + 5,714 =
+    34,832). The citation used here (always "Bukhari" for a hadith,
     regardless of the record's own collection) does not need to change: it
     is deliberately the WRONG kind of citation for every record it is
     paired with, so its own collection name is irrelevant to what it tests.
@@ -1118,7 +1127,7 @@ def test_every_record_cited_as_the_other_kind_is_flagged(conn):
         checked += 1
         if m.verdict is not Verdict.WRONG_REFERENCE or m.given_reference is None:
             bad.append((r.id, m.verdict))
-    assert checked == 34834, checked
+    assert checked == 34832, checked
     assert bad == [], f"{len(bad)} not flagged, e.g. {bad[:5]}"
 
 

@@ -863,7 +863,7 @@
 # false EXACT.
 
 - id: hadith-nasai-formula-tail-now-verifies
-  text: 'سألت رافع بن خديج عن كراء الأرض بالدينار والورق فقال لا بأس بذلك إنما كان الناس على عهد رسول الله صلى الله عليه وسلم يؤاجرون على الماذيانات وإقبال الجداول فيسلم هذا ويهلك هذا ويسلم هذا ويهلك هذا فلم يكن للناس كراء إلا هذا فلذلك زجر عنه فأما شيء معلوم مضمون فلا بأس به وافقه مالك بن أنس على إسناده'
+  text: 'سألت رافع بن خديج عن كراء الأرض بالدينار والورق فقال لا بأس بذلك إنما كان الناس على عهد رسول الله صلى الله عليه وسلم يؤاجرون على الماذيانات وإقبال الجداول فيسلم هذا ويهلك هذا ويسلم هذا ويهلك هذا فلم يكن للناس كراء إلا هذا فلذلك زجر عنه فأما شيء معلوم مضمون فلا بأس به'
   expect_verdict: EXACT
   expect_record: hadith:nasai:3899
   rationale: >-
@@ -875,7 +875,18 @@
     quoting the genuine wording alone returned NOT_FOUND: the same R-A3-18
     defect class found in a FIFTH collection by measuring a related phrase
     family rather than assuming the brief's two named markers were
-    exhaustive. MEASURED EXACT 1.0 against hadith:nasai:3899.
+    exhaustive.
+
+    R-A3-25/26 fix round (task-14-review.md Finding 1): the ORIGINAL version
+    of this case still quoted "... وافقه مالك بن أنس على إسناده" as part of
+    the "genuine" text. That phrase ("Malik b. Anas agreed with him on its
+    isnad") is ALSO al-Nasai's own comparative-isnad note -- the direct
+    positive counterpart of "wa-khalafahu" -- not part of Rafi' ibn Khadij's
+    ruling, so the case was asserting EXACT against a still-fused string
+    (measured NEAR_MATCH 0.902 once the FIRST tail was correctly removed).
+    `_NASAI_FORMULA` now covers "wafaqahu" too, so `text_ar` ends at "...fa-
+    la ba'sa bih" and both comparative-isnad notes live in `addenda_ar`.
+    MEASURED EXACT 1.0 against hadith:nasai:3899.
 - id: hadith-nasai-formula-fragment-is-not-a-text
   text: '«وخالفه في لفظه»'
   expect_verdict: NOT_FOUND

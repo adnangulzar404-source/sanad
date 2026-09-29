@@ -201,3 +201,16 @@ Records ingested: 3976 &nbsp;&nbsp; Records flagged: 14
 | `hadith:tirmidhi:3615-2` | Jami at-Tirmidhi 3615 (2) | `136[]` | U+0031 U+0033 U+0036 U+005B U+005D |
 | `hadith:tirmidhi:3856` | Jami at-Tirmidhi 3856 | `%()` | U+0025 U+0028 U+0029 |
 | `hadith:tirmidhi:3857` | Jami at-Tirmidhi 3857 | `%()` | U+0025 U+0028 U+0029 |
+
+## Source: `openiti-nasai-jk000130` (ed. Abd al-Fattah Abu Ghudda, 2nd ed., 1406/1986; OpenITI JK000130, ara1.mARkdown)
+
+Records ingested: 5769 &nbsp;&nbsp; Records flagged: 6
+
+| Record | Citation | Characters | Codepoints |
+| --- | --- | --- | --- |
+| `hadith:nasai:702` | Sunan an-Nasai 702 | `%` | U+0025 |
+| `hadith:nasai:2873` | Sunan an-Nasai 2873 | `%` | U+0025 |
+| `hadith:nasai:2893` | Sunan an-Nasai 2893 | `%` | U+0025 |
+| `hadith:nasai:2956` | Sunan an-Nasai 2956 | `%` | U+0025 |
+| `hadith:nasai:3150` | Sunan an-Nasai 3150 | `%` | U+0025 |
+| `hadith:nasai:5758` | Sunan an-Nasai 5758 | `.` | U+002E |

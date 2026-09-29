@@ -250,13 +250,22 @@ def test_the_full_printed_text_of_every_cut_record_verifies():
     5695 -- the kunya marker fires on a record whose primary matn the
     Step 4 pointer audit separately excludes), leaving 268 scorable.
     5,037 + 268 = 5,305.
+
+    Fix round 1 (R-A3-25): 5,358. `_NASAI_FORMULA`'s comparative-isnad
+    family extension (see `test_nasai_record_count_and_scorability`'s
+    fix-round note) adds 60 more cut Nasai records; 7 of those are ALSO on
+    `UNSCORABLE["nasai"]` (2232, 2295, 2412, 3492, 4098, 4360, 4787),
+    leaving 53 more scorable-cut records. 5,305 + 53 = 5,358. Tirmidhi's
+    46/566 fix (also this round, see
+    `test_tirmidhi_record_count_and_scorability`'s note) does not change
+    this count: both are, and remain, `UNSCORABLE["tirmidhi"]`.
     """
     from sanad.verify.engine import Verdict, verify_spans
     conn = db.connect(DB_PATH)
     rows = conn.execute(
         "SELECT id, text_ar, addenda_ar FROM records"
         " WHERE addenda_ar IS NOT NULL AND unscorable_reason IS NULL").fetchall()
-    assert len(rows) == 5305
+    assert len(rows) == 5358
     failures = []
     for row in rows:
         for quoted in (row["text_ar"], row["text_ar"] + " " + row["addenda_ar"]):
@@ -394,13 +403,29 @@ def test_the_index_holds_one_row_per_scorable_representation():
     (29,118 + 5,716 = 34,834) and 274 carry a second ("full", cut)
     representation, of which 268 are scorable-primary cuts and 6 are
     excluded-primary cuts: 5,142 + 274 = 5,416.
+
+    Fix round 1 (R-A3-25) moves these to (34832, 5478, 40310). Two records
+    (1738, 3492) move from scorable to `UNSCORABLE["nasai"]` -- the
+    comparative-isnad family extension now cuts a "mursal"/"nحوه" pointer
+    tag off their tail that used to keep them looking like short-but-
+    complete matns -- so Nasai's scorable count drops 5,716 -> 5,714
+    (29,118 + 5,714 = 34,832). Nasai's own cut count rises 274 -> 334 (60
+    more records gain a second representation, covering the rest of the
+    comparative-isnad family: `وافقه`/`تابعه`/`أرسله`/`رفعه`/`وقفه`/
+    `أوقفه`/`أسنده`/bare `مرسل`/`موقوفا`/`هذا الصواب`/`لم يسمع`/`لم
+    يرفعه`). This also moved Tirmidhi's own cut count 3,755 -> 3,757 (see
+    `test_tirmidhi_record_count_and_scorability`'s fix-round note: a
+    `_split_compiler_commentary` bug this round's own new bare-tag markers
+    exposed, not a Nasai-specific change), so the cumulative baseline this
+    task's own delta is measured against is 5,144, not 5,142: 5,144 + 334 =
+    5,478.
     """
     conn = db.connect(DB_PATH)
     scorable = conn.execute(
         "SELECT count(*) FROM records WHERE unscorable_reason IS NULL").fetchone()[0]
     variants = conn.execute("SELECT count(*) FROM record_variants").fetchone()[0]
     indexed = conn.execute("SELECT count(*) FROM records_fts").fetchone()[0]
-    assert (scorable, variants, indexed) == (34834, 5416, 40250)
+    assert (scorable, variants, indexed) == (34832, 5478, 40310)
 
 
 # --- C1: nothing scorable as a hadith is wholly a Qur'anic quotation --------
@@ -497,6 +522,13 @@ def test_no_scorable_hadith_representation_is_wholly_quranic():
     Mujtaba's own tafsir/ahkam sections contain no matn that is wholly a
     Qur'an quotation, and none of the 53 `UNSCORABLE["nasai"]` records
     needed re-classifying against this guard.
+
+    Fix round 1 (R-A3-25) moves the representation count to 34,074 (see
+    `test_the_index_holds_one_row_per_scorable_representation`'s fix-round
+    note for the full breakdown: Nasai's scorable primaries drop by 2,
+    variants rise by 62 across Nasai and Tirmidhi). The sweep is still
+    zero: none of the newly-covered comparative-isnad-family cuts, nor
+    the two newly-unscorable pointer records, is wholly Qur'anic.
     """
     conn = db.connect(DB_PATH)
     blobs = _quran_blobs(conn)
@@ -507,7 +539,7 @@ def test_no_scorable_hadith_representation_is_wholly_quranic():
     reps += [(r["record_id"], r["variant"], r["norm_standard"]) for r in conn.execute(
         "SELECT v.record_id, v.variant, v.norm_standard FROM record_variants v"
         " JOIN records r ON r.id = v.record_id")]
-    assert len(reps) == 34014, "the sweep stopped covering what it was written for"
+    assert len(reps) == 34074, "the sweep stopped covering what it was written for"
     offenders = [(rid, variant) for rid, variant, norm in reps
                  if norm.strip() and any(f" {norm} " in b for b in blobs)]
     assert offenders == []
@@ -652,13 +684,28 @@ def test_every_other_excluded_record_is_excluded_whole():
     (648, 1786, 4588, 5123, 5194, 5695). The other 47 carry none: plain
     pointers, chain-continuation leaks, bare classification tags and
     truncated openings have nothing left after the primary to cut.
+
+    Fix round 1 (R-A3-25): 2 more excluded records join this count (1,012
+    total) -- 1738 and 3492 move from scorable to `UNSCORABLE["nasai"]`
+    once the comparative-isnad family extension cuts a trailing pointer
+    tag off each, leaving a bare chain-continuation fragment with no
+    narrative content of its own. The comparative-isnad family extension
+    also gives 7 MORE already-excluded Nasai records their own addendum
+    for the first time -- their pointer text used to end flush with a
+    now-covered formula (2232, 2295, 2412, 3492, 4098, 4360, 4787),
+    exactly like the 6 kunya-marker records above. Independently, the
+    `_split_compiler_commentary` fix this round's own new bare-tag markers
+    exposed (see that function's comment) also lets Tirmidhi's 46 and 566
+    -- already excluded, already in this table with `n=0` -- correctly
+    cut their own "wa hadha asahh"-shaped tail for the first time, so they
+    now carry an addendum too.
     """
     conn = db.connect(DB_PATH)
     rows = conn.execute(
         "SELECT r.id, count(v.record_id) AS n FROM records r"
         " LEFT JOIN record_variants v ON v.record_id = r.id"
         " WHERE r.unscorable_reason IS NOT NULL GROUP BY r.id").fetchall()
-    assert len(rows) == 1010
+    assert len(rows) == 1012
     assert {r["id"]: r["n"] for r in rows if r["n"]} == {
         "hadith:bukhari:237": 1,
         "hadith:muslim:1915-3": 1,
@@ -765,12 +812,21 @@ def test_every_other_excluded_record_is_excluded_whole():
         "hadith:tirmidhi:926": 1,
         "hadith:tirmidhi:968": 1,
         "hadith:tirmidhi:971": 1,
+        "hadith:tirmidhi:46": 1,
+        "hadith:tirmidhi:566": 1,
         "hadith:nasai:648": 1,
         "hadith:nasai:1786": 1,
         "hadith:nasai:4588": 1,
         "hadith:nasai:5123": 1,
         "hadith:nasai:5194": 1,
         "hadith:nasai:5695": 1,
+        "hadith:nasai:2232": 1,
+        "hadith:nasai:2295": 1,
+        "hadith:nasai:2412": 1,
+        "hadith:nasai:3492": 1,
+        "hadith:nasai:4098": 1,
+        "hadith:nasai:4360": 1,
+        "hadith:nasai:4787": 1,
     }
 
 
@@ -857,6 +913,12 @@ def test_exactly_one_hadith_representation_sits_inside_an_ayah():
     without moving either list: re-run against the fixed build, no Nasai
     representation -- scorable or excluded-with-addendum -- sits inside an
     ayah at either tier.
+
+    Fix round 1 (R-A3-25) moves the representation count to 34,074 (same
+    breakdown as `test_the_index_holds_one_row_per_scorable_representation`'s
+    fix-round note) without moving either list: re-run against the fixed
+    build, none of the newly-cut Nasai or Tirmidhi representations sits
+    inside an ayah at either tier.
     """
     from sanad.verify.engine import _ayat_containing, _contains_at
     conn = db.connect(DB_PATH)
@@ -867,7 +929,7 @@ def test_exactly_one_hadith_representation_sits_inside_an_ayah():
         "SELECT v.record_id, v.variant, v.text_ar FROM record_variants v"
         " JOIN records r ON r.id = v.record_id WHERE r.kind = 'hadith'"
     ).fetchall()
-    assert len(reps) == 34014, len(reps)
+    assert len(reps) == 34074, len(reps)
 
     withheld, disclosed = [], []
     for rep in reps:
@@ -1535,6 +1597,23 @@ def test_tirmidhi_record_count_and_scorability():
       R-A3-19 is scoped to close. Tirmidhi's own occurrences (10 records
       carrying a "%", 3 carrying "<...>") are left untouched, matching that
       precedent.
+
+    Fix round 1 (R-A3-25) moves cut from 3,755 to 3,757, with unscorable and
+    scorable both unchanged. This is a side effect of a Nasai-driven fix, not
+    a Tirmidhi-specific change: `_split_compiler_commentary`'s candidate-
+    selection logic used to pick the EARLIEST marker match and abort the
+    entire cut if that match's head was empty, rather than trying a later
+    match -- harmless while every marker's head was always non-empty in
+    practice, but this round's new bare-tag markers (`مرسل`/`موقوفا`, which
+    legitimately open a matn at position 0) can have an empty head, exposing
+    the bug. `hadith:tirmidhi:46` and `566` (`_EDITORIAL_DISCUSSION`) both
+    open on "qala Abu 'Isa" -- an empty-head match -- AND contain a second,
+    later "qala Abu 'Isa" that is a genuine cut point into al-Tirmidhi's own
+    further remark. Before this fix, the abort left both records uncut
+    (`addenda_ar IS NULL`); after it, both correctly cut at the second
+    occurrence. Both stay `_EDITORIAL_DISCUSSION` -- only shorter, with new
+    sha256 pins in `UNSCORABLE["tirmidhi"]`. `249`, the third record in that
+    group, was measured and confirmed unchanged.
     """
     conn = db.connect(DB_PATH)
     total = conn.execute(
@@ -1549,7 +1628,7 @@ def test_tirmidhi_record_count_and_scorability():
     cut = conn.execute(
         "SELECT count(*) FROM records WHERE kind='hadith' AND collection='tirmidhi'"
         " AND addenda_ar IS NOT NULL").fetchone()[0]
-    assert (total, scorable, unscorable, cut) == (3976, 3896, 80, 3755)
+    assert (total, scorable, unscorable, cut) == (3976, 3896, 80, 3757)
 
 
 # hadith:tirmidhi:1, "la taqbalu salatu bi-ghayri tuhurin wa-la sadaqatun min
@@ -1729,6 +1808,43 @@ def test_nasai_record_count_and_scorability():
     numbered-unit count. 53 unscorable and 274 cut, measured against the
     shipped build.
 
+    Fix round 1 (R-A3-25, task-14-review.md Finding 1) moves this to 55
+    unscorable and 334 cut. The shipped `_NASAI_FORMULA` covered only
+    "khalafahu" (76 occurrences); the review found al-Nasai's comparative-
+    isnad critique convention is a FAMILY sharing that exact syntax --
+    verb (+ optional wa/fa) + a narrator's name, appended after a complete
+    matn with no structural marker -- and measured 49 scorable records
+    whose genuine printed matn, quoted without that family's tail, did not
+    verify (17 NOT_FOUND, 25 NEAR_MATCH, 7 EXACT to a different record, 0
+    EXACT to themselves). `_NASAI_FORMULA` now also covers "wafaqahu"
+    (agreement, the direct positive counterpart of "khalafahu"),
+    "taba'ahu" (corroboration), "arsalahu" (mursal classification),
+    "rafa'ahu" (marfu' classification), "waqafahu"/"awqafahu" (mawquf
+    classification), "asnadahu" (musnad classification), bare "mursal"/
+    "mawqufan" tags, "hadha al-sawab" (the uncovered half of "al-sawab"),
+    and "lam yasma'/lam yarfa'hu" (disclosed non-audition/non-elevation --
+    "lam yarfa'hu" was found DURING this fix round by continuing to
+    measure past the review's own named list, exactly as required: 7 raw
+    occurrences, one of them hadith:nasai:1806, a record the review itself
+    named as broken). Every new boundary was read in context, not sampled;
+    see `openiti.py`'s own comment block after `_NASAI_FORMULA` for the
+    full per-record disposition and `audit_lists.py`'s updated Nasai
+    section for every new/moved pin. Measured before/after against a
+    `verify_spans` sweep: all 56 records whose text changed and remained
+    scorable now verify EXACT (49 to themselves directly, 7 disclosed
+    EXACT to a tied sibling record with genuinely identical wording, via
+    `also_at` -- the same disclosed-tie mechanism as the 457 already-tied
+    Nasai records measured in the original review). `hadith:nasai:400`
+    additionally needed a dedicated fix, not a marker: its scored text was
+    100% a critic's remark about the narrator Ayyub ("if Ayyub could avoid
+    raising a report to the Prophet, he would not raise this one"), while
+    the genuine, famous matn ("none of you should urinate in still
+    water...") was stranded in `isnad_ar` because the source's own `*`
+    chain-transfer marker landed one attribution too early --
+    `_fix_nasai_400_isnad_matn_split` re-slices the isnad on the existing,
+    vetted `_ATTRIBUTION` regex to recover it; corpus-wide sweep found no
+    sibling records sharing this shape.
+
     Al-Nasai's kunya ("أبو عبد الرحمن") is the SAME verb+kunya construction
     `_compiler_commentary_markers` already builds for Abu Dawud/Tirmidhi, so
     `_NASAI_COMMENTARY`/`_NASAI_COMMENTARY_NEAR`/`_NASAI_HEARD` are derived
@@ -1802,7 +1918,7 @@ def test_nasai_record_count_and_scorability():
     cut = conn.execute(
         "SELECT count(*) FROM records WHERE kind='hadith' AND collection='nasai'"
         " AND addenda_ar IS NOT NULL").fetchone()[0]
-    assert (total, scorable, unscorable, cut) == (5769, 5716, 53, 274)
+    assert (total, scorable, unscorable, cut) == (5769, 5714, 55, 334)
 
 
 # hadith:nasai:1, "idha istayqaza ahadukum min nawmihi fa-la yaghmis yadahu fi
@@ -1841,13 +1957,19 @@ def test_nasai_hadith_1_is_byte_exact():
 
 
 # hadith:nasai:3899, "sa'altu rafi' ibn khadij ... fa-amma shay'un ma'lumun
-# mudmanun fa-la ba'sa bihi, wafaqahu malik ibn anas 'ala isnadihi" -- Rafi'
-# ibn Khadij's own ruling on leasing land, with al-Nasai's own comparative-
-# isnad note ("... and he differed from him in his wording") cut into
-# `addenda_ar` by `_NASAI_FORMULA`. This is the record where the fix round
-# found `_NASAI_FORMULA` needed an optional "و" proclitic in addition to its
-# Arabic-letter boundary check: "وخالفه" ("and he differed from him") tripped
-# a bare boundary lookbehind because "و" is itself an Arabic letter.
+# mudmanun fa-la ba'sa bihi" -- Rafi' ibn Khadij's own ruling on leasing
+# land. This is the record where the fix round found `_NASAI_FORMULA`
+# needed an optional "و" proclitic in addition to its Arabic-letter boundary
+# check: "وخالفه" ("and he differed from him") tripped a bare boundary
+# lookbehind because "و" is itself an Arabic letter.
+#
+# R-A3-25/26 fix round (task-14-review.md Finding 1): this constant used to
+# END with "... wafaqahu malik ibn anas 'ala isnadihi" ("Malik b. Anas
+# agreed with him on its isnad") -- ALSO al-Nasai's own comparative-isnad
+# note (the positive counterpart of "khalafahu", cut separately below it),
+# not part of Rafi' ibn Khadij's ruling. `_NASAI_FORMULA` now covers
+# "wafaqahu" too, so both notes live in `addenda_ar` and this constant ends
+# at "... fa-la ba'sa bih".
 _NASAI_3899_MATN = "".join(chr(c) for c in (
     0x633, 0x623, 0x644, 0x62a, 0x20, 0x631, 0x627, 0x641, 0x639, 0x20, 0x628, 0x646,
     0x20, 0x62e, 0x62f, 0x64a, 0x62c, 0x20, 0x639, 0x646, 0x20, 0x643, 0x631, 0x627,
@@ -1871,17 +1993,15 @@ _NASAI_3899_MATN = "".join(chr(c) for c in (
     0x632, 0x62c, 0x631, 0x20, 0x639, 0x646, 0x647, 0x20, 0x641, 0x623, 0x645, 0x627,
     0x20, 0x634, 0x64a, 0x621, 0x20, 0x645, 0x639, 0x644, 0x648, 0x645, 0x20, 0x645,
     0x636, 0x645, 0x648, 0x646, 0x20, 0x641, 0x644, 0x627, 0x20, 0x628, 0x623, 0x633,
-    0x20, 0x628, 0x647, 0x20, 0x648, 0x627, 0x641, 0x642, 0x647, 0x20, 0x645, 0x627,
-    0x644, 0x643, 0x20, 0x628, 0x646, 0x20, 0x623, 0x646, 0x633, 0x20, 0x639, 0x644,
-    0x649, 0x20, 0x625, 0x633, 0x646, 0x627, 0x62f, 0x647,
+    0x20, 0x628, 0x647,
 ))
 
 
 def test_nasai_spot_checked_matn_with_commentary_tail_is_byte_exact():
     """The compiler-commentary spot check: 3899's own matn is complete and
-    byte-exact, and its printed text (matn plus the "وخالفه في لفظه" tail
-    `_NASAI_FORMULA` cuts into `addenda_ar`) still verifies as this exact
-    record."""
+    byte-exact, and its printed text (matn plus the "وافقه مالك بن أنس على
+    إسناده وخالفه في لفظه" tail `_NASAI_FORMULA` cuts into `addenda_ar`)
+    still verifies as this exact record."""
     from sanad.verify.engine import Verdict, verify_spans
     conn = db.connect(DB_PATH)
     rec = db.get_record(conn, "hadith:nasai:3899")
@@ -2006,22 +2126,43 @@ def test_the_nasai_repeated_matn_tie_discloses_all_four_occurrences():
     ]
 
 
+# Codepoints read out of the printed source (never retyped glyphs), per the
+# top-of-file convention: "la tarji'u ba'di kuffaran" ("do not return to
+# disbelief after me [by killing one another]"), WITHOUT the trailing
+# "mursal" classification tag.
+_NASAI_4129_MATN = "".join(chr(c) for c in (
+    0x0644, 0x0627, 0x0020, 0x062a, 0x0631, 0x062c, 0x0639, 0x0648,
+    0x0627, 0x0020, 0x0628, 0x0639, 0x062f, 0x064a, 0x0020, 0x0643,
+    0x0641, 0x0627, 0x0631, 0x0627,
+))
+
+
 def test_the_nasai_mursal_tagged_matn_still_verifies():
-    """hadith:nasai:4129, "la tarji'u ba'di kuffaran" ("do not return to
-    disbelief after me [by killing one another]") plus a trailing "mursal"
-    classification tag -- READ and REJECTED from `UNSCORABLE["nasai"]`
+    """hadith:nasai:4129 -- READ and REJECTED from `UNSCORABLE["nasai"]`
     during the Step 4 audit because it is a genuine, complete,
-    independently-quotable imperative, unlike the 53 confirmed pointer/
-    chain-leak/classification-tag/truncated-opening records that share its
-    short length and trailing "mursal" vocabulary. This is the mandatory
-    false-negative-direction proof for that judgement call: if the
-    boundary were drawn wrong (marked unscorable when it should not be),
-    this hadith would silently stop verifying."""
+    independently-quotable imperative, unlike the 53 (now 55) confirmed
+    pointer/chain-leak/classification-tag/truncated-opening records that
+    share its short length and trailing "mursal" vocabulary. This is the
+    mandatory false-negative-direction proof for that judgement call: if
+    the boundary were drawn wrong, this hadith would silently stop
+    verifying.
+
+    R-A3-25/26 (task-14-review.md Finding 1 and 2): the ORIGINAL version of
+    this test quoted `rec.text_ar` -- the stored string -- which at the time
+    still carried the fused "... مرسل" tail, so the test was asserting that
+    the broken text verified against itself: trivially true, and incapable
+    of catching the very defect it claimed to guard (the printed matn, minus
+    that tail, was actually NOT_FOUND at score 0.800 before this fix round).
+    This version quotes `_NASAI_4129_MATN`, an independent literal derived
+    from the printed source, not from whatever the pipeline currently
+    happens to store -- so a future regression that re-fuses the tail into
+    `text_ar` would still be caught here."""
     from sanad.verify.engine import Verdict, verify_spans
     conn = db.connect(DB_PATH)
     rec = db.get_record(conn, "hadith:nasai:4129")
     assert rec.unscorable_reason is None
-    m = verify_spans(conn, f"«{rec.text_ar}»")
+    assert rec.text_ar == _NASAI_4129_MATN
+    m = verify_spans(conn, f"«{_NASAI_4129_MATN}»")
     assert len(m) == 1
     assert m[0].verdict is Verdict.EXACT
     assert m[0].record.id == "hadith:nasai:4129"
@@ -2061,6 +2202,64 @@ def test_no_unaudited_near_miss_for_the_nasai_compiler_marker():
         "hadith:nasai:3005",
         "hadith:nasai:3211",
         "hadith:nasai:597",
+    ]
+
+
+def test_no_unaudited_near_miss_for_the_nasai_comparative_isnad_family():
+    """R-A3-25's root-cause fix for task-14-review.md Finding 3: every
+    `find_near_misses` call site Task 12-14 shipped swept the NAME-ANCHORED
+    axis only (varying token gap, then grammatical case, against the
+    compiler's own kunya). But `_NASAI_FORMULA`'s comparative-isnad verbs
+    (khalafahu, wafaqahu, taba'ahu, arsalahu, rafa'ahu, waqafahu, awqafahu,
+    asnadahu) are NAME-FREE -- a bare verb plus an attached object pronoun,
+    no narrator name anywhere in the pattern -- so a sweep built for the
+    kunya axis structurally cannot see a gap in this family. That blind spot
+    is exactly how Finding 1's 49 broken records went undetected: the family
+    was under-covered (only "khalafahu" shipped) and nothing swept for its
+    siblings.
+
+    The name-free axis this family can be widened along is NOT token gap (there
+    is no name to vary the gap to) -- it is the attached pronoun's own
+    morphology: every verb above is shipped only in its 3rd-person-masculine-
+    singular object form ("-ahu"). This sweep widens every root to also match
+    3rd-person-feminine-singular ("-ha"), dual ("-huma"/"-ha" precedes hidden
+    -- feminine dual is spelled identically to fem. singular in this table, so
+    "-ha" covers both), and plural object forms ("-hum", "-hu" via alif or
+    waw connector), then subtracts everything `configured` already covers.
+
+    Not empty, same discipline as the kunya-axis test above: 5 hits, all
+    read in context and confirmed genuine narrative, not al-Nasai's own
+    voice -- "rafa'ahuma" ("he raised THEM [his hands]", prayer posture,
+    1059/1265/878) and "rafa'aha" (same, a nursing mother lifting her child
+    up out of prostration, 1204) never mean "he raised the report to the
+    Prophet [marfu']" in these positions; "fa-arsalahum" (632) is "so he
+    RELEASED the people [from the gathering]", not "transmitted it mursal".
+    None of these forms is a suffix `_NASAI_FORMULA` matches (it accepts
+    only bare "-hu", plus "-huma"/"-hum" on khalafahu/wafaqahu specifically,
+    where those ARE measured to occur in the critique sense), so none is at
+    risk of being wrongly cut; this test exists so that if a future edit
+    widens a verb's suffix class, the person doing it re-reads these 5
+    before doing so, exactly like the 597/3005/3211 kunya near-misses above.
+    """
+    import re
+
+    from sanad_ingest.openiti import (
+        _ARABIC, _NASAI_COMMENTARY, _NASAI_COMMENTARY_NEAR, _NASAI_FORMULA,
+        _NASAI_HEARD, find_near_misses)
+
+    configured = re.compile(
+        f"{_NASAI_COMMENTARY.pattern}|{_NASAI_COMMENTARY_NEAR.pattern}"
+        f"|{_NASAI_HEARD.pattern}|{_NASAI_FORMULA.pattern}")
+    roots = "|".join((
+        "خالف", "وافق", "تابع", "أرسل", "رفع", "وقف", "أوقف", "أسند"))
+    sweep = re.compile(
+        rf"(?<![{_ARABIC}])[وف]?(?:{roots})(?:ه|ها|هما|هم|وه|اه)(?![{_ARABIC}])")
+    assert find_near_misses(_real_nasai_units(), configured, sweep) == [
+        "hadith:nasai:1059",
+        "hadith:nasai:1204",
+        "hadith:nasai:1265",
+        "hadith:nasai:632",
+        "hadith:nasai:878",
     ]
 
 

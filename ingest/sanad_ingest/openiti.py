@@ -20,12 +20,78 @@ _HEADER_END = "#META#Header#End#"
 # Structural markers, all stripped from stored text.
 _CONTINUATION = "~~"
 _PAGE = re.compile(r"PageV\d+P\d+")
+
+# Tirmidhi-only (Task 13): a second-edition page cross-reference immediately
+# after a `PageV\d+P\d+` marker -- "PageV01P162 @ 164", "PageV01P229\n~~232 @
+# 233", "PageV02P453 454 @", "PageV01P362 365" (bare, no "@" at all), even
+# "PageV01P305 308 ms0064 @ 309" (an embedded milestone between two numbers).
+# Measured: exactly 19 occurrences in the whole file, always a small number
+# close to the page marker's own, NEVER a quantity in running prose (every
+# one sits directly against the page marker with nothing but whitespace/"@"/
+# a further milestone between them, several immediately followed by the next
+# "### |||" unit boundary). Zero occurrences of this shape follow a page
+# marker in Bukhari/Muslim/Abu Dawud's own cached files by the same
+# measurement, but the check is scoped to `collection == "tirmidhi"` (see
+# its call site in `parse_openiti`) rather than left to that coincidence,
+# so the other three collections' byte-identity is never put in the same
+# regex's hands. `_PAGE` itself is left untouched -- this runs on the RAW
+# body text before any line is read, while the page marker is still the
+# anchor, since `_clean()`'s own `_PAGE.sub(" ", s)` erases that anchor and
+# leaves no way to tell an apparatus number from a genuine one afterward. A
+# stray "~~" continuation prefix can fall in the MIDDLE of the apparatus
+# (137's "@\n~~137"), not just between the page marker and it, so the
+# optional continuation marker is threaded between every token, not just
+# once at the front.
+_TIRMIDHI_PAGE_XREF_UNIT = (
+    r"[ \t]*(?:\n~~)?[ \t]*(?:ms\d{4}[ \t]*(?:\n~~)?[ \t]*)?@?"
+    r"[ \t]*(?:\n~~)?[ \t]*\d{1,4}[ \t]*(?:\n~~)?[ \t]*@?"
+)
+# "(?!\d)" immediately after the page marker is load-bearing, not decoration:
+# without it, `\d+P\d+`'s own greedy match backtracks to satisfy the required
+# `{1,2}` repetitions below when a record has NO real apparatus at all --
+# e.g. hadith:tirmidhi:30's "... mithlahu PageV01P044\n~~qala Abu 'Isa ..."
+# would otherwise have its page marker's own trailing "4" peeled off and
+# misread as a one-digit cross-reference, corrupting a record nowhere near
+# this phenomenon. The lookahead forces the marker's digits to stay whole,
+# so the repetition can only succeed against a SEPARATE, genuine digit run.
+#
+# The whitespace tokens are "[ \t]*", NOT "\s*": a plain "\s*" can consume a
+# bare "\n" that leads into the NEXT unit's own "### |||"/"### ||" line --
+# measured against 112, 126 and 231's own headings, none of which carry a
+# "~~" continuation prefix -- moving that heading off column zero and making
+# `_SECTION.match` blind to it, silently merging two units into one (188,
+# 317, 450 cost two whole records this way before the fix). Crossing an
+# actual line is only ever done through the explicit "(?:\n~~)?" alternative,
+# which requires the "~~" that marks a genuine continuation.
+_TIRMIDHI_PAGE_XREF = re.compile(
+    rf"(PageV\d+P\d+)(?!\d)(?:{_TIRMIDHI_PAGE_XREF_UNIT}){{1,2}}")
 _MILESTONE = re.compile(r"ms\d{4}")
 _PART = re.compile(r"\\\s*\d+\s*\\")          # the "\ 1 \" part marker
 _QURAN_MARK = re.compile(r"@QB@|@QE@")        # markers go, quoted words stay
 _SECTION = re.compile(r"^###")                # ### | , ### || , ### |||
 _KITAB = re.compile(r"^###\s*\|(?!\|)\s*(.*)$")
 _BAB = re.compile(r"^###\s*\|\|+\s*(.*)$")
+# Tirmidhi's file is the ".completed" annotation stage, not the bare "-ara1"
+# Bukhari/Muslim/Abu Dawud are built from -- MEASURED to carry a structural
+# difference the docs do not mention: the hadith number sits on its OWN
+# "### |||" line, with the unit's content following on a separate, unnumbered
+# "#" line ("### ||| 815" then "# حدثنا ..."), rather than embedded at the
+# head of the content line the way Bukhari/Muslim/Abu Dawud print it ("# 1
+# حدثنا ..."). Naively, "### |||" already matches `_BAB` (2-OR-MORE pipes),
+# which would misfile every one of the file's 3,976 hadith-number lines as a
+# bab heading whose "title" is a bare number.
+#
+# The two shapes are told apart by CONTENT, not pipe count, so Bukhari's own
+# (pre-existing, already-shipped) use of "### |||" for a THIRD-LEVEL bab
+# heading -- always wrapped in a Qur'an-quoting parenthesis or opening on
+# "باب", e.g. "### ||| ( 2 باب @QB@ ... @QE@ )" -- is untouched: this pattern
+# only matches when the trailing content is NOTHING but digits (an optional
+# embedded milestone, e.g. "### ||| 16 ms0006"). Measured against the pinned
+# files: matches all 3,976 of Tirmidhi's hadith-number lines and, checked
+# separately, zero of Bukhari's 363 three-pipe lines (all of which open on
+# "(" or a bare number-then-"باب", never a lone number) and zero lines in
+# Muslim/Abu Dawud (which never use "###" for hadith numbering at all).
+_HADITH_NUM = re.compile(r"^###\s*\|{3,}\s*(\d+)(?:\s+ms\d{4})?\s*$")
 _UNIT_START = re.compile(r"^#\s")              # "^#\s" already can't match "###"
 _NUMBERED = re.compile(r"^(\d+)\s+(م\s+)?(.*)$", re.DOTALL)
 _LEADING_NUMBER = re.compile(r"^\d+\s+")
@@ -452,44 +518,205 @@ _ABUDAWUD_COMMENTARY, _ABUDAWUD_COMMENTARY_NEAR, _ABUDAWUD_HEARD = \
 # Task 16's corpus-wide sweep, which is where a construction not anchored on
 # a name belongs.
 
+# --- Tirmidhi's own compiler commentary (Task 13, ruling R-A3-19) ----------
+#
+# Al-Tirmidhi (kunya "أبو عيسى") appends his own voice after a matn at ROUGHLY
+# FOUR TIMES Abu Dawud's rate -- "قال أبو عيسى" measured 3,064 times across
+# the file's 3,976 units (Abu Dawud's whole marker set: 806). The verb+kunya
+# construction is exactly the one `_compiler_commentary_markers` already
+# builds, so `_TIRMIDHI_COMMENTARY`/`_TIRMIDHI_COMMENTARY_NEAR`/
+# `_TIRMIDHI_HEARD` are DERIVED from it -- kunya "أبو عيسى" -- not hand-written.
+#
+# Two further formulas are Tirmidhi's OWN, not Abu Dawud's, and are NOT of the
+# (verb, kunya) shape at all, so no amount of widening the table above could
+# ever reach them:
+#
+#   - "وفي الباب عن ..." ("and on this topic, [there are hadith] from ...") --
+#     Abu Isa's own cross-reference formula, closing almost every bab with a
+#     list of other Companions who narrate on the same topic. Measured against
+#     every one of its 1,178 unit-level occurrences: 1,177 are followed
+#     immediately by "عن" (a name list) and the 1,178th ("وفي الباب ما يقوى
+#     قولهم") is still Abu Isa's own discussion, not narration -- there is no
+#     occurrence anywhere in the file of "الباب" ("the door/chapter") used in
+#     its literal, narrative sense directly after "وفي". It OFTEN precedes
+#     "قال أبو عيسى" in the same tail (733 of 1,178 units measured), so cutting
+#     only at the kunya marker would leave this formula, and everything after
+#     it, inside the scored matn -- exactly the failure mode the ruling warns
+#     against.
+#   - "هذا حديث ..." ("this hadith is ...") -- opens Abu Isa's classical
+#     grading verdict (R-A3-2's "حسن صحيح غريب" tails). Measured: of 2,711
+#     unit-level occurrences, the very next word is a closed set of 24 grading
+#     terms (حسن 2,128, غريب 363, صحيح 102, لا/ليس/مرسل/ضعيف/منكر/... the rest)
+#     -- never an ordinary narrative word -- so the phrase is safe to treat as
+#     its own unconditional boundary, not merely a fallback for when the kunya
+#     marker is absent. 431 of the 2,711 have no earlier "قال أبو عيسى"/
+#     "وفي الباب" in the same unit at all.
+#   - "وفي الحديث قصة[ طويلة]" ("and in the hadith there is a [long] story") --
+#     Abu Isa's own note that the printed matn is an abridgement of a longer
+#     narration. Measured 18 unit-level occurrences, ALL at the tail of the
+#     unit, ALL following either genuine narrative matn (e.g. 1408, 1636,
+#     1904, 3716) or an already-pointer-class remainder (836, 1599); never
+#     mid-narrative. Distinguished from the unrelated, non-cutting phrase
+#     "فذكر القصة في الحديث" (2667, "and he mentioned the story in the
+#     hadith", different word order, appears mid-sentence describing an
+#     action, not an aside about the text itself) by anchoring on the exact
+#     "وفي الحديث قصة" order.
+#   - "وهذا أصح[ من حديث ...]" ("and this [report/chain] is more accurate
+#     [than the hadith of ...]") -- a bare isnad-comparison verdict, never
+#     part of the Prophet's own reported speech. Measured 18 unit-level
+#     occurrences; most already sit inside an already-pointer-class
+#     remainder ("نحوه ... وهذا أصح"), harmless either way, but two (1771
+#     "he forbade predator hides", 1778 "she walked with one sandal") follow
+#     GENUINE narrative matn with no other marker present -- exactly the
+#     fused-commentary defect this ruling exists to close, caught only
+#     because this phrase was measured on its own rather than assumed to
+#     appear solely inside the pointer combinations that motivated finding
+#     it. Never mid-narrative in any of the 18.
+#
+# Both formulas are regularly introduced by a BARE "قال" with no kunya
+# repeated -- an elliptical continuation ("قال وفي الباب ...", "قال هذا حديث
+# ...", "قال وهذا حديث ...") referring back to the Abu Isa already named
+# earlier in the same tail, or standing with no "قال" at all directly after
+# the matn ends (asyndeton; e.g. "... فهو عاهر هذا حديث حسن صحيح"). Measured:
+# of the 431 "هذا حديث" occurrences with no earlier kunya marker, 336 are
+# introduced by this bare "قال" and 95 are asyndetic. `_TIRMIDHI_FORMULA`
+# therefore makes the "قال" OPTIONAL AND PART OF THE SAME MATCH: when present,
+# the match (and so the cut point) starts AT "قال", not at the formula word,
+# so the bare attribution is carried into addenda with its formula rather than
+# left dangling on the primary -- the same "cut on what follows" discipline as
+# every other marker in this file, applied here to an attribution word instead
+# of a name.
+_TIRMIDHI_FORMULA = re.compile(
+    rf"(?<![{_ARABIC}])(?:قال\s+)?"
+    rf"(?:وفي\s+الباب|[وف]?هذا\s+حديث|وفي\s+الحديث\s+قصة(?:\s+طويلة)?|"
+    rf"وهذا\s+أصح)"
+    rf"(?![{_ARABIC}])")
 
-def _split_compiler_commentary(matn: str, addenda: str | None
-                               ) -> tuple[str, str | None]:
-    """Cut Abu Dawud's own commentary from a matn, appending it to whatever
-    addendum `_split_secondary` already found (or starting one).
+_TIRMIDHI_COMMENTARY, _TIRMIDHI_COMMENTARY_NEAR, _TIRMIDHI_HEARD = \
+    _compiler_commentary_markers("أبو عيسى")
+
+# Reference-number apparatus unique to this file, e.g. "... زرتك [1053]" --
+# measured 1,588 raw occurrences, ALL of shape "[<digits>]", never any other
+# bracketed content, and never appearing in Bukhari/Muslim/Abu Dawud's own
+# cached files (0 occurrences in each). This is Shakir's own cross-reference
+# footnote number (the bracketed digit is close to, but rarely exactly, the
+# unit's own printed hadith number -- e.g. hadith 48 ends "... [47]" -- ruling
+# out a simple "matches its own number" explanation), not part of the
+# classical text and not itself explanatory prose worth preserving in
+# `addenda_ar` the way genuine commentary is -- a bare number in brackets
+# means nothing to a reader without Shakir's own footnote text, which this
+# transcription does not carry. Treated as structural apparatus and stripped,
+# the same disposition as a milestone or page marker, NOT folded into
+# `_clean()` (see `_strip_reference_numbers`'s own docstring for why the
+# timing matters).
+_TIRMIDHI_REF_NUMBER = re.compile(r"\[\d+\]")
+
+
+def _strip_reference_numbers(matn: str) -> str:
+    """Remove Tirmidhi's own bracketed cross-reference numbers from a
+    (post-split) PRIMARY matn -- never from `addenda_ar`, and never before the
+    unit's own empty-matn fallback check in `flush()` has already run.
+
+    Ordering is load-bearing: `hadith:tirmidhi:162`'s matn, after the
+    generic "*" split, is the bare four characters "[161]" -- a genuine
+    editorial pointer ("see hadith 161"), not damage. If bracket-stripping
+    ran inside `_clean()` (i.e. before `flush()`'s own `if not matn:` check),
+    162's matn would go from a non-empty string to an empty one at exactly
+    the point that check is testing, and its fallback branch -- built for a
+    different case entirely, "the source marks no boundary at all" -- would
+    then substitute the record's own ISNAD as its matn. Running this step
+    afterward, on the already-resolved matn, means 162 instead reaches this
+    function with matn="[161]".
+
+    NEVER RETURNS EMPTY: `build._hadith_records` treats an empty `text_ar` as
+    an unconditional hard error regardless of `unscorable_reason` -- it is a
+    guard against a DIFFERENT hazard (a parsing regression silently shipping
+    a blank scored string) and does not know this stripping step exists. A
+    record whose entire matn is nothing but a bracket -- 162 and 3615-2, both
+    measured -- keeps its bracket, exactly like Bukhari's own bare "bi-hadha"
+    pointer keeps its four characters: the text is still apparatus, not
+    prose, and is still hand-pinned in `UNSCORABLE["tirmidhi"]`, but it is
+    the UNSTRIPPED bracket that gets pinned, not an empty string.
+
+    Only the PRIMARY matn is stripped, not `addenda_ar`: the two records
+    where this number already sits inside `_TIRMIDHI_COMMENTARY`'s own cut
+    tail (1204, 2824-2, both measured) keep their bracket, byte-exact, as
+    part of the preserved commentary -- exactly like every other character
+    `_split_compiler_commentary` moves into addenda.
+    """
+    stripped = " ".join(_TIRMIDHI_REF_NUMBER.sub(" ", matn).split())
+    return stripped if stripped else matn
+
+
+_COMPILER_MARKERS: dict[
+    str, tuple[re.Pattern[str], re.Pattern[str], re.Pattern[str],
+               re.Pattern[str] | None]
+] = {
+    # Byte-identical to the pre-Task-13 tuple used at Abu Dawud's own call
+    # site: same three patterns, same objects, no fourth (non-kunya) formula.
+    "abudawud": (_ABUDAWUD_COMMENTARY, _ABUDAWUD_COMMENTARY_NEAR,
+                 _ABUDAWUD_HEARD, None),
+    "tirmidhi": (_TIRMIDHI_COMMENTARY, _TIRMIDHI_COMMENTARY_NEAR,
+                 _TIRMIDHI_HEARD, _TIRMIDHI_FORMULA),
+}
+
+
+def _split_compiler_commentary(
+    matn: str, addenda: str | None, tight: re.Pattern[str],
+    near: re.Pattern[str], extra: re.Pattern[str] | None = None,
+) -> tuple[str, str | None]:
+    """Cut a collection's own compiler commentary from a matn, appending it
+    to whatever addendum `_split_secondary` already found (or starting one).
+
+    `tight`/`near` are the (verb, kunya) pair `_compiler_commentary_markers`
+    built for this collection; `extra`, when given, is a further,
+    collection-specific formula that marks the SAME kind of boundary without
+    naming the compiler at all (Tirmidhi's "وفي الباب"/"هذا حديث" -- see
+    `_TIRMIDHI_FORMULA`). Between `tight` and `extra` the EARLIEST match wins,
+    per the ruling's instruction to cut at the earliest genuine boundary, not
+    merely the first one a single pattern happens to find; `near` is tried
+    only as a fallback when NEITHER of those finds anything, preserving the
+    "tight first, widen only if the tight search truly finds nothing"
+    discipline `near` was built for.
 
     Cuts on what FOLLOWS the marker, not what precedes it -- the compiler's
     remark is itself the secondary material, exactly as a fresh narration's
-    isnad is. Never invents a cut: if the marker is not present, the matn and
+    isnad is. Never invents a cut: if no marker is present, the matn and
     addendum returned are the ones passed in, unchanged.
     """
-    m = _ABUDAWUD_COMMENTARY.search(matn)
+    candidates = [m for m in (tight.search(matn),
+                               extra.search(matn) if extra else None)
+                  if m is not None]
+    m = min(candidates, key=lambda m: m.start()) if candidates else None
     if m is None:
-        m = _ABUDAWUD_COMMENTARY_NEAR.search(matn)
+        m = near.search(matn)
     if m is None:
         return matn, addenda
     head = matn[: m.start()].rstrip()
     if not head:
         # Measured: no record's matn opens directly on the marker (every one
-        # of the 806 has genuine narrative in front of it). Guarded anyway,
-        # on the same principle as _split_secondary's one-word guard: an
-        # empty scored text is worse than the fused-commentary bug this
-        # function exists to fix.
+        # of the 806 Abu Dawud instances, and every Tirmidhi one, has genuine
+        # narrative in front of it). Guarded anyway, on the same principle as
+        # _split_secondary's one-word guard: an empty scored text is worse
+        # than the fused-commentary bug this function exists to fix.
         return matn, addenda
     tail = matn[m.start() :]
     return head, tail if addenda is None else f"{tail} {addenda}"
 
 
-def _split_heard_commentary(matn: str, addenda: str | None
+def _split_heard_commentary(matn: str, addenda: str | None,
+                            heard: re.Pattern[str]
                             ) -> tuple[str, str | None]:
-    """Cut the "sami'tu ... ACCUSATIVE-kunya" shape of Abu Dawud's own
-    commentary (R-A3-23) -- someone reporting having heard him say something,
-    which is still editorial apparatus fused onto the matn, not narration.
+    """Cut the "sami'tu ... ACCUSATIVE-kunya" shape of a collection's own
+    commentary (R-A3-23) -- someone reporting having heard the compiler say
+    something, which is still editorial apparatus fused onto the matn, not
+    narration. `heard` is the collection's own marker from
+    `_compiler_commentary_markers`.
 
-    Run AFTER `_split_lului_commentary` in `flush()`, not before: of the 8
-    accusative occurrences in the file, 6 are immediately preceded by "qala
-    Abu Ali" ("... qala Abu Ali sami'tu Aba Dawud yaqulu ...") and are
-    already cut, correctly, at that EARLIER position by
+    Run AFTER `_split_lului_commentary` in `flush()` (Abu Dawud only), not
+    before: of Abu Dawud's 8 accusative occurrences, 6 are immediately
+    preceded by "qala Abu Ali" ("... qala Abu Ali sami'tu Aba Dawud yaqulu
+    ...") and are already cut, correctly, at that EARLIER position by
     `_split_lului_commentary`'s own marker before this function ever runs --
     running this one first would instead cut at the later "sami'tu" and
     leave "qala Abu Ali" stranded on the primary, the exact dangling-
@@ -497,15 +724,17 @@ def _split_heard_commentary(matn: str, addenda: str | None
     this function's search runs, those 6 already have "sami'tu ..." inside
     their addendum, so it is a no-op for them, not a second cut.
 
-    The remaining 2 (1234, 1854) have no earlier marker at all and are cut
-    here directly. 1854's cut is complete on its own. 1234's is not: "qala
-    Uthman 'an 'Abd Allah ibn Muhammad ibn 'Amr ibn 'Ali sami'tu Aba Dawud
-    yaqulu ..." leaves "qala Uthman 'an ... 'Ali" dangling on the primary
-    the same way 4129 did in fix round 2 -- corrected the same way, by a
-    second hand-audited entry in `NEAR_MISS_CUT_OVERRIDE`, applied after this
-    function returns.
+    Abu Dawud's remaining 2 (1234, 1854) have no earlier marker at all and are
+    cut here directly. 1854's cut is complete on its own. 1234's is not:
+    "qala Uthman 'an 'Abd Allah ibn Muhammad ibn 'Amr ibn 'Ali sami'tu Aba
+    Dawud yaqulu ..." leaves "qala Uthman 'an ... 'Ali" dangling on the
+    primary the same way 4129 did in fix round 2 -- corrected the same way,
+    by a second hand-audited entry in `NEAR_MISS_CUT_OVERRIDE`, applied after
+    this function returns. Tirmidhi's own accusative form ("أبا عيسى") occurs
+    exactly once in the file (measured) and is not reached by this function
+    at all -- see the near-miss detector's own findings.
     """
-    m = _ABUDAWUD_HEARD.search(matn)
+    m = heard.search(matn)
     if m is None:
         return matn, addenda
     head = matn[: m.start()].rstrip()
@@ -792,11 +1021,24 @@ def parse_openiti(
         raise ValueError("no #META#Header#End# marker: not an OpenITI mARkdown file")
     attribution = raw[: end + len(_HEADER_END)]
     body = raw[end + len(_HEADER_END) :]
+    if collection == "tirmidhi":
+        # See `_TIRMIDHI_PAGE_XREF`'s own comment: must run before any line
+        # is read, while `PageV\d+P\d+` is still present to anchor on.
+        body = _TIRMIDHI_PAGE_XREF.sub(r"\1", body)
 
     units: list[HadithUnit] = []
     seen: dict[str, int] = {}
     kitab_no, kitab_ar, bab_ar = 0, "", None
     buf: list[str] | None = None
+    # Set by `_HADITH_NUM` (Tirmidhi's ".completed" stage only -- see its own
+    # comment) and consumed by the very next `_UNIT_START` line, which is
+    # ALWAYS the next line in the file (measured: all 3,976 occurrences).
+    # Prepending it there reproduces the exact shape `_NUMBERED` expects from
+    # Bukhari/Muslim/Abu Dawud's single-line "<number> [م] <text>" convention,
+    # so the rest of `flush()` -- including the repeat-marker "م" the second
+    # printing of a repeated number carries on ITS OWN content line here, e.g.
+    # "### ||| 815 ms0293" / "# م حدثنا ..." -- needs no further change.
+    pending_number: str | None = None
 
     # A "### ||" bab heading whose wrapping "(" isn't closed on its own line
     # spills the rest of its text onto following "#"-prefixed lines that look
@@ -925,37 +1167,55 @@ def parse_openiti(
         else:
             matn, addenda = _split_secondary(
                 matn, record_id, attribution_window, max_addendum, never_cut)
+        # Unconditional, even when isnad is None (Abu Dawud 208): the
+        # compiler's remark can follow a matn whose own leading chain the
+        # source never marked a boundary for either. `_apply_cut_override`
+        # is a no-op when `record_id` is not on its (per-collection, keyed by
+        # the full record id) audit list, so calling it for every collection
+        # -- rather than gating it to "abudawud" -- changes nothing for
+        # bukhari/muslim (whose `CUT_OVERRIDE` entries, if any, simply never
+        # match a different collection's ids) and lets Tirmidhi reuse it too.
+        matn, addenda = _apply_cut_override(
+            matn, addenda, record_id, cut_override)
+        markers = _COMPILER_MARKERS.get(collection)
+        if markers is not None:
+            tight, near, heard, extra = markers
+            matn, addenda = _split_compiler_commentary(
+                matn, addenda, tight, near, extra)
             if collection == "abudawud":
-                matn, addenda = _apply_cut_override(
-                    matn, addenda, record_id, cut_override)
-        if collection == "abudawud":
-            # Unconditional, even when isnad is None (208): the compiler's
-            # remark can follow a matn whose own leading chain the source
-            # never marked a boundary for either, and the marker search is a
-            # no-op -- returns matn/addenda unchanged -- when absent.
-            matn, addenda = _split_compiler_commentary(matn, addenda)
-            # Al-Lu'lu'i's voice, run BEFORE the heard-form marker below
-            # (R-A3-23): 6 of the 8 "sami'tu ACC-kunya" occurrences are
-            # immediately preceded by "qala Abu Ali", and must be cut at that
-            # earlier position, not the later "sami'tu" -- see
-            # `_split_heard_commentary`'s own docstring for why the order is
-            # load-bearing, not incidental. 3040's "qala Abu Ali" already
-            # lives inside `_split_compiler_commentary`'s own tail above, so
-            # by the time this runs it is a no-op for that record, not a
-            # double cut.
-            matn, addenda = _split_lului_commentary(
-                matn, addenda, record_id, lului_never_cut)
-            # R-A3-23: "sami'tu ACC-kunya", the case the two markers above
-            # cannot reach (they only recognise the NOMINATIVE). A no-op for
-            # the 6 records `_split_lului_commentary` just handled.
-            matn, addenda = _split_heard_commentary(matn, addenda)
-            # 4129's (R-A3-22) and 1234's (R-A3-23) near-miss cuts each leave
-            # a further nested "qala <name>" attribution fused onto the
-            # genuine matn, past what either marker's own window reaches --
-            # a no-op for every other record, since the table holds exactly
-            # these two hand-read entries.
+                # Al-Lu'lu'i's voice: a different speaker (Abu Dawud's own
+                # transmitter), unique to this collection, run BEFORE the
+                # heard-form marker below (R-A3-23): 6 of the 8 "sami'tu
+                # ACC-kunya" occurrences are immediately preceded by "qala Abu
+                # Ali", and must be cut at that earlier position, not the
+                # later "sami'tu" -- see `_split_heard_commentary`'s own
+                # docstring for why the order is load-bearing, not
+                # incidental. 3040's "qala Abu Ali" already lives inside
+                # `_split_compiler_commentary`'s own tail above, so by the
+                # time this runs it is a no-op for that record, not a double
+                # cut.
+                matn, addenda = _split_lului_commentary(
+                    matn, addenda, record_id, lului_never_cut)
+            # R-A3-23: "sami'tu ACC-kunya", the case `tight`/`near`/`extra`
+            # cannot reach (they only recognise the NOMINATIVE, or no kunya at
+            # all). A no-op for Abu Dawud's 6 records `_split_lului_
+            # commentary` just handled, and Tirmidhi has no occurrence of this
+            # shape at all (measured: its one accusative "أبا عيسى" is never
+            # preceded by "سمعت").
+            matn, addenda = _split_heard_commentary(matn, addenda, heard)
+            # Abu Dawud's 4129 (R-A3-22) and 1234 (R-A3-23) near-miss cuts
+            # each leave a further nested "qala <name>" attribution fused
+            # onto the genuine matn, past what either marker's own window
+            # reaches -- a no-op for every other record, since the table
+            # holds exactly these two hand-read entries.
             matn, addenda = _apply_cut_override(
                 matn, addenda, record_id, near_miss_cut_override)
+            if collection == "tirmidhi":
+                # Shakir's own bracketed cross-reference numbers (see
+                # `_strip_reference_numbers`) -- run last, on whatever the
+                # PRIMARY matn is once every commentary cut above has already
+                # happened, never on `addenda_ar`.
+                matn = _strip_reference_numbers(matn)
 
         units.append(
             HadithUnit(
@@ -991,7 +1251,9 @@ def parse_openiti(
                 # A new section starts before the heading's paren closed --
                 # no more continuation text is coming; keep what we have.
                 bab_parts, bab_balance, heading_kind = None, 0, None
-            if (k := _KITAB.match(line)) is not None:
+            if (h := _HADITH_NUM.match(line)) is not None:
+                pending_number = h.group(1)
+            elif (k := _KITAB.match(line)) is not None:
                 kitab_no += 1
                 kitab_ar, bab_ar = _strip_heading_markup(_clean(k.group(1))), None
             elif (b := _BAB.match(line)) is not None:
@@ -1033,6 +1295,17 @@ def parse_openiti(
                 buf.append(frag)
                 continue
             flush()
+            if pending_number is not None:
+                # Tirmidhi only (see `_HADITH_NUM`): this content line carries
+                # no number of its own -- it was printed on the "### |||" line
+                # just consumed -- so reattach it here, in the exact shape
+                # `_NUMBERED` parses everywhere else, before this unit is
+                # buffered under it. Measured: the "### |||" line is always
+                # (all 3,976 times) immediately followed by exactly this kind
+                # of line, so there is never a stale `pending_number` left
+                # over to misattach to some LATER, unrelated unit.
+                frag = f"{pending_number} {frag}"
+                pending_number = None
             buf = [frag]
             continue
         if line.strip() == "#":

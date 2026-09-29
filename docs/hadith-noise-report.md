@@ -180,3 +180,24 @@ Records ingested: 5274 &nbsp;&nbsp; Records flagged: 17
 | `hadith:abudawud:4000` | Sunan Abi Dawud 4000 | `<>` | U+003C U+003E |
 | `hadith:abudawud:4004` | Sunan Abi Dawud 4004 | `<>` | U+003C U+003E |
 | `hadith:abudawud:4213` | Sunan Abi Dawud 4213 | `29` | U+0032 U+0039 |
+
+## Source: `openiti-tirmidhi-jk000140` (ed. Ahmad Muhammad Shakir wa-akharun; OpenITI JK000140, ara1.completed)
+
+Records ingested: 3976 &nbsp;&nbsp; Records flagged: 14
+
+| Record | Citation | Characters | Codepoints |
+| --- | --- | --- | --- |
+| `hadith:tirmidhi:162` | Jami at-Tirmidhi 162 | `16[]` | U+0031 U+0036 U+005B U+005D |
+| `hadith:tirmidhi:602` | Jami at-Tirmidhi 602 | `<>` | U+003C U+003E |
+| `hadith:tirmidhi:1055` | Jami at-Tirmidhi 1055 | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:tirmidhi:1090` | Jami at-Tirmidhi 1090 | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:tirmidhi:1688` | Jami at-Tirmidhi 1688 | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:tirmidhi:2847` | Jami at-Tirmidhi 2847 | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:tirmidhi:2848` | Jami at-Tirmidhi 2848 | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:tirmidhi:2849` | Jami at-Tirmidhi 2849 | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:tirmidhi:2930` | Jami at-Tirmidhi 2930 | `<>` | U+003C U+003E |
+| `hadith:tirmidhi:3284` | Jami at-Tirmidhi 3284 | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:tirmidhi:3345` | Jami at-Tirmidhi 3345 | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:tirmidhi:3615-2` | Jami at-Tirmidhi 3615 (2) | `136[]` | U+0031 U+0033 U+0036 U+005B U+005D |
+| `hadith:tirmidhi:3856` | Jami at-Tirmidhi 3856 | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:tirmidhi:3857` | Jami at-Tirmidhi 3857 | `%()` | U+0025 U+0028 U+0029 |

@@ -416,7 +416,7 @@ def test_builds_hadith_records_with_matn_as_the_scored_text(real_corpus):
     out, _, _ = real_corpus
     conn = db.connect(out)
     n = conn.execute("SELECT count(*) FROM records WHERE kind='hadith'").fetchone()[0]
-    assert n == 19863  # Task 12: 7129 Bukhari + 7460 Muslim + 5274 Abu Dawud
+    assert n == 23839  # Task 13: +3976 Tirmidhi (7129 Bukhari + 7460 Muslim + 5274 Abu Dawud)
     row = conn.execute(
         "SELECT text_ar, isnad_ar, norm_light, norm_standard, norm_aggressive "
         "FROM records WHERE id='hadith:bukhari:1'").fetchone()
@@ -500,7 +500,7 @@ def test_every_hadith_norm_derives_from_its_matn_alone(real_corpus):
     rows = db.connect(out).execute(
         "SELECT id, text_ar, norm_light, norm_standard, norm_aggressive"
         " FROM records WHERE kind='hadith'").fetchall()
-    assert len(rows) == 19863  # Task 12: 7129 Bukhari + 7460 Muslim + 5274 Abu Dawud
+    assert len(rows) == 23839  # Task 13: +3976 Tirmidhi
     for row in rows:
         for form in ("light", "standard", "aggressive"):
             assert row[f"norm_{form}"] == normalize(row["text_ar"], form), row["id"]
@@ -510,7 +510,7 @@ def test_corpus_holds_both_the_quran_and_the_hadith(real_corpus):
     out, _, _ = real_corpus
     counts = dict(db.connect(out).execute(
         "SELECT kind, count(*) FROM records GROUP BY kind").fetchall())
-    assert counts == {"ayah": 6236, "hadith": 19863}  # Task 12: +5274 Abu Dawud
+    assert counts == {"ayah": 6236, "hadith": 23839}  # Task 13: +3976 Tirmidhi
 
 
 def test_hadith_records_carry_their_collection_metadata(real_corpus):
@@ -533,15 +533,15 @@ def test_every_hadith_reference_display_is_unique(real_corpus):
     # is prefixed with the collection's own printed name ("Sahih al-Bukhari" vs
     # "Sahih Muslim"), so two different editions numbering their narrations
     # identically is not, on its own, a collision. Task 12 (Abu Dawud, prefixed
-    # "Sunan Abi Dawud") joins the same check with the same result: zero
-    # collisions, measured, not assumed to generalise from two collections to
-    # three.
+    # "Sunan Abi Dawud") and Task 13 (Tirmidhi, prefixed "Jami at-Tirmidhi")
+    # join the same check with the same result: zero collisions, measured,
+    # not assumed to generalise from two collections to four.
     out, _, _ = real_corpus
     rows = db.connect(out).execute(
         "SELECT reference_display FROM records WHERE kind='hadith'").fetchall()
     refs = [r[0] for r in rows]
-    assert len(refs) == 19863
-    assert len(set(refs)) == 19863
+    assert len(refs) == 23839
+    assert len(set(refs)) == 23839
 
 
 def test_mukarrar_variant_is_marked_in_the_citation(real_corpus):
@@ -776,6 +776,13 @@ def test_the_appended_narrations_are_stored_but_never_scored(real_corpus):
     (1234, 1854) quote him in the ACCUSATIVE ("sami'tu Aba Dawud yaqulu
     ..."), a case `_split_heard_commentary` now covers.
 
+    Task 13 (Tirmidhi) moves this to 5,142: Tirmidhi's own compiler-commentary
+    markers (his kunya-based verdicts, "wa fi al-bab", "hadha hadith ...",
+    "wa fi al-hadith qissa[ tawila]", "wa hadha asahh") and its own
+    `NEAR_MISS_CUT_OVERRIDE` entry each cut a trailing remark into an
+    addendum the same way Abu Dawud's did -- see
+    test_tirmidhi_record_count_and_scorability for the full account.
+
     hadith 22 is one of the three boundaries named in the fix brief: the
     primary matn ends at "...as the seed grows beside a stream", and a second
     chain ("Wuhayb said: Amr narrated to us...") follows it with a variant
@@ -790,7 +797,7 @@ def test_the_appended_narrations_are_stored_but_never_scored(real_corpus):
     conn = db.connect(out)
     n = conn.execute(
         "SELECT count(*) FROM records WHERE addenda_ar IS NOT NULL").fetchone()[0]
-    assert n == 1387
+    assert n == 5142
     rec = db.get_record(conn, "hadith:bukhari:22")
     assert rec.addenda_ar and _HADDATHANA in rec.addenda_ar
     assert _HADDATHANA not in rec.text_ar
@@ -837,18 +844,25 @@ def test_no_addendum_reaches_the_primary_representation(real_corpus):
     1,346, not 1,344, after fix round 3 (R-A3-23): 41 unchanged again --
     1234 and 1854 are both genuine, complete, scorable matns -- so both new
     addendum-bearing records add a row here.
+
+    105 unscorable-with-addendum and 5,037 scorable-with-addendum after Task
+    13 (Tirmidhi): 64 of Tirmidhi's cut records are also on its own audit
+    list (`test_every_other_excluded_record_is_excluded_whole`), so the
+    unscorable-with-addendum count rises by exactly 64 (41 + 64 = 105); the
+    remaining 3,691 new Tirmidhi cut records are scorable, so the
+    scorable-with-addendum count rises by 3,691 (1,346 + 3,691 = 5,037).
     """
     out, _, _ = real_corpus
     conn = db.connect(out)
     assert conn.execute(
         "SELECT count(*) FROM records WHERE addenda_ar IS NOT NULL"
-        " AND unscorable_reason IS NOT NULL").fetchone()[0] == 41
+        " AND unscorable_reason IS NOT NULL").fetchone()[0] == 105
     rows = conn.execute(
         "SELECT r.id, r.text_ar, r.addenda_ar, f.norm_standard,"
         "       f.norm_aggressive FROM records r"
         " JOIN records_fts f ON f.record_id = r.id AND f.variant = 'primary'"
         " WHERE r.addenda_ar IS NOT NULL").fetchall()
-    assert len(rows) == 1346
+    assert len(rows) == 5037
     for row in rows:
         assert row["addenda_ar"] not in row["text_ar"], row["id"]
         for form in ("standard", "aggressive"):
@@ -865,6 +879,9 @@ def test_the_full_printed_text_is_scored_alongside_the_primary(real_corpus):
     over-cut (342 and 3164, the Isra'/Mi'raj, split in the middle of one
     continuous narration) put ~700 characters of Sahih al-Bukhari out of
     reach of every tier.
+
+    5,142 after Task 13 (Tirmidhi): every one of its 3,755 cut records gets
+    the same second representation, no exceptions.
     """
     out, _, _ = real_corpus
     conn = db.connect(out)
@@ -874,7 +891,7 @@ def test_the_full_printed_text_is_scored_alongside_the_primary(real_corpus):
         "       v.norm_aggressive FROM records r"
         " LEFT JOIN record_variants v ON v.record_id = r.id"
         " WHERE r.addenda_ar IS NOT NULL").fetchall()
-    assert len(rows) == 1387
+    assert len(rows) == 5142
     checked = 0
     for row in rows:
         # 237 (and Task 11's Muslim 1915-3, 546-3, and fix round 1's 41
@@ -886,7 +903,7 @@ def test_the_full_printed_text_is_scored_alongside_the_primary(real_corpus):
         for form in ("light", "standard", "aggressive"):
             assert row[f"norm_{form}"] == normalize(row["whole"], form), row["id"]
         checked += 1
-    assert checked == 1387
+    assert checked == 5142
 
 
 def test_a_record_with_no_addendum_has_no_second_representation(real_corpus):
@@ -993,6 +1010,11 @@ def test_editorial_pointers_are_kept_but_never_scored(real_corpus):
     qira'a reports) by the SAME 30-characters-or-fewer, read-in-context
     methodology the original 103 were found by -- see audit_lists.py's
     "abudawud" section, the block added for fix round 1.
+
+    Task 13 (Tirmidhi) adds its own 80, by the same methodology: see
+    `test_tirmidhi_record_count_and_scorability` for how that count was
+    reached, including the one entry (2929) the by-hand audit missed and the
+    materialize-time wholly-Qur'anic gate caught.
     """
     out, _, _ = real_corpus
     conn = db.connect(out)
@@ -1001,10 +1023,13 @@ def test_editorial_pointers_are_kept_but_never_scored(real_corpus):
     flagged_bukhari = {r for r in flagged if r.startswith("hadith:bukhari:")}
     flagged_muslim = {r for r in flagged if r.startswith("hadith:muslim:")}
     flagged_abudawud = {r for r in flagged if r.startswith("hadith:abudawud:")}
+    flagged_tirmidhi = {r for r in flagged if r.startswith("hadith:tirmidhi:")}
     assert flagged_bukhari == set(_UNSCORABLE_IDS)
     assert len(flagged_muslim) == 721
     assert len(flagged_abudawud) == 139
-    assert flagged == flagged_bukhari | flagged_muslim | flagged_abudawud
+    assert len(flagged_tirmidhi) == 80
+    assert flagged == (flagged_bukhari | flagged_muslim | flagged_abudawud
+                        | flagged_tirmidhi)
     for record_id in sorted(_UNSCORABLE_IDS):
         rec = db.get_record(conn, record_id)
         # Nothing is deleted: the record stays, keeps its citation, and keeps
@@ -1030,6 +1055,12 @@ def test_no_unscorable_primary_is_in_the_search_index(real_corpus):
     `UNSCORABLE["abudawud"]` entries was excluded BECAUSE that same split gave
     its short post-split primary an addendum in the first place -- so all 36
     carry their compiler commentary as a genuine, scorable "full" representation.
+
+    Task 13 (Tirmidhi) raises this to 105: the same pattern repeats for 64 of
+    Tirmidhi's own `UNSCORABLE["tirmidhi"]` entries (its compiler-commentary
+    split gave each a genuine, scorable full-text representation), listed
+    here in ascending string order (Python's default, so e.g. "111" sorts
+    before "1194" and both sort before "30" -- not numeric order).
     """
     out, _, _ = real_corpus
     rows = db.connect(out).execute(
@@ -1078,7 +1109,71 @@ def test_no_unscorable_primary_is_in_the_search_index(real_corpus):
          ("hadith:abudawud:960", "full"),
          ("hadith:bukhari:237", "full"),
          ("hadith:muslim:1915-3", "full"),
-         ("hadith:muslim:546-3", "full")]
+         ("hadith:muslim:546-3", "full"),
+         ("hadith:tirmidhi:1051", "full"),
+         ("hadith:tirmidhi:1104", "full"),
+         ("hadith:tirmidhi:111", "full"),
+         ("hadith:tirmidhi:119", "full"),
+         ("hadith:tirmidhi:127", "full"),
+         ("hadith:tirmidhi:1328", "full"),
+         ("hadith:tirmidhi:148", "full"),
+         ("hadith:tirmidhi:1605", "full"),
+         ("hadith:tirmidhi:163", "full"),
+         ("hadith:tirmidhi:166", "full"),
+         ("hadith:tirmidhi:1662", "full"),
+         ("hadith:tirmidhi:1697", "full"),
+         ("hadith:tirmidhi:1904-2", "full"),
+         ("hadith:tirmidhi:196", "full"),
+         ("hadith:tirmidhi:2282", "full"),
+         ("hadith:tirmidhi:2286", "full"),
+         ("hadith:tirmidhi:2296", "full"),
+         ("hadith:tirmidhi:2534", "full"),
+         ("hadith:tirmidhi:2534-2", "full"),
+         ("hadith:tirmidhi:2543-2", "full"),
+         ("hadith:tirmidhi:256", "full"),
+         ("hadith:tirmidhi:2568-2", "full"),
+         ("hadith:tirmidhi:2570", "full"),
+         ("hadith:tirmidhi:280", "full"),
+         ("hadith:tirmidhi:285", "full"),
+         ("hadith:tirmidhi:2864", "full"),
+         ("hadith:tirmidhi:2929", "full"),
+         ("hadith:tirmidhi:2934", "full"),
+         ("hadith:tirmidhi:299", "full"),
+         ("hadith:tirmidhi:30", "full"),
+         ("hadith:tirmidhi:343", "full"),
+         ("hadith:tirmidhi:3435-2", "full"),
+         ("hadith:tirmidhi:347", "full"),
+         ("hadith:tirmidhi:349", "full"),
+         ("hadith:tirmidhi:434", "full"),
+         ("hadith:tirmidhi:441", "full"),
+         ("hadith:tirmidhi:444", "full"),
+         ("hadith:tirmidhi:504", "full"),
+         ("hadith:tirmidhi:529", "full"),
+         ("hadith:tirmidhi:535", "full"),
+         ("hadith:tirmidhi:540", "full"),
+         ("hadith:tirmidhi:559", "full"),
+         ("hadith:tirmidhi:569", "full"),
+         ("hadith:tirmidhi:574", "full"),
+         ("hadith:tirmidhi:599", "full"),
+         ("hadith:tirmidhi:612", "full"),
+         ("hadith:tirmidhi:627", "full"),
+         ("hadith:tirmidhi:634", "full"),
+         ("hadith:tirmidhi:636", "full"),
+         ("hadith:tirmidhi:648", "full"),
+         ("hadith:tirmidhi:654", "full"),
+         ("hadith:tirmidhi:701", "full"),
+         ("hadith:tirmidhi:704", "full"),
+         ("hadith:tirmidhi:709", "full"),
+         ("hadith:tirmidhi:717", "full"),
+         ("hadith:tirmidhi:722", "full"),
+         ("hadith:tirmidhi:786", "full"),
+         ("hadith:tirmidhi:800", "full"),
+         ("hadith:tirmidhi:836", "full"),
+         ("hadith:tirmidhi:872", "full"),
+         ("hadith:tirmidhi:915", "full"),
+         ("hadith:tirmidhi:926", "full"),
+         ("hadith:tirmidhi:968", "full"),
+         ("hadith:tirmidhi:971", "full")]
 
 
 def test_a_famous_short_matn_is_still_indexed_and_scorable(real_corpus):

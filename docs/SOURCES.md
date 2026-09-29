@@ -177,9 +177,69 @@ modifications    = "mARkdown structural markers parsed and discarded; no text al
 
 ### The built corpus
 
-The committed `data/sanad-quran.db` now holds 26,099 records: 6,236 ayat (Tanzil Uthmani, CC BY 3.0) + 7,129 Sahih al-Bukhari hadith + 7,460 Sahih Muslim hadith + 5,274 Sunan Abi Dawud hadith (public-domain bases above). Its whole-file SHA-256 is verified at build time and printed by `sanad-ingest build`; see `README.md` for the currently-committed value and the reproducibility check. Adding this third collection was proven not to perturb either of the first two: the Bukhari and Muslim record sets are byte-identical, across every stored column, before and after Task 12.
+The committed `data/sanad-quran.db` held 26,099 records before this task: 6,236 ayat (Tanzil Uthmani, CC BY 3.0) + 7,129 Sahih al-Bukhari hadith + 7,460 Sahih Muslim hadith + 5,274 Sunan Abi Dawud hadith (public-domain bases above). Its whole-file SHA-256 is verified at build time and printed by `sanad-ingest build`; see `README.md` for the currently-committed value and the reproducibility check. Adding this third collection was proven not to perturb either of the first two: the Bukhari and Muslim record sets are byte-identical, across every stored column, before and after Task 12.
 
-**Product constraint, stated here because it follows directly from the bases above.** Sanad ships no hadith gradings — modern authenticity gradings are copyrighted scholarly work, and authenticity is not Sanad's to assert. Sanad may say "this text is in Sahih al-Bukhari", "this text is in Sahih Muslim", or "this text is in Sunan Abi Dawud"; it must never say or imply "this hadith is sahih."
+**Product constraint, stated here because it follows directly from the bases above.** Sanad ships no hadith gradings — modern authenticity gradings are copyrighted scholarly work, and authenticity is not Sanad's to assert. Sanad may say "this text is in Sahih al-Bukhari", "this text is in Sahih Muslim", "this text is in Sunan Abi Dawud", or "this text is in Jami at-Tirmidhi"; it must never say or imply "this hadith is sahih."
+
+## Jami at-Tirmidhi: the licensing basis
+
+The fourth collection ingested (Task 13), on the same basis as the three collections above, with its own numbering-scheme distinction recorded per source rather than assumed: Ahmad Muhammad Shakir's edition numbering is `numbering_scheme = "shakir"`, distinct from Bukhari's `bugha-1987`, Muslim's `abdalbaqi`, and Abu Dawud's `abdalhamid`.
+
+### The file
+
+`data/0279Tirmidhi/0279Tirmidhi.Sunan/0279Tirmidhi.Sunan.JK000140-ara1.completed` in `github.com/OpenITI/0300AH`. The file's own `#META#` header records the edition:
+
+```
+010.AuthorNAME  :: محمد بن عيسى أبو عيسى الترمذي السلمي
+011.AuthorDIED  :: 279                        (AH)
+020.BookTITLE   :: الجامع الصحيح سنن الترمذي
+040.EdEDITOR    :: أحمد محمد شاكر وآخرون       (Ahmad Muhammad Shakir wa-akharun)
+041.EdNUMBER    :: NODATA
+043.EdPUBLISHER :: دار إحياء التراث العربي     (Dar Ihya al-Turath al-Arabi)
+044.EdPLACE     :: بيروت                       (Beirut)
+045.EdYEAR      :: -
+```
+
+Selected the same way the three preceding files were: the JK-prefixed curated OpenITI version, not a `Shamela*`/`ShamAY*`/`Shia*` scrape — and, uniquely among the four hadith files this project has ingested, the `.completed` processing stage rather than the bare `ara1` stage, meaning OpenITI's own markup pass has finished on this file.
+
+**Recorded honestly, not papered over:** this edition's `#META#` header leaves `041.EdNUMBER` (`NODATA`) and `045.EdYEAR` (`-`) unfilled — the edition's print run number and year are not recorded in OpenITI's transcription. This is, in fact, the strongest metadata of the four files shipped so far: unlike Sunan Abi Dawud's file, `044.EdPLACE` (Beirut) and `043.EdPUBLISHER` are both filled here, and the `.completed` stage is a further sign of transcription maturity Abu Dawud's `ara1`-stage file does not carry. The gap that remains does not affect the licensing basis below, which rests on the author's death date rather than on any fact about the printing — but it is recorded here, beside the corpus it describes, rather than silently completed or guessed, shipped under the same Stage A3 relaxed-bar ruling (R-A3-1) as Abu Dawud's file.
+
+### Why we may ship it — the legal basis
+
+**Basis: the work's own public-domain status.** Abu 'Isa Muhammad ibn 'Isa al-Tirmidhi died in 279 AH (892 CE). The matn and the isnad are public domain in every jurisdiction, without qualification — the identical basis the three collections above ship on, restated here rather than assumed, because a basis recorded once is not automatically a basis for a fourth work by a fourth author.
+
+**Not an OpenITI licence grant, and the distinction is load-bearing here for exactly the reason it was for the first three collections.** OpenITI is the transcriber, not the rights holder of anything requiring a grant: what they contribute is transcription and structural markup, and a faithful mechanical transcription of a public-domain text attracts no new copyright. Their markup (mARkdown structural markers, page/volume anchors) is not carried into the corpus — the parser consumes it and discards it. Shakir's editorial apparatus — his introductions, footnotes, cross-reference numbers (the bracketed `[NNN]` apparatus stripped by `_strip_reference_numbers`), and the vowelling/typesetting choices of his edition — is likewise not carried into the corpus; what is ingested is matn and isnad. His **numbering** is a separate matter from his apparatus: a sequential count of units is a fact about how the edition is organized, not a copyrightable expression, and it is recorded as `numbering_scheme = "shakir"` precisely so it is never confused with the other three editions' numbering or presented as if it were.
+
+**Al-Tirmidhi's own classical grading phrases are retained byte-exact as part of the canonical text, and are not exposed as a grading apparatus.** Modern authenticity gradings are copyrighted scholarly work outside this corpus's basis, exactly as for the 7,129 records of Sahih al-Bukhari and the rest of this corpus. Abu 'Isa's own remarks — "hadha hadith hasan sahih", "wa fi al-bab 'an ...", and the other classical formulas R-A3-19's split moves into `addenda_ar` — are a different thing: part of the primary source text itself, thirteen centuries old, on the same public-domain basis as the matn and isnad around them. They are preserved, byte-exact, and still displayed as part of the record's full printed text; they are simply not scored as the matn, and Sanad never surfaces them as a grading verdict. Sanad confirms wording; it does not grade (R-A3-2).
+
+**Attribution to OpenITI is given as credit, not as licence compliance**, on the same terms as the three entries above: recorded in `sources` with file, edition, commit and retrieval date, and shown in the provenance panel.
+
+### The pinned commit and hash
+
+```toml
+[[source]]
+id               = "openiti-tirmidhi-jk000140"
+kind             = "hadith-arabic"
+collection       = "tirmidhi"
+numbering_scheme = "shakir"
+format           = "openiti-markdown"
+title            = "الجامع الصحيح سنن الترمذي (Jami at-Tirmidhi)"
+publisher        = "OpenITI (transcription); Dar Ihya al-Turath al-Arabi (edition)"
+edition          = "ed. Ahmad Muhammad Shakir wa-akharun; OpenITI JK000140, ara1.completed"
+url              = "https://raw.githubusercontent.com/OpenITI/0300AH/01a1544130e0236850ef2698923ad01575c5bd7c/data/0279Tirmidhi/0279Tirmidhi.Sunan/0279Tirmidhi.Sunan.JK000140-ara1.completed"
+commit           = "01a1544130e0236850ef2698923ad01575c5bd7c"
+license_id       = "public-domain"
+license_url      = "https://github.com/OpenITI/0300AH"
+content_sha256   = "5bc99d3d942ceaa729a83c11389016d940ae11fb0b641a4e012c743f9e44b647"
+expected_records = 3976
+modifications    = "mARkdown structural markers parsed and discarded; no text altered"
+```
+
+`commit` is pinned for the same reason as the three entries above: OpenITI is a live git repository whose files are re-OCRed in place. `content_sha256` covers the complete raw file, computed by the build itself (`sanad-ingest build`, measured-then-pinned per the project's build-measured-placeholder convention) and re-verified green on every subsequent build. `expected_records` (3,976) is the raw file's own count of numbered units unchanged — unlike Abu Dawud, no unit here is a mis-wrapped kitab heading. See `ingest/corpus.lock.toml` for the authoritative, machine-checked copy of this entry.
+
+### The built corpus
+
+The committed `data/sanad-quran.db` now holds 30,075 records: 6,236 ayat (Tanzil Uthmani, CC BY 3.0) + 7,129 Sahih al-Bukhari hadith + 7,460 Sahih Muslim hadith + 5,274 Sunan Abi Dawud hadith + 3,976 Jami at-Tirmidhi hadith (public-domain bases above). Its whole-file SHA-256 is verified at build time and printed by `sanad-ingest build`; see `README.md` for the currently-committed value and the reproducibility check. Adding this fourth collection was proven not to perturb any of the first three: the Bukhari, Muslim and Abu Dawud record sets are byte-identical, across every stored column, before and after Task 13 — built in an isolated `git worktree add --detach` at the pre-Task-13 commit, with the shared `.venv`'s editable-install package mapping overridden (not merely assumed inert) so the "before" build actually runs the old commit's code rather than silently re-running HEAD's.
 
 ## Source decisions
 
@@ -193,6 +253,7 @@ The committed `data/sanad-quran.db` now holds 26,099 records: 6,236 ayat (Tanzil
 | OpenITI `0275AH`, JK000110 (Sahih al-Bukhari) | **Shipped** | Complete, internally-consistent per-file metadata; public-domain basis for the matn (see below), independent of OpenITI's own (absent) repository licence |
 | OpenITI `0275AH`, JK000109 (Sahih Muslim) | **Shipped** | Same basis as Sahih al-Bukhari above: author's death (261 AH) is the public-domain basis, not any OpenITI grant; JK-prefixed curated version |
 | OpenITI `0275AH`, JK000142 (Sunan Abi Dawud) | **Shipped** | Same basis as the two collections above: author's death (275 AH) is the public-domain basis, not any OpenITI grant; JK-prefixed curated version; per-file metadata incomplete (EdNUMBER/EdPLACE/EdYEAR unfilled) but shipped under the Stage A3 relaxed-bar ruling (R-A3-1) |
+| OpenITI `0300AH`, JK000140 (Jami at-Tirmidhi) | **Shipped** | Same basis as the three collections above: author's death (279 AH) is the public-domain basis, not any OpenITI grant; JK-prefixed curated version, uniquely at the `.completed` processing stage; per-file metadata incomplete (EdNUMBER/EdYEAR unfilled, EdPLACE/EdPUBLISHER filled) but shipped under the Stage A3 relaxed-bar ruling (R-A3-1) |
 
 ## Review checklist
 

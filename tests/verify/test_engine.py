@@ -548,11 +548,23 @@ _SUNAN_AR = "\u0633\u0646\u0646"
 _ABI_AR = "\u0623\u0628\u064a"
 _DAWUD_AR = "\u062f\u0627\u0648\u062f"
 _SUNAN_ABI_DAWUD_AR = " ".join((_SUNAN_AR, _ABI_AR, _DAWUD_AR))
-_LATIN_CITE_NAME = {"bukhari": "Bukhari", "muslim": "Muslim", "abudawud": "Abu Dawud"}
+
+# Task 13: Jami at-Tirmidhi. Codepoints copied from references.py's own
+# `_JAMI_AR`/`_AL_TIRMIDHI_AR`, never retyped: "jami" U+062C U+0627 U+0645
+# U+0639 (jeem alef meem ain), "al-tirmidhi" U+0627 U+0644 U+062A U+0631
+# U+0645 U+0630 U+064A.
+_JAMI_AR = "".join(chr(c) for c in (0x062C, 0x0627, 0x0645, 0x0639))
+_AL_TIRMIDHI_AR = "".join(chr(c) for c in
+                          (0x0627, 0x0644, 0x062A, 0x0631, 0x0645, 0x0630, 0x064A))
+_JAMI_AT_TIRMIDHI_AR = " ".join((_JAMI_AR, _AL_TIRMIDHI_AR))
+
+_LATIN_CITE_NAME = {"bukhari": "Bukhari", "muslim": "Muslim", "abudawud": "Abu Dawud",
+                    "tirmidhi": "Tirmidhi"}
 _ARABIC_CITE_NAME = {
     "bukhari": _SAHIH_AL_BUKHARI_AR,
     "muslim": _SAHIH_MUSLIM_AR,
     "abudawud": _SUNAN_ABI_DAWUD_AR,
+    "tirmidhi": _JAMI_AT_TIRMIDHI_AR,
 }
 
 
@@ -989,9 +1001,9 @@ def test_no_correctly_cited_hadith_is_ever_flagged_wrong_reference(conn):
     6,739 Muslim), 19,022 as of Task 12's first build (+ 5,171 Abu Dawud),
     18,986 as of fix round 1 (R-A3-18; + 5,135 Abu Dawud, the compiler-
     commentary split and cut-override table moving 36 records onto
-    `UNSCORABLE["abudawud"]`) -- each quoted verbatim and cited with ITS OWN
-    collection's name and its own printed number, in the Latin citation
-    form."""
+    `UNSCORABLE["abudawud"]`), 22,882 as of Task 13 (+ 3,896 Tirmidhi) --
+    each quoted verbatim and cited with ITS OWN collection's name and its
+    own printed number, in the Latin citation form."""
     bad = []
     checked = 0
     for r in db.iter_records(conn):
@@ -1003,7 +1015,7 @@ def test_no_correctly_cited_hadith_is_ever_flagged_wrong_reference(conn):
         if m.verdict is Verdict.WRONG_REFERENCE or m.record is None \
                 or m.record.hadith_no != r.hadith_no:
             bad.append((r.id, m.verdict, m.record.id if m.record else None))
-    assert checked == 18986, checked
+    assert checked == 22882, checked
     assert bad == [], f"{len(bad)} regressed, e.g. {bad[:5]}"
 
 
@@ -1024,7 +1036,7 @@ def test_no_correctly_cited_hadith_is_flagged_in_the_arabic_citation_form(conn):
         if m.verdict is Verdict.WRONG_REFERENCE or m.record is None \
                 or m.record.hadith_no != r.hadith_no:
             bad.append((r.id, m.verdict, m.record.id if m.record else None))
-    assert checked == 18986, checked
+    assert checked == 22882, checked
     assert bad == [], f"{len(bad)} regressed, e.g. {bad[:5]}"
 
 
@@ -1045,6 +1057,10 @@ def test_every_wrongly_cited_hadith_is_flagged(conn):
 
     18,983 as of fix round 1 (R-A3-18): Abu Dawud's scorable count moves to
     5,135 (5,134 excluding its own hadith 1); 13,849 + 5,134 = 18,983.
+
+    22,878 as of Task 13 (Tirmidhi): adds Tirmidhi's own scorable hadith
+    minus its own hadith 1 (3,896 scorable - 1 = 3,895; 18,983 + 3,895 =
+    22,878).
     """
     bad = []
     checked = 0
@@ -1055,7 +1071,7 @@ def test_every_wrongly_cited_hadith_is_flagged(conn):
         checked += 1
         if m.verdict is not Verdict.WRONG_REFERENCE:
             bad.append((r.id, m.verdict))
-    assert checked == 18983, checked
+    assert checked == 22878, checked
     assert bad == [], f"{len(bad)} not flagged, e.g. {bad[:5]}"
 
 
@@ -1071,11 +1087,12 @@ def test_every_record_cited_as_the_other_kind_is_flagged(conn):
     6,236 ayat + 7,112 Bukhari + 6,739 Muslim scorable hadith. 25,258 as of
     Task 12's first build: adds Abu Dawud's 5,171 scorable hadith (20,087 +
     5,171 = 25,258). 25,222 as of fix round 1 (R-A3-18): Abu Dawud's scorable
-    count moves to 5,135 (20,087 + 5,135 = 25,222). The citation used here
-    (always "Bukhari" for a hadith, regardless of the record's own
-    collection) does not need to change: it is deliberately the WRONG kind of
-    citation for every record it is paired with, so its own collection name
-    is irrelevant to what it tests.
+    count moves to 5,135 (20,087 + 5,135 = 25,222). 29,118 as of Task 13
+    (Tirmidhi): adds Tirmidhi's 3,896 scorable hadith (25,222 + 3,896 =
+    29,118). The citation used here (always "Bukhari" for a hadith,
+    regardless of the record's own collection) does not need to change: it
+    is deliberately the WRONG kind of citation for every record it is
+    paired with, so its own collection name is irrelevant to what it tests.
     """
     bad = []
     checked = 0
@@ -1087,7 +1104,7 @@ def test_every_record_cited_as_the_other_kind_is_flagged(conn):
         checked += 1
         if m.verdict is not Verdict.WRONG_REFERENCE or m.given_reference is None:
             bad.append((r.id, m.verdict))
-    assert checked == 25222, checked
+    assert checked == 29118, checked
     assert bad == [], f"{len(bad)} not flagged, e.g. {bad[:5]}"
 
 
@@ -1346,12 +1363,17 @@ def test_a_hadith_cited_as_a_verse_it_is_not_inside_is_still_flagged(conn):
     Task 12 tie-break shift: Abu Dawud's own copy of this matn
     (hadith:abudawud:2636) now wins the lowest-id tie-break and becomes the
     named record, with Bukhari's and both Muslim copies disclosed beside it.
+
+    Task 13: Tirmidhi prints the same matn too, at hadith:tirmidhi:1675 --
+    "hadith:tirmidhi:..." sorts alphabetically after "hadith:a../b../m...",
+    so it joins `also_at` at the end without disturbing the tie-break winner.
     """
     matn = db.get_record(conn, "hadith:bukhari:2866").text_ar
     m = _only(verify_spans(conn, f"«{matn}» (54:1)"))
     assert m.verdict is Verdict.WRONG_REFERENCE
     assert m.record.id == "hadith:abudawud:2636"
-    assert m.also_at == ["hadith:bukhari:2866", "hadith:muslim:1739", "hadith:muslim:1740"]
+    assert m.also_at == ["hadith:bukhari:2866", "hadith:muslim:1739",
+                          "hadith:muslim:1740", "hadith:tirmidhi:1675"]
 
 
 # The one pair of letters that separates the aggressive tier from the standard

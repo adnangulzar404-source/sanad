@@ -183,3 +183,34 @@ license_url      = "https://github.com/OpenITI/0275AH"
 content_sha256   = "94d6fe547384efd2f8b369879775f617cb6283053482dc672ff04fbb5454292e"
 expected_records = 5274
 modifications    = "mARkdown structural markers parsed and discarded; no text altered"
+
+# Jami at-Tirmidhi (Task 13): al-Tirmidhi (kunya Abu 'Isa) d. 279 AH. A
+# DIFFERENT OpenITI repo and commit from Bukhari/Muslim/Abu Dawud -- Tirmidhi
+# lives in 0300AH, not 0275AH. numbering_scheme = "shakir": Ahmad Muhammad
+# Shakir's edition is the canonical Tirmidhi numbering, distinct from
+# Bukhari's al-Bugha, Muslim's 'Abd al-Baqi, and Abu Dawud's 'Abd al-Hamid
+# numbering (Task 11 precursor -- see the comment on `numbering_scheme` in
+# lockfile.py). Annotation stage is ".completed" (Bukhari's precedent, not
+# the bare "-ara1" of Muslim/Abu Dawud) -- OpenITI is the transcriber, not
+# the licensor; the underlying work is public domain by age. See
+# docs/SOURCES.md for the full basis, including this edition's unfilled
+# #META# EdNUMBER/EdYEAR fields.
+#
+# content_sha256/expected_records: build-measured, pinned after the first
+# measured build (see the report for this task).
+[[source]]
+id               = "openiti-tirmidhi-jk000140"
+kind             = "hadith-arabic"
+collection       = "tirmidhi"
+numbering_scheme = "shakir"
+format           = "openiti-markdown"
+title            = "الجامع الصحيح سنن الترمذي (Jami at-Tirmidhi)"
+publisher        = "OpenITI (transcription); Dar Ihya al-Turath al-Arabi (edition)"
+edition          = "ed. Ahmad Muhammad Shakir wa-akharun; OpenITI JK000140, ara1.completed"
+url              = "https://raw.githubusercontent.com/OpenITI/0300AH/01a1544130e0236850ef2698923ad01575c5bd7c/data/0279Tirmidhi/0279Tirmidhi.Sunan/0279Tirmidhi.Sunan.JK000140-ara1.completed"
+commit           = "01a1544130e0236850ef2698923ad01575c5bd7c"
+license_id       = "public-domain"
+license_url      = "https://github.com/OpenITI/0300AH"
+content_sha256   = "5bc99d3d942ceaa729a83c11389016d940ae11fb0b641a4e012c743f9e44b647"
+expected_records = 3976
+modifications    = "mARkdown structural markers parsed and discarded; no text altered"

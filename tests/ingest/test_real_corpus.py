@@ -101,14 +101,16 @@ def test_an_editorial_pointer_is_not_verified_as_a_hadith():
 
 
 def test_a_famous_short_hadith_still_verifies_exactly():
-    """"al-harb khud'a" is printed, byte-identically, four times across three
-    collections (Bukhari 2866; Muslim 1739, 1740; Abu Dawud 2636). Task 12
-    added the fourth copy, and with it the FIRST case anywhere in this corpus
-    of the tie-break's "lowest id wins" rule choosing a non-Bukhari winner:
-    the full id "hadith:abudawud:2636" sorts before "hadith:bukhari:2866"
-    lexicographically ("a" < "b"), so Abu Dawud is now the disclosed match
-    and the other three are surfaced in `also_at`. Verified, not assumed --
-    read directly from `verify_spans`'s own tie-break output.
+    """"al-harb khud'a" is printed, byte-identically, five times across four
+    collections (Bukhari 2866; Muslim 1739, 1740; Abu Dawud 2636; Task 13
+    adds Tirmidhi 1675). Task 12 added the fourth copy, and with it the FIRST
+    case anywhere in this corpus of the tie-break's "lowest id wins" rule
+    choosing a non-Bukhari winner: the full id "hadith:abudawud:2636" sorts
+    before "hadith:bukhari:2866" lexicographically ("a" < "b"), so Abu Dawud
+    is the disclosed match. Task 13's fifth copy does not change the winner
+    -- "hadith:tirmidhi:..." sorts after all three other collections' ids
+    ("t" is the latest letter) -- it only grows `also_at` by one. Verified,
+    not assumed -- read directly from `verify_spans`'s own tie-break output.
     """
     from sanad.verify.engine import Verdict, verify_spans
     conn = db.connect(DB_PATH)
@@ -118,6 +120,7 @@ def test_a_famous_short_hadith_still_verifies_exactly():
     assert matches[0].record.id == "hadith:abudawud:2636"
     assert matches[0].also_at == [
         "hadith:bukhari:2866", "hadith:muslim:1739", "hadith:muslim:1740",
+        "hadith:tirmidhi:1675",
     ]
 
 
@@ -231,13 +234,21 @@ def test_the_full_printed_text_of_every_cut_record_verifies():
     ACCUSATIVE kunya, the grammatical case the marker above never covered)
     adds 2 more scorable cut records: `hadith:abudawud:1234`, `1854`.
     1,344 + 2 = 1,346.
+
+    Task 13 (Jami at-Tirmidhi): 5,037. R-A3-19 generalises the compiler-
+    commentary split into a per-collection table and adds Tirmidhi's own
+    marker set -- almost every hadith in this collection carries Abu Isa's
+    own grading remark ("hadha hadith hasan sahih", "wa fi al-bab 'an ...")
+    immediately after the matn, so the great majority of the collection is
+    cut: 3,691 scorable Tirmidhi records carry an addendum.
+    1,346 + 3,691 = 5,037.
     """
     from sanad.verify.engine import Verdict, verify_spans
     conn = db.connect(DB_PATH)
     rows = conn.execute(
         "SELECT id, text_ar, addenda_ar FROM records"
         " WHERE addenda_ar IS NOT NULL AND unscorable_reason IS NULL").fetchall()
-    assert len(rows) == 1346
+    assert len(rows) == 5037
     failures = []
     for row in rows:
         for quoted in (row["text_ar"], row["text_ar"] + " " + row["addenda_ar"]):
@@ -361,13 +372,21 @@ def test_the_index_holds_one_row_per_scorable_representation():
 
     Fix round 3 (R-A3-23) moves these to (25222, 1387, 26609): scorable is
     unchanged again, variants gains 2 more records (1234, 1854).
+
+    Task 13 (Jami at-Tirmidhi) moves these to (29118, 5142, 34260). Tirmidhi
+    contributes 3,976 hadith records, of which 3,896 are scorable
+    (25,222 + 3,896 = 29,118) and 3,755 carry a second ("full", cut)
+    representation, of which 3,691 are scorable-primary cuts and 64 are
+    excluded-primary cuts (both counted here; see
+    test_every_other_excluded_record_is_excluded_whole for the excluded
+    side): 1,387 + 3,755 = 5,142.
     """
     conn = db.connect(DB_PATH)
     scorable = conn.execute(
         "SELECT count(*) FROM records WHERE unscorable_reason IS NULL").fetchone()[0]
     variants = conn.execute("SELECT count(*) FROM record_variants").fetchone()[0]
     indexed = conn.execute("SELECT count(*) FROM records_fts").fetchone()[0]
-    assert (scorable, variants, indexed) == (25222, 1387, 26609)
+    assert (scorable, variants, indexed) == (29118, 5142, 34260)
 
 
 # --- C1: nothing scorable as a hadith is wholly a Qur'anic quotation --------
@@ -446,6 +465,17 @@ def test_no_scorable_hadith_representation_is_wholly_quranic():
     count unchanged again -- 1234 and 1854 were already scorable). The sweep
     is still zero: 'Ali's travel-prayer routine and the Prophet's "it is
     only sea game" ruling are ordinary hadith wording, not Qur'an.
+
+    Task 13 (Jami at-Tirmidhi) moves the representation count to 28,024
+    (22,882 scorable hadith primaries corpus-wide plus 5,142 full-text
+    representations). Unlike every round above, the sweep did NOT stay zero
+    on the first measured build: hadith:tirmidhi:2929 is a tafsir report
+    whose isnad says the Prophet "qara'a" (recited) and whose entire matn is
+    verbatim Qur'an 5:45's own retaliation-law clause -- exactly the
+    `sanad-hadith-quranic-matn-hazard` class, missed by the ≤40-character
+    hand-audit because the same wording reads as plausible reported speech in
+    isolation. It joined `UNSCORABLE["tirmidhi"]`'s `_QURANIC_QUOTE` group
+    alongside 2934, and the sweep is zero again.
     """
     conn = db.connect(DB_PATH)
     blobs = _quran_blobs(conn)
@@ -456,7 +486,7 @@ def test_no_scorable_hadith_representation_is_wholly_quranic():
     reps += [(r["record_id"], r["variant"], r["norm_standard"]) for r in conn.execute(
         "SELECT v.record_id, v.variant, v.norm_standard FROM record_variants v"
         " JOIN records r ON r.id = v.record_id")]
-    assert len(reps) == 20373, "the sweep stopped covering what it was written for"
+    assert len(reps) == 28024, "the sweep stopped covering what it was written for"
     offenders = [(rid, variant) for rid, variant, norm in reps
                  if norm.strip() and any(f" {norm} " in b for b in blobs)]
     assert offenders == []
@@ -584,13 +614,23 @@ def test_every_other_excluded_record_is_excluded_whole():
     compiler commentary into an addendum in the first place, and 2331
     (already `_LEXICAL_GLOSS`) gained one the same way. 38 Abu Dawud records
     now carry a second representation, not one.
+
+    Task 13 (Jami at-Tirmidhi): 80 more excluded records join this count
+    (957 total). 64 of the 80 carry their own addendum -- almost every
+    `_POINTER`/`_DEFERRAL` entry is a pointer word immediately followed by
+    Abu Isa's own grading remark, and R-A3-19's split cuts that remark into
+    an addendum the same way it does for a scorable primary. The 16 that
+    carry none are the bare brackets (162, 3615-2), the three
+    `_EDITORIAL_DISCUSSION` units with no trailing text at all, and the
+    remaining pointer/deferral/Qur'anic-quote records whose printed unit
+    ends where the primary does.
     """
     conn = db.connect(DB_PATH)
     rows = conn.execute(
         "SELECT r.id, count(v.record_id) AS n FROM records r"
         " LEFT JOIN record_variants v ON v.record_id = r.id"
         " WHERE r.unscorable_reason IS NOT NULL GROUP BY r.id").fetchall()
-    assert len(rows) == 877
+    assert len(rows) == 957
     assert {r["id"]: r["n"] for r in rows if r["n"]} == {
         "hadith:bukhari:237": 1,
         "hadith:muslim:1915-3": 1,
@@ -633,6 +673,70 @@ def test_every_other_excluded_record_is_excluded_whole():
         "hadith:abudawud:4287": 1,
         "hadith:abudawud:4571": 1,
         "hadith:abudawud:4897": 1,
+        "hadith:tirmidhi:1051": 1,
+        "hadith:tirmidhi:1104": 1,
+        "hadith:tirmidhi:111": 1,
+        "hadith:tirmidhi:119": 1,
+        "hadith:tirmidhi:127": 1,
+        "hadith:tirmidhi:1328": 1,
+        "hadith:tirmidhi:148": 1,
+        "hadith:tirmidhi:1605": 1,
+        "hadith:tirmidhi:163": 1,
+        "hadith:tirmidhi:166": 1,
+        "hadith:tirmidhi:1662": 1,
+        "hadith:tirmidhi:1697": 1,
+        "hadith:tirmidhi:1904-2": 1,
+        "hadith:tirmidhi:196": 1,
+        "hadith:tirmidhi:2282": 1,
+        "hadith:tirmidhi:2286": 1,
+        "hadith:tirmidhi:2296": 1,
+        "hadith:tirmidhi:2534": 1,
+        "hadith:tirmidhi:2534-2": 1,
+        "hadith:tirmidhi:2543-2": 1,
+        "hadith:tirmidhi:256": 1,
+        "hadith:tirmidhi:2568-2": 1,
+        "hadith:tirmidhi:2570": 1,
+        "hadith:tirmidhi:280": 1,
+        "hadith:tirmidhi:285": 1,
+        "hadith:tirmidhi:2864": 1,
+        "hadith:tirmidhi:2929": 1,
+        "hadith:tirmidhi:2934": 1,
+        "hadith:tirmidhi:299": 1,
+        "hadith:tirmidhi:30": 1,
+        "hadith:tirmidhi:343": 1,
+        "hadith:tirmidhi:3435-2": 1,
+        "hadith:tirmidhi:347": 1,
+        "hadith:tirmidhi:349": 1,
+        "hadith:tirmidhi:434": 1,
+        "hadith:tirmidhi:441": 1,
+        "hadith:tirmidhi:444": 1,
+        "hadith:tirmidhi:504": 1,
+        "hadith:tirmidhi:529": 1,
+        "hadith:tirmidhi:535": 1,
+        "hadith:tirmidhi:540": 1,
+        "hadith:tirmidhi:559": 1,
+        "hadith:tirmidhi:569": 1,
+        "hadith:tirmidhi:574": 1,
+        "hadith:tirmidhi:599": 1,
+        "hadith:tirmidhi:612": 1,
+        "hadith:tirmidhi:627": 1,
+        "hadith:tirmidhi:634": 1,
+        "hadith:tirmidhi:636": 1,
+        "hadith:tirmidhi:648": 1,
+        "hadith:tirmidhi:654": 1,
+        "hadith:tirmidhi:701": 1,
+        "hadith:tirmidhi:704": 1,
+        "hadith:tirmidhi:709": 1,
+        "hadith:tirmidhi:717": 1,
+        "hadith:tirmidhi:722": 1,
+        "hadith:tirmidhi:786": 1,
+        "hadith:tirmidhi:800": 1,
+        "hadith:tirmidhi:836": 1,
+        "hadith:tirmidhi:872": 1,
+        "hadith:tirmidhi:915": 1,
+        "hadith:tirmidhi:926": 1,
+        "hadith:tirmidhi:968": 1,
+        "hadith:tirmidhi:971": 1,
     }
 
 
@@ -706,6 +810,14 @@ def test_exactly_one_hadith_representation_sits_inside_an_ayah():
     full-text representations corpus-wide instead of 1,385) without moving
     either list: re-run against the fixed build, neither 1234 nor 1854 sits
     inside an ayah at either tier.
+
+    Task 13 (Jami at-Tirmidhi) moves the representation count to 28,024
+    without moving either list: re-run against the fixed build, including
+    Tirmidhi's large tafsir section, no Tirmidhi representation -- scorable
+    or excluded-with-addendum -- sits inside an ayah at either tier. (2929's
+    own matn, which IS wholly inside an ayah, is excluded before this sweep
+    runs at all; see `UNSCORABLE["tirmidhi"]`'s `_QURANIC_QUOTE` group and
+    `test_no_scorable_hadith_representation_is_wholly_quranic` above.)
     """
     from sanad.verify.engine import _ayat_containing, _contains_at
     conn = db.connect(DB_PATH)
@@ -716,7 +828,7 @@ def test_exactly_one_hadith_representation_sits_inside_an_ayah():
         "SELECT v.record_id, v.variant, v.text_ar FROM record_variants v"
         " JOIN records r ON r.id = v.record_id WHERE r.kind = 'hadith'"
     ).fetchall()
-    assert len(reps) == 20373, len(reps)
+    assert len(reps) == 28024, len(reps)
 
     withheld, disclosed = [], []
     for rep in reps:
@@ -921,19 +1033,20 @@ def test_abudawud_spot_checked_matns_are_byte_exact():
 
 
 # "al-harb khud'a" -- war is deceit. The SAME codepoints as Bukhari's
-# _AL_HARB_KHUDA above: Sahih Muslim prints this saying too (1739, 1740), and
-# Task 12 found a fourth copy at Abu Dawud 2636.
+# _AL_HARB_KHUDA above: Sahih Muslim prints this saying too (1739, 1740),
+# Task 12 found a fourth copy at Abu Dawud 2636, and Task 13 a fifth at
+# Tirmidhi 1675.
 def test_a_genuine_short_hadith_shared_across_collections_still_verifies():
-    """Bukhari 2866, Muslim 1739/1740, and (Task 12) Abu Dawud 2636 all print
-    the same three words.
+    """Bukhari 2866, Muslim 1739/1740, (Task 12) Abu Dawud 2636, and (Task
+    13) Tirmidhi 1675 all print the same three words.
 
     The tie-break rule ("lowest id wins, the rest are disclosed") was proven
     within one collection (383 and 774, both Bukhari); Task 11 exercised it
     firing ACROSS collections for the first time (Bukhari won the tie then).
     Task 12 changed WHICH collection wins, without changing the rule: Abu
     Dawud's full id sorts first lexicographically ("hadith:abudawud:..." <
-    "hadith:bukhari:..."), so it is the winner now and the other three move
-    into `also_at`. See `test_a_famous_short_hadith_still_verifies_exactly`
+    "hadith:bukhari:..."), so it is the winner now and the other three (now
+    four) move into `also_at`. See `test_a_famous_short_hadith_still_verifies_exactly`
     above for the same fact asserted the other direction.
     """
     from sanad.verify.engine import Verdict, verify_spans
@@ -944,6 +1057,7 @@ def test_a_genuine_short_hadith_shared_across_collections_still_verifies():
     assert matches[0].record.id == "hadith:abudawud:2636"
     assert matches[0].also_at == [
         "hadith:bukhari:2866", "hadith:muslim:1739", "hadith:muslim:1740",
+        "hadith:tirmidhi:1675",
     ]
 
 
@@ -1318,3 +1432,233 @@ def test_the_abudawud_lului_near_miss_is_found_and_correctly_excluded():
     assert find_near_misses(_real_abudawud_units(), _ABUDAWUD_LULUI, sweep) == [
         "hadith:abudawud:2237",
     ]
+
+
+# --- Task 13: Jami at-Tirmidhi (R-A3-19) ------------------------------------
+#
+# Every Arabic literal below is a codepoint tuple read out of the built
+# database with a one-off script, per the top-of-file convention, never typed.
+
+
+def test_tirmidhi_record_count_and_scorability():
+    """The measured, lockfile-pinned facts about the fourth hadith collection.
+
+    3,976 is `expected_records` in corpus.lock.toml, the raw file's own
+    numbered-unit count -- unlike Abu Dawud, no unit here is a mis-wrapped
+    kitab heading.
+
+    80 unscorable and 3,755 cut, measured against the shipped build.
+    Al-Tirmidhi's kunya
+    ("أبو عيسى") is the SAME verb+kunya construction `_compiler_commentary_
+    markers` already builds for Abu Dawud, so `_TIRMIDHI_COMMENTARY`/
+    `_TIRMIDHI_COMMENTARY_NEAR`/`_TIRMIDHI_HEARD` are derived from it, not
+    hand-written. Two further formulas are Tirmidhi's own and not of the
+    (verb, kunya) shape at all -- "wa fi al-bab 'an ..." (Abu Isa's own
+    cross-reference to other Companions on the same topic) and "hadha hadith
+    ..." (his classical grading verdict, "hasan sahih gharib" and siblings).
+    Measurement while building this table found two MORE formulas beyond
+    those the task brief named, both caught by deliberately measuring
+    related phrases rather than assuming the brief's two were exhaustive:
+    "wa fi al-hadith qissa[ tawila]" (18 occurrences, always trailing genuine
+    narrative or an already-pointer-class remainder) and "wa hadha asahh"
+    (18 occurrences, a bare isnad-comparison verdict that caught two genuine
+    instances of the exact fused-commentary defect this ruling exists to
+    close: hadith:tirmidhi:1771 and 1778, both left NOT_FOUND before this
+    formula was added because their trailing "wa hadha asahh min ..." glued
+    onto otherwise-complete, famous matns).
+
+    `_TIRMIDHI_FORMULA` makes a preceding bare "qala" (with no kunya
+    repeated) part of the SAME match rather than left dangling on the
+    primary, matching every other marker's "cut on what follows" discipline.
+
+    Unscorable moved from 79 to 80 during materialization, not during the
+    marker work: `hadith:tirmidhi:2929` is a tafsir report whose isnad says
+    the Prophet "recited" and whose matn is verbatim Qur'an 5:45 -- see
+    `test_no_scorable_hadith_representation_is_wholly_quranic` above for the
+    full account of how `_reject_wholly_quranic_representations` caught what
+    the by-hand audit missed.
+
+    `hadith:tirmidhi:2239` additionally needed `NEAR_MISS_CUT_OVERRIDE` for a
+    transmitter's (not the compiler's) own dangling aside ("... qala
+    Mahmud ..."), the same shape as Abu Dawud's 4129/1234 above.
+
+    Two known, out-of-scope limitations, both pre-existing OpenITI
+    transcription facts rather than defects this task introduces:
+    - `hadith:tirmidhi:1904-2`'s bab heading leaks into its own display
+      metadata (an upstream structural quirk affecting only how the chapter
+      title renders for this one occurrence, not its scored text).
+    - the "%" (poetry hemistich/caesura marker) and "<...>" (Qur'an
+      variant-reading bracket) apparatus, already present un-stripped in
+      Bukhari/Muslim/Abu Dawud's own shipped text_ar/addenda_ar (65/30/2
+      records carrying a "%" and 5/2/3 carrying "<...>" respectively --
+      measured directly against the built database), are a pre-existing,
+      cross-collection OpenITI convention, not a Tirmidhi-specific gap
+      R-A3-19 is scoped to close. Tirmidhi's own occurrences (10 records
+      carrying a "%", 3 carrying "<...>") are left untouched, matching that
+      precedent.
+    """
+    conn = db.connect(DB_PATH)
+    total = conn.execute(
+        "SELECT count(*) FROM records WHERE kind='hadith' AND collection='tirmidhi'"
+    ).fetchone()[0]
+    scorable = conn.execute(
+        "SELECT count(*) FROM records WHERE kind='hadith' AND collection='tirmidhi'"
+        " AND unscorable_reason IS NULL").fetchone()[0]
+    unscorable = conn.execute(
+        "SELECT count(*) FROM records WHERE kind='hadith' AND collection='tirmidhi'"
+        " AND unscorable_reason IS NOT NULL").fetchone()[0]
+    cut = conn.execute(
+        "SELECT count(*) FROM records WHERE kind='hadith' AND collection='tirmidhi'"
+        " AND addenda_ar IS NOT NULL").fetchone()[0]
+    assert (total, scorable, unscorable, cut) == (3976, 3896, 80, 3755)
+
+
+# hadith:tirmidhi:1, "la taqbalu salatu bi-ghayri tuhurin wa-la sadaqatun min
+# ghulul, qala Hammad fi hadithihi illa bi-tuhur" -- "prayer without purity is
+# not accepted, nor charity from misappropriated spoils." The collection's own
+# first hadith.
+_TIRMIDHI_1_MATN = "".join(chr(c) for c in (
+    0x0644, 0x0627, 0x0020, 0x062a, 0x0642, 0x0628, 0x0644, 0x0020, 0x0635,
+    0x0644, 0x0627, 0x0629, 0x0020, 0x0628, 0x063a, 0x064a, 0x0631, 0x0020,
+    0x0637, 0x0647, 0x0648, 0x0631, 0x0020, 0x0648, 0x0644, 0x0627, 0x0020,
+    0x0635, 0x062f, 0x0642, 0x0629, 0x0020, 0x0645, 0x0646, 0x0020, 0x063a,
+    0x0644, 0x0648, 0x0644, 0x0020, 0x0642, 0x0627, 0x0644, 0x0020, 0x0647,
+    0x0646, 0x0627, 0x062f, 0x0020, 0x0641, 0x064a, 0x0020, 0x062d, 0x062f,
+    0x064a, 0x062b, 0x0647, 0x0020, 0x0627, 0x0644, 0x0627, 0x0020, 0x0628,
+    0x0637, 0x0647, 0x0648, 0x0631,
+))
+
+# hadith:tirmidhi:3956, "qad adhhaba Allahu 'ankum 'ubiyyata al-jahiliyyati
+# wa-fakhraha bi-l-aba'i, mu'minun taqiyyun wa-fajirun shaqiyyun, wa-l-nasu
+# banu Adam wa-Adam min turab" -- Allah's removal of pre-Islamic tribal
+# pride; the collection's own last plain-numbered hadith. Its own tail, "wa
+# hadha asahh 'indana min al-hadithi al-awwal ...", is one of the two NEW
+# markers this round found (`_TIRMIDHI_FORMULA`'s "wa hadha asahh" branch) --
+# this record is a genuine, complete matn with a grading-comparison tail cut
+# away from it.
+_TIRMIDHI_3956_MATN = "".join(chr(c) for c in (
+    0x0642, 0x062f, 0x0020, 0x0623, 0x0630, 0x0647, 0x0628, 0x0020, 0x0627,
+    0x0644, 0x0644, 0x0647, 0x0020, 0x0639, 0x0646, 0x0643, 0x0645, 0x0020,
+    0x0639, 0x0628, 0x064a, 0x0629, 0x0020, 0x0627, 0x0644, 0x062c, 0x0627,
+    0x0647, 0x0644, 0x064a, 0x0629, 0x0020, 0x0648, 0x0641, 0x062e, 0x0631,
+    0x0647, 0x0627, 0x0020, 0x0628, 0x0627, 0x0644, 0x0622, 0x0628, 0x0627,
+    0x0621, 0x0020, 0x0645, 0x0624, 0x0645, 0x0646, 0x0020, 0x062a, 0x0642,
+    0x064a, 0x0020, 0x0648, 0x0641, 0x0627, 0x062c, 0x0631, 0x0020, 0x0634,
+    0x0642, 0x064a, 0x0020, 0x0648, 0x0627, 0x0644, 0x0646, 0x0627, 0x0633,
+    0x0020, 0x0628, 0x0646, 0x0648, 0x0020, 0x0622, 0x062f, 0x0645, 0x0020,
+    0x0648, 0x0622, 0x062f, 0x0645, 0x0020, 0x0645, 0x0646, 0x0020, 0x062a,
+    0x0631, 0x0627, 0x0628,
+))
+
+
+def test_tirmidhi_hadith_1_is_byte_exact():
+    conn = db.connect(DB_PATH)
+    rec = db.get_record(conn, "hadith:tirmidhi:1")
+    assert rec.text_ar == _TIRMIDHI_1_MATN
+    assert rec.unscorable_reason is None
+
+
+def test_tirmidhi_spot_checked_matns_are_byte_exact():
+    """The last plain-numbered record (3956) is the grading-tail spot check:
+    its own matn is complete and byte-exact, and its printed text (matn plus
+    the "wa hadha asahh ..." tail R-A3-19 cuts into `addenda_ar`) still
+    verifies as this exact record."""
+    from sanad.verify.engine import Verdict, verify_spans
+    conn = db.connect(DB_PATH)
+    rec = db.get_record(conn, "hadith:tirmidhi:3956")
+    assert rec.text_ar == _TIRMIDHI_3956_MATN
+    assert rec.unscorable_reason is None
+    assert rec.addenda_ar, "3956 must carry its cut grading-comparison tail"
+    for quoted in (rec.text_ar, rec.text_ar + " " + rec.addenda_ar):
+        m = verify_spans(conn, f"«{quoted}»")
+        assert len(m) == 1, len(quoted)
+        assert m[0].verdict is Verdict.EXACT, len(quoted)
+        assert m[0].record.id == "hadith:tirmidhi:3956", len(quoted)
+
+
+# hadith:tirmidhi:2239, "fataha al-qustantiniyyati ma'a qiyami al-sa'ati" --
+# "the conquest of Constantinople [comes] with the establishment of the
+# Hour." A transmitter's own dangling aside ("... qala Mahmud, hadha hadith
+# gharib ...", Mahmud ibn Ghaylan, not Abu Isa the compiler) sits between
+# this genuine matn and the next chain, with no verb-governed marker to
+# anchor on -- `NEAR_MISS_CUT_OVERRIDE["tirmidhi"]` is the hand-audited
+# second cut that reaches this exact wording, the same shape as Abu Dawud's
+# 4129/1234 above.
+_TIRMIDHI_2239_MATN = "".join(chr(c) for c in (
+    0x0641, 0x062a, 0x062d, 0x0020, 0x0627, 0x0644, 0x0642, 0x0633, 0x0637,
+    0x0646, 0x0637, 0x064a, 0x0646, 0x064a, 0x0629, 0x0020, 0x0645, 0x0639,
+    0x0020, 0x0642, 0x064a, 0x0627, 0x0645, 0x0020, 0x0627, 0x0644, 0x0633,
+    0x0627, 0x0639, 0x0629,
+))
+
+
+def test_the_tirmidhi_near_miss_cut_override_verifies():
+    from sanad.verify.engine import Verdict, verify_spans
+    conn = db.connect(DB_PATH)
+    rec = db.get_record(conn, "hadith:tirmidhi:2239")
+    assert rec.text_ar == _TIRMIDHI_2239_MATN
+    assert rec.unscorable_reason is None
+    m = verify_spans(conn, f"«{rec.text_ar}»")
+    assert len(m) == 1
+    assert m[0].verdict is Verdict.EXACT
+    assert m[0].record.id == "hadith:tirmidhi:2239"
+
+
+# "hadha asahh" caught two genuine defect-class records with no other marker
+# present: 1771 ("he forbade predator hides") and 1778 ("she walked with one
+# sandal"). Both must verify from their genuine matn alone -- the mandatory
+# false-negative direction this task's Step 6a exists to prove.
+def _real_tirmidhi_units():
+    from pathlib import Path
+
+    from sanad_ingest.fetch import fetch_source
+    from sanad_ingest.lockfile import load_lockfile
+    from sanad_ingest.openiti import parse_openiti
+
+    sources = {s.id: s for s in load_lockfile(Path("ingest/corpus.lock.toml"))}
+    locked = sources["openiti-tirmidhi-jk000140"]
+    raw = fetch_source(locked, Path(".corpus-cache"))
+    return parse_openiti(raw, collection="tirmidhi").units
+
+
+def test_the_wa_hadha_asahh_catch_verifies_both_records():
+    from sanad.verify.engine import Verdict, verify_spans
+    conn = db.connect(DB_PATH)
+    for record_id in ("hadith:tirmidhi:1771", "hadith:tirmidhi:1778"):
+        rec = db.get_record(conn, record_id)
+        assert rec.unscorable_reason is None, record_id
+        assert rec.addenda_ar, f"{record_id} must be cut"
+        assert "أصح" not in rec.text_ar, record_id
+        m = verify_spans(conn, f"«{rec.text_ar}»")
+        assert len(m) == 1, record_id
+        assert m[0].verdict is Verdict.EXACT, record_id
+        assert m[0].record.id == record_id, record_id
+
+
+def test_no_unaudited_near_miss_for_the_tirmidhi_compiler_marker():
+    """R-A3-19's own detector, run for Tirmidhi's verb+kunya marker exactly
+    as `test_no_unaudited_near_miss_for_the_abudawud_compiler_marker` runs it
+    for Abu Dawud's: sweep "qala"/"su'ila"/"sami'tu" against BOTH the
+    nominative ("Abu 'Isa") and accusative ("Aba 'Isa") kunya forms, at every
+    token gap 0-4, including the two extra formula phrases in `configured` so
+    the sweep only reports gaps the shipped marker set does not already
+    cover.
+
+    Clean: every record any widening of this sweep finds is already matched
+    by the configured pattern (tight nominative, near-fallback nominative, or
+    tight accusative), so `find_near_misses` has nothing left to find even at
+    a four-token, both-case sweep.
+    """
+    import re
+
+    from sanad_ingest.openiti import (
+        _ARABIC, _TIRMIDHI_COMMENTARY, _TIRMIDHI_COMMENTARY_NEAR,
+        _TIRMIDHI_FORMULA, _TIRMIDHI_HEARD, find_near_misses)
+
+    configured = re.compile(
+        f"{_TIRMIDHI_COMMENTARY.pattern}|{_TIRMIDHI_COMMENTARY_NEAR.pattern}"
+        f"|{_TIRMIDHI_HEARD.pattern}|{_TIRMIDHI_FORMULA.pattern}")
+    sweep = re.compile(
+        rf"(?<![{_ARABIC}])[وف]?(?:قال|سئل|سمعت)(?:\s+\S+){{0,4}}"
+        rf"\s+(?:أبو|أبا)\s+عيسى(?![{_ARABIC}])")
+    assert find_near_misses(_real_tirmidhi_units(), configured, sweep) == []

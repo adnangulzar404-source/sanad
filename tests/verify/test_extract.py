@@ -108,11 +108,30 @@ def test_wrapped_pattern_contains_every_delimiter(ch):
 
 
 def test_every_real_record_is_extractable_when_quoted():
+    """Task 13: two Tirmidhi records are a genuine, narrow exception.
+
+    hadith:tirmidhi:162 and 3615-2's ENTIRE printed matn is Shakir's own
+    bracketed cross-reference number ("[161]", "[3631]") pointing to the
+    narration printed in full elsewhere -- there is no text left once that
+    pointer is accounted for, so `_strip_reference_numbers`'s "never return
+    empty" rule (see `test_no_hadith_record_ships_an_empty_scored_text`)
+    leaves the bracketed number itself as `text_ar`. It has no Arabic
+    letters at all, so `extract_spans` -- built to find quoted Arabic --
+    finds nothing in it, which is the correct answer for a string that is
+    not text.
+
+    This is harmless, not merely tolerated: both records are already on the
+    audit list (`audit_lists.py`'s `_POINTER`), carry no addendum, and hold
+    zero index rows (confirmed directly against the built corpus), so
+    neither can ever be reached by `verify_spans` in the first place.
+    """
     from sanad.corpus import db
+    known_pointer_only = {"hadith:tirmidhi:162", "hadith:tirmidhi:3615-2"}
     conn = db.connect(MATERIALIZED_DB)
     missed = [r.id for r in db.iter_records(conn)
               if r.text_ar and not extract_spans("«" + r.text_ar + "»")]
-    assert missed == [], f"{len(missed)} records produce no span: {missed[:10]}"
+    assert set(missed) == known_pointer_only, \
+        f"{len(missed)} records produce no span: {missed[:10]}"
 
 
 def test_no_record_has_an_empty_scored_text():

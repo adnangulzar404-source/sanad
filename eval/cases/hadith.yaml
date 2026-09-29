@@ -677,3 +677,120 @@
     at all before it (R-A3-23). `_split_heard_commentary`'s cut is complete
     on its own here, with no further nested attribution to correct.
     MEASURED EXACT 1.0 against hadith:abudawud:1854.
+
+# --- Task 13: Jami at-Tirmidhi, the fourth hadith collection ----------------
+#
+# Same gate, same rules, applied to a fourth collection sharing this file and
+# this corpus. R-A3-19 generalises Task 12's compiler-commentary split into a
+# per-collection table and adds Tirmidhi's own markers -- Al-Tirmidhi's kunya
+# ("Abu 'Isa") plus two formulas named in the task brief ("wa fi al-bab",
+# "hadha hadith ...") and two more found by measurement while building this
+# table ("wa fi al-hadith qissa", "wa hadha asahh"). Every text below is
+# either extracted byte-exact from the MATERIALISED database or built from
+# the same fabricated/mis-cited saying already used against the first three
+# collections, per the project's standing char-safety convention.
+
+- id: hadith-tirmidhi-famous-matn-bare
+  text: 'الفخذ عورة'
+  expect_verdict: EXACT
+  expect_record: hadith:tirmidhi:2796
+  rationale: >-
+    "The thigh is nakedness [to be covered]" -- a short, complete, famous
+    ruling Jami at-Tirmidhi prints TWICE under adjacent numbers (2796, 2797)
+    with byte-identical wording and no addendum on either. The tie-break rule
+    (lowest full id wins, the rest disclosed) picks 2796 and discloses 2797 in
+    `also_at`, the same rule already proven within Bukhari (383/774) and
+    across collections (al-harb-khud'a). MEASURED EXACT 1.0 against
+    hadith:tirmidhi:2796, `also_at: [hadith:tirmidhi:2797]`.
+- id: hadith-tirmidhi-wrong-number
+  text: 'الفخذ عورة (Tirmidhi 999)'
+  expect_verdict: WRONG_REFERENCE
+  expect_record: hadith:tirmidhi:2796
+  rationale: >-
+    The same genuine wording as the case above, cited under a real, different
+    Tirmidhi hadith number that is not its own. MEASURED WRONG_REFERENCE
+    against hadith:tirmidhi:2796 -- the text is verbatim so the only thing
+    wrong is the citation. Paired with hadith-abudawud-wrong-number and
+    hadith-muslim-wrong-number, which case the identical defect class against
+    the other two non-Bukhari collections.
+- id: hadith-tirmidhi-fabricated-attribution
+  text: 'طلب العلم فريضة على كل مسلم ومسلمة'
+  expect_verdict: NOT_FOUND
+  expect_scope_caveat: true
+  rationale: >-
+    "Seeking knowledge is an obligation upon every Muslim, male and female" --
+    the same widely-circulated saying cased against Sunan Abi Dawud and Sahih
+    Muslim above (usually traced to Ibn Majah), equally absent, byte-for-byte,
+    from this edition of Jami at-Tirmidhi. MEASURED: NOT_FOUND at 0.353, with
+    and without a fabricated "(Tirmidhi 74)" citation to a real but unrelated
+    hadith number attached -- an invented citation must never manufacture a
+    match. Absence from this collection is a statement about a database, not
+    a grading of the saying, hence the scope caveat.
+- id: hadith-tirmidhi-editorial-pointer-is-not-a-text
+  text: '«نحوه»'
+  expect_verdict: NOT_FOUND
+  rationale: >-
+    "nahwahu" -- "similar to it" -- the same one-word editorial back-reference
+    already cased against Sunan Abi Dawud, and one of Jami at-Tirmidhi's own
+    40 `_POINTER`-class records (`UNSCORABLE["tirmidhi"]`): printed in place
+    of a narration given in full elsewhere under a different chain. A false
+    EXACT here would be Sanad telling a reader that a one-word editorial gloss
+    is a hadith of the Prophet. MEASURED NOT_FOUND at 0.308 against the
+    materialised corpus.
+- id: hadith-tirmidhi-quranic-tafsir-matn-is-not-a-false-attribution
+  text: '«أن النفس بالنفس والعين بالعين»'
+  forbid_verdict: WRONG_REFERENCE
+  expect_no_other_record: hadith:tirmidhi:2929
+  rationale: >-
+    "That the life is for the life, and the eye for the eye" -- hadith:tirmidhi:2929's
+    entire printed matn, whose own isnad says the Prophet "qara'a" (recited)
+    this wording; it is verbatim Qur'an 5:45's own retaliation-law clause with
+    no narrative content of its own (`sanad-hadith-quranic-matn-hazard`, the
+    same hazard class Sahih al-Bukhari 4575 and Sunan Abi Dawud 3979/3980
+    were built to catch). Unlike those two collections' surviving cases, this
+    is Tirmidhi's own large tafsir section producing exactly the class the
+    task brief warned would keep appearing there. `_reject_wholly_quranic_
+    representations` forced it onto `UNSCORABLE["tirmidhi"]` at materialize
+    time -- caught on the FIRST attempted real build of this collection, not
+    the by-hand ≤40-character audit, which had judged the same wording a
+    plausible genuine saying in isolation (see test_real_corpus.py for the
+    full account). MEASURED: NOT_FOUND at 0.448, with or without a citation
+    attached -- must not manufacture an EXACT (the Bukhari-4575 defect) and
+    must not manufacture a WRONG_REFERENCE either (its mirror image).
+
+# --- Step 6a: false-NEGATIVE coverage for the R-A3-19 split -----------------
+#
+# The eval gate above measures false POSITIVES only. R-A3-18 shipped with a
+# 72/72 green gate while 15% of Abu Dawud's genuine matns silently returned
+# NOT_FOUND -- the exact gap Task 12's own Step 6a closed for that
+# collection. These two cases case the identical false-negative direction for
+# Tirmidhi: a genuine grading-tail matn must still VERIFY, and the tail moved
+# into `addenda_ar` must NOT itself produce a false EXACT.
+
+- id: hadith-tirmidhi-grading-tail-now-verifies
+  text: 'أنه نهى عن جلود السباع'
+  expect_verdict: EXACT
+  expect_record: hadith:tirmidhi:1771
+  rationale: >-
+    "That he forbade the hides of predators" -- hadith:tirmidhi:1771's genuine
+    matn, byte-exact from the MATERIALISED database. Before "wa hadha asahh"
+    (one of the two formulas this task found beyond the brief's named two)
+    joined the marker table, the source's trailing "wa-hadha asahh [min
+    hadithi Sufyan 'an Abi Ishaq]" -- a bare isnad-comparison verdict, never
+    part of the Prophet's own speech -- was fused onto this matn with no
+    boundary, and quoting the genuine wording alone returned NOT_FOUND: the
+    exact R-A3-18 defect class this ruling exists to close, found in a
+    FOURTH collection by measuring a phrase on its own rather than assuming
+    the two named formulas were exhaustive. MEASURED EXACT 1.0 against
+    hadith:tirmidhi:1771.
+- id: hadith-tirmidhi-grading-comparison-fragment-is-not-a-text
+  text: '«قال وهذا أصح عندنا من الحديث الأول وسعيد المقبري قد سمع أبا هريرة ويروي عن أبيه أشياء كثيرة عن أبي هريرة رضي الله عنه»'
+  expect_verdict: NOT_FOUND
+  rationale: >-
+    The other half of hadith:tirmidhi:3956: Abu Isa's own note comparing this
+    chain to an earlier one and remarking on a narrator's transmission,
+    living in `addenda_ar` after R-A3-19's split, quoted alone. It is
+    editorial discussion about isnad quality, not a report of the Prophet's
+    words, and MUST NOT verify as one -- a false EXACT here would be Sanad
+    telling a reader that Abu Isa's own aside is scripture. MEASURED
+    NOT_FOUND at 0.555 against the materialised corpus.

@@ -210,6 +210,23 @@ NEAR_MISS_CUT_OVERRIDE: dict[str, dict[str, tuple[str, int]]] = {
         "hadith:abudawud:1234":
             ("29dd1c200736cb6d27f5b1de7641c061e46e66b541670e4e0d422dad37d4f0f0", 11),
     },
+    # Tirmidhi (Task 13). "fath al-Qustantiniyya ma'a qiyam al-sa'a QALA
+    # MAHMUD" -- Mahmud ibn Ghaylan, the FIRST narrator in this unit's own
+    # isnad (not the compiler Abu Isa), inserts his own attribution after the
+    # genuine matn ("the conquest of Constantinople is [a sign] of the
+    # establishment of the Hour"), and the edition never gives the content of
+    # what he said -- it goes straight into "hadha hadith gharib ...", the
+    # tail `_TIRMIDHI_FORMULA`'s "hadha hadith" arm already cuts correctly.
+    # `_COMPILER_MARKERS`'s kunya-based patterns can never reach a different
+    # narrator's bare name, so the dangling "qala Mahmud" is a boundary
+    # correction of the same "nested attribution" shape as Abu Dawud's own
+    # entries above, applied one call site later (after
+    # `_split_compiler_commentary` has already made its own cut, per the
+    # module docstring above `NEAR_MISS_CUT_OVERRIDE`).
+    "tirmidhi": {
+        "hadith:tirmidhi:2239":
+            ("1291e1e8e9ac6535dd9957c465370fe0f947d346e96b60b62aee61192dfbb5e8", 2),
+    },
 }
 
 # --- Abu Ali al-Lu'lu'i's own voice: the one do-not-cut exception -----------
@@ -338,7 +355,7 @@ _LEXICAL_GLOSS = ("lexical gloss: a narrator's explanation of a word's "
 _ISNAD_COMMENT = ("isnad-quality remark: one narrator's comparison of two "
                    "transmitters' reliability or memory, not a report of "
                    "the Prophet's words")
-_EDITORIAL_DISCUSSION = ("editorial discussion: Abu Dawud's own numbered "
+_EDITORIAL_DISCUSSION = ("editorial discussion: the compiler's own numbered "
                           "remark about how a hadith's isnad or wording was "
                           "transmitted differently by other narrators, not "
                           "itself a narration")
@@ -1731,5 +1748,226 @@ UNSCORABLE: dict[str, dict[str, tuple[str, str]]] = {
         # uses.
         "hadith:abudawud:3980":
             ("ce73cb2280b432685a1dcceba0c6ad25b279a1b71ba51d49f271f4dbe71e3fc5", _QURANIC_QUOTE),
+    },
+    # Tirmidhi (Task 13, ruling R-A3-19). Every record whose matn, after every
+    # cut above has already run, is 40 characters or fewer (429 records) was
+    # read by hand against its own isnad and addendum -- not a length rule,
+    # the same "al-harb khud'a" (10 characters, hadith:tirmidhi:1675) and
+    # "la nikaha illa bi-wali" (16, 1101) genuine short hadith left off this
+    # list on purpose. No reason above needed inventing: Shakir's edition
+    # reuses the same four shapes Bukhari/Muslim/Abu Dawud already produced --
+    # _POINTER: a bare deferral word ("mithlahu", "nahwahu", "bi-hadha",
+    # "bi-dhalika", "nahwa hadha", and their bi-/mithl- combinations) with
+    # nothing else, or (1195) a forward-looking frame ("with these three
+    # hadiths") whose narration is the three SEPARATELY numbered units that
+    # follow it, never repeated inside this one.
+    # _DEFERRAL: the same pointer vocabulary plus one further clause that adds
+    # no content of its own -- an isnad-quality verdict ("wa-hadha asahh"), a
+    # narrator-name correction ("wa-qala Ibn Abi 'Amra"), an isnad-variant
+    # note ("wa-lam yarfa'hu"), a wording-variant note whose replacement
+    # clause has no subject once the pointer is removed (2570, 704: "similar
+    # to it, except he said: it uncovers a mountain of gold" -- the referent
+    # of "it" is the narration this one points to, not present here), or the
+    # bare truncation stub "... al-hadith" (3078) that Bukhari's and Muslim's
+    # own lists already carry as _TRUNCATED_STUB's sibling.
+    # _QURANIC_QUOTE: 2934, a qira'a-variant hadith whose entire matn is
+    # Qur'an 18:86's own wording ("fi 'aynin hami'a") -- same pattern as Abu
+    # Dawud's 3979/3997/3980 above, and required here too: left scorable, it
+    # is exactly what would fail materialize.py's
+    # _reject_wholly_quranic_representations gate. 2929 is the same hazard
+    # from `sanad-hadith-quranic-matn-hazard` directly: the isnad says the
+    # Prophet "qara'a" (recited) and the matn that follows is verbatim Qur'an
+    # 5:45's own retaliation-law clause ("al-nafsa bi-l-nafsi wa-l-'ayna
+    # bi-l-'ayn") -- plausible as reported Prophetic speech in isolation,
+    # which is why the ≤40-char hand-audit judged it a genuine hadith the
+    # first time through; `_reject_wholly_quranic_representations` caught what
+    # the by-hand read missed, exactly the "verify, don't assert" case this
+    # gate exists for.
+    # _EDITORIAL_DISCUSSION: three records (46, 249, 566) whose printed unit
+    # is, in its entirety, Abu Isa's own remark introducing a further isnad
+    # for a hadith already given under an earlier number -- "narrated via
+    # [this chain], the like of the hadith of ..." with no matn of its own.
+    # `_split_compiler_commentary`'s own "do not cut to empty" rule correctly
+    # declines to touch these (see openiti.py), which is why they still carry
+    # their full printed text rather than an empty string, and why they need
+    # a hand entry here rather than falling out of the marker mechanism.
+    #
+    # hadith:tirmidhi:2239's own dangling narrator aside ("... qala Mahmud",
+    # a transmitter's own remark whose content the edition never gives) is
+    # NOT on this list: it is a boundary correction, not an unscorable
+    # judgement, and lives in `NEAR_MISS_CUT_OVERRIDE` below instead, leaving
+    # a clean, genuine, scorable primary.
+    "tirmidhi": {
+        # _POINTER group (40 records)
+        # Both are bare Shakir cross-reference brackets -- "[161]", "[3631]"
+        # -- with nothing else. `_strip_reference_numbers` never empties a
+        # matn (build._hadith_records hard-fails on an empty text_ar), so the
+        # pinned text is the UNSTRIPPED bracket, not an empty string.
+        "hadith:tirmidhi:162":
+            ("dd8c4c7ac5796fac483a03d1b344867602c3f1191640ac6202087f19f1dea292", _POINTER),
+        "hadith:tirmidhi:3615-2":
+            ("befae85932abcc89bc4cd9b412eb00c271fe4f9da3d14be9b19bfdb4e23436c7", _POINTER),
+        "hadith:tirmidhi:111":
+            ("314cca838007660a1698a16457b10ca72a652448eb8fbf995ad46bf924011bcd", _POINTER),
+        "hadith:tirmidhi:119":
+            ("da5b06f32a8be960e4896498557c3a5abf0318f6aa354cf9a2f1cdff8bc7dcbe", _POINTER),
+        "hadith:tirmidhi:1328":
+            ("da5b06f32a8be960e4896498557c3a5abf0318f6aa354cf9a2f1cdff8bc7dcbe", _POINTER),
+        "hadith:tirmidhi:1630":
+            ("da5b06f32a8be960e4896498557c3a5abf0318f6aa354cf9a2f1cdff8bc7dcbe", _POINTER),
+        "hadith:tirmidhi:166":
+            ("da5b06f32a8be960e4896498557c3a5abf0318f6aa354cf9a2f1cdff8bc7dcbe", _POINTER),
+        "hadith:tirmidhi:196":
+            ("da5b06f32a8be960e4896498557c3a5abf0318f6aa354cf9a2f1cdff8bc7dcbe", _POINTER),
+        "hadith:tirmidhi:226":
+            ("da5b06f32a8be960e4896498557c3a5abf0318f6aa354cf9a2f1cdff8bc7dcbe", _POINTER),
+        "hadith:tirmidhi:2282":
+            ("da5b06f32a8be960e4896498557c3a5abf0318f6aa354cf9a2f1cdff8bc7dcbe", _POINTER),
+        "hadith:tirmidhi:2533-2":
+            ("da5b06f32a8be960e4896498557c3a5abf0318f6aa354cf9a2f1cdff8bc7dcbe", _POINTER),
+        "hadith:tirmidhi:2568-2":
+            ("da5b06f32a8be960e4896498557c3a5abf0318f6aa354cf9a2f1cdff8bc7dcbe", _POINTER),
+        "hadith:tirmidhi:26":
+            ("314cca838007660a1698a16457b10ca72a652448eb8fbf995ad46bf924011bcd", _POINTER),
+        "hadith:tirmidhi:280":
+            ("da5b06f32a8be960e4896498557c3a5abf0318f6aa354cf9a2f1cdff8bc7dcbe", _POINTER),
+        "hadith:tirmidhi:285":
+            ("da5b06f32a8be960e4896498557c3a5abf0318f6aa354cf9a2f1cdff8bc7dcbe", _POINTER),
+        "hadith:tirmidhi:30":
+            ("314cca838007660a1698a16457b10ca72a652448eb8fbf995ad46bf924011bcd", _POINTER),
+        "hadith:tirmidhi:329":
+            ("da5b06f32a8be960e4896498557c3a5abf0318f6aa354cf9a2f1cdff8bc7dcbe", _POINTER),
+        "hadith:tirmidhi:343":
+            ("314cca838007660a1698a16457b10ca72a652448eb8fbf995ad46bf924011bcd", _POINTER),
+        "hadith:tirmidhi:434":
+            ("314cca838007660a1698a16457b10ca72a652448eb8fbf995ad46bf924011bcd", _POINTER),
+        "hadith:tirmidhi:441":
+            ("da5b06f32a8be960e4896498557c3a5abf0318f6aa354cf9a2f1cdff8bc7dcbe", _POINTER),
+        "hadith:tirmidhi:504":
+            ("da5b06f32a8be960e4896498557c3a5abf0318f6aa354cf9a2f1cdff8bc7dcbe", _POINTER),
+        "hadith:tirmidhi:529":
+            ("da5b06f32a8be960e4896498557c3a5abf0318f6aa354cf9a2f1cdff8bc7dcbe", _POINTER),
+        "hadith:tirmidhi:535":
+            ("da5b06f32a8be960e4896498557c3a5abf0318f6aa354cf9a2f1cdff8bc7dcbe", _POINTER),
+        "hadith:tirmidhi:574":
+            ("314cca838007660a1698a16457b10ca72a652448eb8fbf995ad46bf924011bcd", _POINTER),
+        "hadith:tirmidhi:599":
+            ("da5b06f32a8be960e4896498557c3a5abf0318f6aa354cf9a2f1cdff8bc7dcbe", _POINTER),
+        "hadith:tirmidhi:612":
+            ("da5b06f32a8be960e4896498557c3a5abf0318f6aa354cf9a2f1cdff8bc7dcbe", _POINTER),
+        "hadith:tirmidhi:615":
+            ("f37eece410fe51d360c813f1409b278f7563cb4aebf08205852977fbdef0267b", _POINTER),
+        "hadith:tirmidhi:634":
+            ("da5b06f32a8be960e4896498557c3a5abf0318f6aa354cf9a2f1cdff8bc7dcbe", _POINTER),
+        "hadith:tirmidhi:636":
+            ("da5b06f32a8be960e4896498557c3a5abf0318f6aa354cf9a2f1cdff8bc7dcbe", _POINTER),
+        "hadith:tirmidhi:654":
+            ("da5b06f32a8be960e4896498557c3a5abf0318f6aa354cf9a2f1cdff8bc7dcbe", _POINTER),
+        "hadith:tirmidhi:701":
+            ("da5b06f32a8be960e4896498557c3a5abf0318f6aa354cf9a2f1cdff8bc7dcbe", _POINTER),
+        "hadith:tirmidhi:709":
+            ("3811c0b1eb530bdb1a7c08825f4b9c06c44f77f6d879aa7d7b2a6a6e0e73de6d", _POINTER),
+        "hadith:tirmidhi:717":
+            ("da5b06f32a8be960e4896498557c3a5abf0318f6aa354cf9a2f1cdff8bc7dcbe", _POINTER),
+        "hadith:tirmidhi:971":
+            ("3811c0b1eb530bdb1a7c08825f4b9c06c44f77f6d879aa7d7b2a6a6e0e73de6d", _POINTER),
+        "hadith:tirmidhi:3435-2":
+            ("92d5f662cd531946a72590d721c4870f84847ca45e91a1907882dd20701105de", _POINTER),
+        "hadith:tirmidhi:540":
+            ("836f144960a6a13399d667fd9bbbc4f02fcf5f21465d6261bcf0ee4ef02eb8ff", _POINTER),
+        "hadith:tirmidhi:648":
+            ("836f144960a6a13399d667fd9bbbc4f02fcf5f21465d6261bcf0ee4ef02eb8ff", _POINTER),
+        "hadith:tirmidhi:148":
+            ("b2133cd31847e4d6a1dbdcf8e39425d27513e8a2c945867b902e622191a40b08", _POINTER),
+        "hadith:tirmidhi:444":
+            ("b2133cd31847e4d6a1dbdcf8e39425d27513e8a2c945867b902e622191a40b08", _POINTER),
+        "hadith:tirmidhi:1195":
+            ("133dc743e7adc67eeb3a1eecea01b82ac6e3808104f545874a1aba22f5eeb413", _POINTER),
+
+        # _DEFERRAL group (35 records)
+        "hadith:tirmidhi:569":
+            ("952f49cfc7679210e241351804a33a669578006d2d27becb50eab4ba2178f4e4", _DEFERRAL),
+        "hadith:tirmidhi:127":
+            ("6a44880c915055249f1fedad16de116a8726995c8be432d696b1ab3cdbb552a2", _DEFERRAL),
+        "hadith:tirmidhi:1662":
+            ("6a44880c915055249f1fedad16de116a8726995c8be432d696b1ab3cdbb552a2", _DEFERRAL),
+        "hadith:tirmidhi:1697":
+            ("6a44880c915055249f1fedad16de116a8726995c8be432d696b1ab3cdbb552a2", _DEFERRAL),
+        "hadith:tirmidhi:2864":
+            ("6a44880c915055249f1fedad16de116a8726995c8be432d696b1ab3cdbb552a2", _DEFERRAL),
+        "hadith:tirmidhi:347":
+            ("6a44880c915055249f1fedad16de116a8726995c8be432d696b1ab3cdbb552a2", _DEFERRAL),
+        "hadith:tirmidhi:403":
+            ("6a44880c915055249f1fedad16de116a8726995c8be432d696b1ab3cdbb552a2", _DEFERRAL),
+        "hadith:tirmidhi:722":
+            ("2a763ad27e558cac7f6e08250950c22bea6bef04c914bfd273f66ccc4bbe52fa", _DEFERRAL),
+        "hadith:tirmidhi:349":
+            ("9cafc6ac54d0691e900340952d8a3adb37441bcab63db7a7971c5860c8c30237", _DEFERRAL),
+        "hadith:tirmidhi:163":
+            ("da5b06f32a8be960e4896498557c3a5abf0318f6aa354cf9a2f1cdff8bc7dcbe", _DEFERRAL),
+        "hadith:tirmidhi:836":
+            ("6a44880c915055249f1fedad16de116a8726995c8be432d696b1ab3cdbb552a2", _DEFERRAL),
+        "hadith:tirmidhi:1104":
+            ("7f4c7b361b8296286c513c1e9b2a05cc8544e6329848d9505c15335137ae66b7", _DEFERRAL),
+        "hadith:tirmidhi:2286":
+            ("6a44880c915055249f1fedad16de116a8726995c8be432d696b1ab3cdbb552a2", _DEFERRAL),
+        "hadith:tirmidhi:2543-2":
+            ("6a44880c915055249f1fedad16de116a8726995c8be432d696b1ab3cdbb552a2", _DEFERRAL),
+        "hadith:tirmidhi:2573-2":
+            ("7f4c7b361b8296286c513c1e9b2a05cc8544e6329848d9505c15335137ae66b7", _DEFERRAL),
+        "hadith:tirmidhi:915":
+            ("2731e8750415cbc8c35815e68f179af234dab31a8183f62a6e618cb33b7ab32f", _DEFERRAL),
+        "hadith:tirmidhi:786":
+            ("d7bb1292d8849ba7da0eb5a7bf086ab18bfdd6d3bb9cba70bba3d69b6386df20", _DEFERRAL),
+        "hadith:tirmidhi:2296":
+            ("eff77cdd27792fcd090341bf6864e509ac6a58a84f48fd5e6b75b1932d766637", _DEFERRAL),
+        "hadith:tirmidhi:872":
+            ("74c95b13fc9442236a047adaf9a09e4b0081752313997002cc6332e0c795647d", _DEFERRAL),
+        "hadith:tirmidhi:2534":
+            ("e45e8ea2aa903d7a53c510c3b1a75aef0dd8d663cb9ed7051bc2bd443f2953df", _DEFERRAL),
+        "hadith:tirmidhi:1904-2":
+            ("3efae21042b4f9f23b477cb51ccb0b24a57f13b52021b31df7e30735cd2f8634", _DEFERRAL),
+        "hadith:tirmidhi:2534-2":
+            ("e99f0d712966dc46f4df5faa1b5e9ceb49035be1ff8833aee00e8a0d6531bec5", _DEFERRAL),
+        "hadith:tirmidhi:1605":
+            ("ad27f9b3ca9c9a8de22387554bbc7fdb6f7ebc3832f87c5c6a2c6c8a0ca0c882", _DEFERRAL),
+        "hadith:tirmidhi:256":
+            ("75b202b2abd02fa9bf405f01a3399a07f5b097e843545724a56bcca2cecdbf11", _DEFERRAL),
+        "hadith:tirmidhi:627":
+            ("ff968258beac2fe70aa52b4301a087ab925f0322e20f109fbeec3ce24ad2e69b", _DEFERRAL),
+        "hadith:tirmidhi:800":
+            ("c251799df781a6b71b10b6fc9d7e2a6677a3db0e6b3d17062a7da650e020023d", _DEFERRAL),
+        "hadith:tirmidhi:968":
+            ("11472162f6b5f127b1c363e64f918c65d168f3f05bf32994cb07c33155e43426", _DEFERRAL),
+        "hadith:tirmidhi:559":
+            ("021d860371750a7b9b2a696d9f1eaeecf9f442555d6f10af002ee16e2453183e", _DEFERRAL),
+        "hadith:tirmidhi:299":
+            ("8c7c1fabf8075c2ecafcbb008f6fe05dea55b61fd084702a6113a2b2f28474c2", _DEFERRAL),
+        "hadith:tirmidhi:2570":
+            ("1684b88bebef8c5a151ada8a12d35de706d522d80f2af5f310cc690e8d5803ce", _DEFERRAL),
+        "hadith:tirmidhi:704":
+            ("8d1dd89bb995494709ed418d7e5fef911a676dc8ffed3282cbd12144a4aefc5c", _DEFERRAL),
+        "hadith:tirmidhi:1873":
+            ("c26859c508c8f7af7ae1dce9d28cc6e23c53a34e058c16ce727502e3a94e1290", _DEFERRAL),
+        "hadith:tirmidhi:3078":
+            ("28561a7a20b9e9f36a0fb711c591a38648b081e5878cc3ea185ef15e009336f1", _DEFERRAL),
+        "hadith:tirmidhi:1051":
+            ("181b8166bf8b887f83fc7555f26ceba3df06de7d7b80976d4e24172801f11984", _DEFERRAL),
+        "hadith:tirmidhi:926":
+            ("7d5dd509f18fdfef45eeb57c97730c3b673ecf22d0ad58e1d4ec44c0ba92380f", _DEFERRAL),
+
+        # _QURANIC_QUOTE group (2 records)
+        "hadith:tirmidhi:2934":
+            ("2f921886db7f8406767b7661f848a3842c835f2ec83495f66636d0fa67888b5c", _QURANIC_QUOTE),
+        "hadith:tirmidhi:2929":
+            ("a87bf29a20740ac98366e42c9b176e375e40240bf0ba4c5263887ff8e4b6a094", _QURANIC_QUOTE),
+
+        # _EDITORIAL_DISCUSSION group (3 records)
+        "hadith:tirmidhi:46":
+            ("646b9c423ffe62768bcfae3022ef9217788b049fc48cc495427e89e311b4eb45", _EDITORIAL_DISCUSSION),
+        "hadith:tirmidhi:249":
+            ("188208f2268639f9f177ab03f3dd14872c21233f730975f3f617f293c0df07cc", _EDITORIAL_DISCUSSION),
+        "hadith:tirmidhi:566":
+            ("6c9dd272a9e06f16bad2e6eb992cdb4aaee127c80f17d86a18b57ab1e8fa74cd", _EDITORIAL_DISCUSSION),
     },
 }

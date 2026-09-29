@@ -526,6 +526,10 @@ _ABUDAWUD_COMMENTARY, _ABUDAWUD_COMMENTARY_NEAR, _ABUDAWUD_HEARD = \
 # construction is exactly the one `_compiler_commentary_markers` already
 # builds, so `_TIRMIDHI_COMMENTARY`/`_TIRMIDHI_COMMENTARY_NEAR`/
 # `_TIRMIDHI_HEARD` are DERIVED from it -- kunya "أبو عيسى" -- not hand-written.
+# The genitive form ("أبي عيسى") -- the case `_compiler_commentary_markers`
+# deliberately builds no pattern for -- occurs 0 times in this file (measured
+# directly against the raw text), so there is not even a live narrator
+# reference for that absence to matter for here, unlike Abu Dawud's file.
 #
 # Two further formulas are Tirmidhi's OWN, not Abu Dawud's, and are NOT of the
 # (verb, kunya) shape at all, so no amount of widening the table above could

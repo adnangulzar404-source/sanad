@@ -1662,3 +1662,64 @@ def test_no_unaudited_near_miss_for_the_tirmidhi_compiler_marker():
         rf"(?<![{_ARABIC}])[وف]?(?:قال|سئل|سمعت)(?:\s+\S+){{0,4}}"
         rf"\s+(?:أبو|أبا)\s+عيسى(?![{_ARABIC}])")
     assert find_near_misses(_real_tirmidhi_units(), configured, sweep) == []
+
+
+# --- R-A3-24: the committed DB must match a fresh build, row for row -------
+#
+# This is the guard the fix round found missing. Task 13's `_EDITORIAL_
+# DISCUSSION` wording fix (a collection-agnostic reason string, corrected
+# from a hardcoded "Abu Dawud's own numbered remark") landed in
+# audit_lists.py, but `data/sanad-quran.db` was committed from a build run
+# BEFORE that edit -- nothing re-ran `sanad-ingest build` afterward. Five
+# records (hadith:abudawud:2225, hadith:abudawud:3099, hadith:tirmidhi:46,
+# hadith:tirmidhi:249, hadith:tirmidhi:566) shipped the OLD, factually-wrong
+# string on Tirmidhi records -- the exact user-facing misattribution the fix
+# was written to close. No existing test caught it: none asserted the
+# literal reason string.
+#
+# The CI step meant to catch exactly this drift
+# (.github/workflows/ci.yml, "Verify the committed corpus matches a fresh
+# build") calls `db.corpus_fingerprint` -- which reads `record_variants`
+# and `records_fts` -- against the SOURCE-only committed DB, which has
+# neither table. Confirmed directly: it raises `sqlite3.OperationalError:
+# no such table: record_variants` rather than comparing anything. That gate
+# has not functioned since the Stage A3 source/materialized split.
+#
+# `corpus_source_fingerprint` itself is not the gap: it covers every column
+# a source DB carries, `unscorable_reason` included (checked directly
+# against `SOURCE_FINGERPRINT_TABLES` in api/sanad/corpus/db.py -- built
+# from `_RECORD_COLS` minus only the four derived norm/hash columns, so
+# `unscorable_reason` is in scope). But a hash only ever says "something
+# differs"; this test says what, which is why it would have caught the
+# defect immediately rather than after a review asked "does the DB really
+# match the code."
+def test_the_committed_db_matches_a_fresh_build_row_for_row():
+    from pathlib import Path
+    import tempfile
+
+    from sanad_ingest.build import build_corpus
+
+    with tempfile.TemporaryDirectory() as tmp:
+        fresh_path = Path(tmp) / "fresh.db"
+        build_corpus(Path("ingest/corpus.lock.toml"), fresh_path,
+                     Path(".corpus-cache"))
+        fresh = db.connect(str(fresh_path))
+        committed = db.connect("data/sanad-quran.db")
+        fresh_rows = {r["id"]: dict(r) for r in
+                      fresh.execute("SELECT * FROM records").fetchall()}
+        committed_rows = {r["id"]: dict(r) for r in
+                          committed.execute("SELECT * FROM records").fetchall()}
+        assert set(fresh_rows) == set(committed_rows), (
+            f"record id sets differ: {set(fresh_rows) ^ set(committed_rows)}")
+        mismatches = {}
+        for rid, committed_row in committed_rows.items():
+            fresh_row = fresh_rows[rid]
+            diff = {col: (committed_row[col], fresh_row[col])
+                    for col in committed_row
+                    if committed_row[col] != fresh_row[col]}
+            if diff:
+                mismatches[rid] = diff
+        assert mismatches == {}, (
+            f"{len(mismatches)} record(s) in the committed DB do not match a "
+            f"fresh build from the same lockfile, cache and code -- the "
+            f"committed artifact is stale: {mismatches}")

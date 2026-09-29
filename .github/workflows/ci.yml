@@ -46,18 +46,32 @@ jobs:
         # The rule the fingerprint has to satisfy is in
         # `corpus.db.FINGERPRINT_TABLES`, with tests, rather than in this
         # heredoc where nothing runs it.
+        #
+        # `corpus_source_fingerprint`, not `corpus_fingerprint`: as of Stage
+        # A3 Task 4, `data/sanad-quran.db` (what `sanad-ingest build` writes
+        # and what is committed) is SOURCE-only -- no `record_variants`, no
+        # `records_fts`. `corpus_fingerprint` reads both and raises
+        # `sqlite3.OperationalError: no such table: record_variants` against
+        # this file; it needs a MATERIALIZED db (see
+        # `corpus.db.corpus_fingerprint`'s own docstring). This step used
+        # the wrong one, which meant it errored on every run rather than
+        # comparing anything -- discovered only when Task 13's fix round
+        # asked why a stale committed DB had gone unnoticed. Fixed here; see
+        # `SOURCE_FINGERPRINT_TABLES` for exactly which columns this compares
+        # (every source column `records` carries, `unscorable_reason`
+        # included).
         run: |
           sanad-ingest build --out /tmp/rebuilt.db
           python - <<'PY'
           from sanad.corpus import db
 
-          committed = db.corpus_fingerprint(db.connect("data/sanad-quran.db"))
-          rebuilt = db.corpus_fingerprint(db.connect("/tmp/rebuilt.db"))
+          committed = db.corpus_source_fingerprint(db.connect("data/sanad-quran.db"))
+          rebuilt = db.corpus_source_fingerprint(db.connect("/tmp/rebuilt.db"))
           assert committed == rebuilt, (
               f"committed corpus differs from a fresh build: "
               f"{committed} != {rebuilt}"
           )
-          print("corpus fingerprint:", committed)
+          print("corpus source fingerprint:", committed)
           PY
 
   web:

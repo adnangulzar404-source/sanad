@@ -1627,6 +1627,30 @@ UNSCORABLE: dict[str, dict[str, tuple[str, str]]] = {
         'hadith:muslim:1490-4': ("27fbf905463e3bef776c513b4a5f5da968cd4022c7337169ce3dd64d7af4ad87", _POINTER),
         # 'بمعنى حديثهما' (1 record)
         'hadith:muslim:2808-3': ("82a77373a6ea74593399f784680eea8cb7e850690823fdd6125d848618f4b0fb", _POINTER),
+        # Task-16 C0 (A2-residue): 4 more pure 'بمعنى حديث X عن Y' singletons
+        # that slipped A2's fix-round duplicate-string grouping (each is a
+        # unique string, so it never grouped with another occurrence) but are
+        # the same class as the 19 'بمعنى حديث' entries already above. No
+        # matn wording of their own -- pure back-references.
+        # 'بمعنى حديث أبي زرعة عن أبي هريرة' (1 record)
+        'hadith:muslim:1302-2': ("527d5cc6c1537fcd3de46f50ca14f1ca11188636eecf78782c0911fa708ddd92", _POINTER),
+        # 'بمعنى حديث الليث عن أيوب بن موسى' (1 record)
+        'hadith:muslim:1913-2': ("d7cd54667083bfdc3f632edf9b03641599afc8bed0c65d6f133bfa47d3280efc", _POINTER),
+        # 'بمعنى حديث معاذ عن محمد بن عمرو' (1 record)
+        'hadith:muslim:1977-8': ("776f2d382e2abbacae025d6238d6fdd3531d5103220d662b9a82cef6d70b075f", _POINTER),
+        # 'بمعنى حديث بشر بن مفضل عن أبي مسلمة' (1 record)
+        'hadith:muslim:2153-5': ("5c5ca64f2966e26e0d8a83a9026d2dd14cbd858a261328197b707fe5c2d5f62a", _POINTER),
+        # Task-16 C0: adjudicated muslim:1704-2 ('بمثل حديث مالك والشك في
+        # حديثهما جميعا في بيعها في الثالثة أو الرابعة'). Not just a pointer:
+        # it also carries a narrator's-doubt remark about which numeral
+        # (third/fourth) the parallel narrations used. Read against its own
+        # isnad (1704-2's chain is Zuhri's, distinct from 1704's Malik chain)
+        # and its parent 1704 (the full a'ma matn), the clause delivers no
+        # narrative content of its own -- it is a back-reference plus an
+        # editorial remark on how the isnad's wording was transmitted with a
+        # numeral uncertain, not a report of the Prophet's words.
+        # 'بمثل حديث مالك والشك في حديثهما جميعا في بيعها في الثالثة أو الرابعة' (1 record)
+        'hadith:muslim:1704-2': ("fe7b80297e4bfbb09b4c230aabdcd97b568ed2e1fad229c63f0f2ff21d7fa5d6", _EDITORIAL_DISCUSSION),
         # 'بنحو حديث أبي عوانة' (1 record)
         'hadith:muslim:209-3': ("82d7dc20cc94334b9c03553b1f3f9fd80a66a1f9aa46f7753b601dc673bd50d9", _POINTER),
         # 'بنحو حديث زهير' (1 record)

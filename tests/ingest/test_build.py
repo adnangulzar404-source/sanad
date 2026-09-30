@@ -1064,6 +1064,14 @@ def test_editorial_pointers_are_kept_but_never_scored(real_corpus):
     narration of their own -- so Muslim is now 882, Abu Dawud 145 and Tirmidhi
     93. Bukhari (18), Nasai (57) and Ibn Majah (1) are unchanged: the same
     six-collection sweep found none of this class in them.
+
+    Task 16 pre-Part-B cleanup, C0 (A2-residue) adds 5 more Muslim: four pure
+    "bimana hadith X 'an Y" singletons that slipped the A2 fix-round's
+    duplicate-string grouping (each is a unique string, so it never grouped
+    with a sibling occurrence) -- the same class as the 19 "bimana hadith"
+    entries the fix round already caught -- plus muslim:1704-2, adjudicated in
+    context: a back-reference carrying only a narrator's-doubt remark about a
+    transmitted numeral, no narrative content of its own. Muslim is now 887.
     """
     out, _, _ = real_corpus
     conn = db.connect(out)
@@ -1076,7 +1084,7 @@ def test_editorial_pointers_are_kept_but_never_scored(real_corpus):
     flagged_nasai = {r for r in flagged if r.startswith("hadith:nasai:")}
     flagged_ibnmajah = {r for r in flagged if r.startswith("hadith:ibnmajah:")}
     assert flagged_bukhari == set(_UNSCORABLE_IDS)
-    assert len(flagged_muslim) == 882  # A2 fix-round +132 back-reference/omission shapes
+    assert len(flagged_muslim) == 887  # A2 fix-round +132, C0 residue +5
     assert len(flagged_abudawud) == 145  # A2 fix-round +6
     assert len(flagged_tirmidhi) == 93  # A2 fix-round +13
     assert len(flagged_nasai) == 57

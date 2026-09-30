@@ -472,7 +472,11 @@ def test_the_index_holds_one_row_per_scorable_representation():
     # Muslim + 6 Abu Dawud + 13 Tirmidhi back-references/omission/isnad-scaffold
     # records now UNSCORABLE), variants unchanged (those that carry an addendum
     # keep their "full" variant), indexed -151 (each loses only its primary row).
-    assert (scorable, variants, indexed) == (38989, 5846, 44835)
+    # Task 16 pre-Part-B cleanup, C0 (A2 residue): scorable -5 (5 more Muslim
+    # back-reference singletons the fix round's grouping missed, none carrying
+    # an addendum), variants unchanged, indexed -5 (each loses only its
+    # primary row).
+    assert (scorable, variants, indexed) == (38984, 5846, 44830)
 
 
 # --- C1: nothing scorable as a hadith is wholly a Qur'anic quotation --------
@@ -615,6 +619,10 @@ def test_no_scorable_hadith_representation_is_wholly_quranic():
     zero: none of the 151 newly-unscorable pointer/back-reference/omission
     records was itself wholly Qur'anic, and none that still reaches this sweep
     is either.
+
+    Task 16 pre-Part-B cleanup, C0 (A2 residue) moves it to 38,594 (-5 more
+    Muslim primaries now UNSCORABLE; variants unchanged). The sweep is still
+    zero: none of the 5 is itself wholly Qur'anic.
     """
     conn = db.connect(DB_PATH)
     blobs = _quran_blobs(conn)
@@ -625,7 +633,7 @@ def test_no_scorable_hadith_representation_is_wholly_quranic():
     reps += [(r["record_id"], r["variant"], r["norm_standard"]) for r in conn.execute(
         "SELECT v.record_id, v.variant, v.norm_standard FROM record_variants v"
         " JOIN records r ON r.id = v.record_id")]
-    assert len(reps) == 38599, "the sweep stopped covering what it was written for"
+    assert len(reps) == 38594, "the sweep stopped covering what it was written for"
     offenders = [(rid, variant) for rid, variant, norm in reps
                  if norm.strip() and any(f" {norm} " in b for b in blobs)]
     assert offenders == []
@@ -816,13 +824,19 @@ def test_every_other_excluded_record_is_excluded_whole():
     1389/1452/2824-2; each is added to the dict. The other 143 are excluded
     whole (n=0, absent from the dict): back-references, meta-comments, omission
     notes and isnad-scaffold heads with no addendum to keep.
+
+    Task 16 pre-Part-B cleanup, C0 (A2 residue): 5 more excluded records join
+    this count (1,201 total) -- muslim:1302-2, 1913-2, 1977-8, 2153-5 (the
+    same pure "bimana hadith X 'an Y" shape) and 1704-2 (adjudicated in
+    context: a back-reference plus a narrator's-doubt remark). All 5 are
+    excluded whole (n=0, absent from the dict): none carries an addendum.
     """
     conn = db.connect(DB_PATH)
     rows = conn.execute(
         "SELECT r.id, count(v.record_id) AS n FROM records r"
         " LEFT JOIN record_variants v ON v.record_id = r.id"
         " WHERE r.unscorable_reason IS NOT NULL GROUP BY r.id").fetchall()
-    assert len(rows) == 1196
+    assert len(rows) == 1201
     assert {r["id"]: r["n"] for r in rows if r["n"]} == {
         "hadith:bukhari:237": 1,
         "hadith:muslim:1159-7": 1,
@@ -1090,6 +1104,11 @@ def test_exactly_one_hadith_representation_sits_inside_an_ayah():
     representation count to 38,599 (-151 scorable hadith primaries) without
     moving either list: none of the 151 newly-excluded back-reference/omission
     records was in the withheld or disclosed set.
+
+    Task 16 pre-Part-B cleanup, C0 (A2 residue) moves the representation count
+    to 38,594 (-5 scorable hadith primaries) without moving either list: none
+    of the 5 newly-excluded Muslim back-reference records was in the withheld
+    or disclosed set.
     """
     from sanad.verify.engine import _ayat_containing, _contains_at
     conn = db.connect(DB_PATH)
@@ -1100,7 +1119,7 @@ def test_exactly_one_hadith_representation_sits_inside_an_ayah():
         "SELECT v.record_id, v.variant, v.text_ar FROM record_variants v"
         " JOIN records r ON r.id = v.record_id WHERE r.kind = 'hadith'"
     ).fetchall()
-    assert len(reps) == 38599, len(reps)
+    assert len(reps) == 38594, len(reps)
 
     withheld, disclosed = [], []
     for rep in reps:
@@ -1170,6 +1189,15 @@ def test_muslim_record_count_and_scorability():
     carry stay as "full" variants). This also resolves the 1644-3/1532-2
     inconsistency the review flagged: 1644-3 ("bi-hadha al-isnad mithla hadith
     Abd al-Razzaq") is now UNSCORABLE alongside its class-mate 1532-2.
+
+    Task 16 pre-Part-B cleanup, C0 (A2 residue): 887 unscorable, 147 cut
+    (unchanged). 5 more pure "bimana hadith X 'an Y" back-reference singletons
+    join `UNSCORABLE["muslim"]` (882 -> 887; 6,578 -> 6,573 scorable): four
+    slipped the fix round's duplicate-string grouping because each is a
+    unique string, and the fifth (1704-2) was adjudicated in context -- a
+    back-reference plus a narrator's-doubt remark about a transmitted
+    numeral, no narrative content of its own. None carries an addendum, so
+    cut is unchanged.
     """
     conn = db.connect(DB_PATH)
     total = conn.execute(
@@ -1184,7 +1212,7 @@ def test_muslim_record_count_and_scorability():
     cut = conn.execute(
         "SELECT count(*) FROM records WHERE kind='hadith' AND collection='muslim'"
         " AND addenda_ar IS NOT NULL").fetchone()[0]
-    assert (total, scorable, unscorable, cut) == (7460, 6578, 882, 147)
+    assert (total, scorable, unscorable, cut) == (7460, 6573, 887, 147)
 
 
 def test_abudawud_record_count_and_scorability():

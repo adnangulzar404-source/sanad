@@ -958,15 +958,29 @@ def test_the_full_printed_text_with_a_correct_citation_verifies_once(conn):
     """A hadith is indexed under its primary matn AND its full printed text.
     Reference checking must see one record, not two: a record reported twice
     would read as "this also appears at Sahih al-Bukhari 10" on a match to
-    Sahih al-Bukhari 10."""
+    Sahih al-Bukhari 10.
+
+    bukhari:10's primary matn is the famous "al-muslim man salima al-muslimun
+    min lisanihi wa yadihi" hadith, byte-identical (post-A1) to bukhari:6119
+    and nasai:4996 -- a genuine three-holder tie, legitimately disclosed via
+    `also_at`. Before A1 split bukhari:10's own trailing commentary (al-Bukhari
+    giving alternate isnads) out to `addenda_ar`, that commentary made the
+    stored primary unique and `also_at` was empty; that is no longer the
+    shape of the data. The FULL printed text (matn + addenda) stays unique to
+    bukhari:10 -- its addenda is its own -- so `also_at` is still `[]` for
+    that quote; only the bare primary-matn quote ties."""
     rec = db.get_record(conn, "hadith:bukhari:10")
     assert rec.addenda_ar, "fixture assumes this record was cut"
     whole = db.get_record_variants(conn, rec.id)[0].text_ar
+    expected_also_at = {
+        rec.text_ar: ["hadith:bukhari:6119", "hadith:nasai:4996"],
+        whole: [],
+    }
     for quote in (rec.text_ar, whole):
         m = _only(verify_spans(conn, f"«{quote}» (Bukhari {rec.hadith_no})"))
         assert m.verdict is Verdict.EXACT
         assert m.record.id == rec.id
-        assert m.also_at == []
+        assert m.also_at == expected_also_at[quote]
 
 
 def test_the_full_printed_text_with_a_wrong_citation_is_flagged_once(conn):
@@ -1029,7 +1043,10 @@ def test_no_correctly_cited_hadith_is_ever_flagged_wrong_reference(conn):
     moved 5 Muslim pointer/deferral heads and A2 moved 25 more Bukhari/Muslim
     deferrals to UNSCORABLE; 32,934 - 30 = 32,904 -- reconciled here against the
     measured build), 32,753 as of the A2 fix-round (- 151 back-reference/
-    omission-shape records now UNSCORABLE: 132 Muslim, 6 Abu Dawud, 13 Tirmidhi)
+    omission-shape records now UNSCORABLE: 132 Muslim, 6 Abu Dawud, 13 Tirmidhi),
+    32,748 as of the pre-Part-B cleanup's C0 (- 5 more Muslim: the 4
+    "bimana hadith X" singletons the fix round's duplicate-string grouping
+    missed, plus 1704-2)
     --
     each quoted verbatim and cited with ITS OWN collection's name and its
     own printed number, in the Latin citation form."""
@@ -1044,7 +1061,7 @@ def test_no_correctly_cited_hadith_is_ever_flagged_wrong_reference(conn):
         if m.verdict is Verdict.WRONG_REFERENCE or m.record is None \
                 or m.record.hadith_no != r.hadith_no:
             bad.append((r.id, m.verdict, m.record.id if m.record else None))
-    assert checked == 32753, checked  # Task 15 32,934 - 30 (A1+A2, un-updated) - 151 (A2 fix-round)
+    assert checked == 32748, checked  # Task 15 32,934 - 30 (A1+A2) - 151 (A2 fix) - 5 (C0)
     assert bad == [], f"{len(bad)} regressed, e.g. {bad[:5]}"
 
 
@@ -1065,7 +1082,7 @@ def test_no_correctly_cited_hadith_is_flagged_in_the_arabic_citation_form(conn):
         if m.verdict is Verdict.WRONG_REFERENCE or m.record is None \
                 or m.record.hadith_no != r.hadith_no:
             bad.append((r.id, m.verdict, m.record.id if m.record else None))
-    assert checked == 32753, checked  # Task 15 32,934 - 30 (A1+A2, un-updated) - 151 (A2 fix-round)
+    assert checked == 32748, checked  # Task 15 32,934 - 30 (A1+A2) - 151 (A2 fix) - 5 (C0)
     assert bad == [], f"{len(bad)} regressed, e.g. {bad[:5]}"
 
 
@@ -1109,7 +1126,9 @@ def test_every_wrongly_cited_hadith_is_flagged(conn):
     UNSCORABLE -- none of them hadith 1 -- so 32,928 - 30 = 32,898, reconciled
     here against the measured build. 32,747 as of the A2 fix-round: - 151 more
     back-reference/omission records now UNSCORABLE (132 Muslim, 6 Abu Dawud,
-    13 Tirmidhi), none of them hadith 1; 32,898 - 151 = 32,747.
+    13 Tirmidhi), none of them hadith 1; 32,898 - 151 = 32,747. 32,742 as of
+    the pre-Part-B cleanup's C0: - 5 more Muslim, none of them hadith 1;
+    32,747 - 5 = 32,742.
     """
     bad = []
     checked = 0
@@ -1120,7 +1139,7 @@ def test_every_wrongly_cited_hadith_is_flagged(conn):
         checked += 1
         if m.verdict is not Verdict.WRONG_REFERENCE:
             bad.append((r.id, m.verdict))
-    assert checked == 32747, checked  # Task 15 32,928 - 30 (A1+A2, un-updated) - 151 (A2 fix-round)
+    assert checked == 32742, checked  # Task 15 32,928 - 30 (A1+A2) - 151 (A2 fix) - 5 (C0)
     assert bad == [], f"{len(bad)} not flagged, e.g. {bad[:5]}"
 
 
@@ -1152,7 +1171,8 @@ def test_every_record_cited_as_the_other_kind_is_flagged(conn):
     Muslim and A2 moved 25 Bukhari/Muslim scorable hadith to UNSCORABLE;
     39,170 - 30 = 39,140, reconciled here against the measured build). 38,989
     as of the A2 fix-round (- 151 back-reference/omission-shape hadith now
-    UNSCORABLE: 132 Muslim, 6 Abu Dawud, 13 Tirmidhi). The citation
+    UNSCORABLE: 132 Muslim, 6 Abu Dawud, 13 Tirmidhi). 38,984 as of the
+    pre-Part-B cleanup's C0 (- 5 more Muslim). The citation
     used here (always
     "Bukhari" for a hadith, regardless of the record's own collection) does
     not need to change: it is deliberately the WRONG kind of citation for
@@ -1169,7 +1189,7 @@ def test_every_record_cited_as_the_other_kind_is_flagged(conn):
         checked += 1
         if m.verdict is not Verdict.WRONG_REFERENCE or m.given_reference is None:
             bad.append((r.id, m.verdict))
-    assert checked == 38989, checked  # Task 15 39,170 - 30 (A1+A2, un-updated) - 151 (A2 fix-round)
+    assert checked == 38984, checked  # Task 15 39,170 - 30 (A1+A2) - 151 (A2 fix) - 5 (C0)
     assert bad == [], f"{len(bad)} not flagged, e.g. {bad[:5]}"
 
 

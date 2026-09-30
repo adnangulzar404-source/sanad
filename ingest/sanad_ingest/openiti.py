@@ -1224,11 +1224,122 @@ _IBNMAJAH_FORMULA = re.compile(
     rf"|(?<![{_ARABIC}])حدثنا\s+أبو\s+الحسن\s+القطان(?![{_ARABIC}])"
     rf"|(?<![{_ARABIC}])سمعت\s+محمد\s+بن\s+يزيد\s+أبا\s+عبد\s+الله(?![{_ARABIC}])")
 
+# --- al-Bukhari's own compiler commentary (Task 16 A1, ruling R-A3-18) ------
+#
+# Al-Bukhari (kunya "أبو عبد الله" -- #META# 010.AuthorNAME: "محمد بن إسماعيل
+# أبو عبدالله البخاري الجعفي") appends his OWN editorial voice after a matn
+# with no structural marker, the same R-A3-18 defect first found in Abu Dawud
+# and swept from four collections in Tasks 12-15; Bukhari and Muslim were the
+# two never swept. Verb+kunya, so DERIVED from the shared
+# `_compiler_commentary_markers` generator (kunya "أبو عبد الله"), never
+# hand-written -- the exact construction Ibn Majah's OWN compiler voice uses
+# too (Muhammad ibn Yazid's kunya is also "أبو عبد الله"): a different person,
+# a different collection, keyed separately, so no collision.
+#
+# Measured against the parsed matn_ar of all 7,129 units (the SCORED field,
+# not the joined display text):
+#   - NOMINATIVE "قال/سئل أبو عبد الله" (the `tight` marker): 90 occurrences,
+#     EVERY ONE read in context (see task-16 report) -- al-Bukhari's own
+#     post-matn gloss ("يعني ..."), grammatical/lexical explanation, corrob-
+#     orating chain ("تابعه ..."/"وزاد ..."/"قال بن عيينة ..."), or narrator
+#     identification. Not one is a narrator named Abu Abdallah delivering
+#     hadith content: the kunya is used for narrators elsewhere in this file
+#     ONLY in the genitive (isnad) or the vocative, never as a nominative
+#     "قال" subject at a matn's tail. The head before every one is a complete
+#     Prophetic/Companion matn clause.
+#   - `near` (one-token gap) and `heard` ("سمعت أبا عبد الله"): 0 each -- no
+#     record needs them; they are inert fallbacks, kept only because the
+#     shared generator builds them.
+#   - ACCUSATIVE "أبا عبد الله": 2, BOTH the vocative "يا أبا عبد الله" (363,
+#     2821 -- a Companion addressed mid-narration), genuine narrative,
+#     correctly untouched (`heard` requires a preceding "سمعت", not "يا").
+#   - GENITIVE "أبي عبد الله": 1, "عن أبي عبد الله عن قبيصة" (3263) -- a
+#     narrator in an isnad, correctly untouched (the generator builds no
+#     genitive pattern, R-A3-23).
+#
+# Two ungoverned nominatives are deliberately left in the scored matn, both
+# the same "known ceiling" R-A3-23 accepted for a bare "قلت" self-reference:
+#   - hadith:bukhari:112 "... القتل أو الفيل شك أبو عبد الله وسلط عليهم ..." --
+#     "Abu Abdallah [al-Bukhari] was uncertain [which word]", a three-word
+#     aside in the MIDDLE of the narration, not a tail; the verb is "شك", not
+#     "قال"/"سئل", so it is never matched, and this record is cut at its own
+#     genuine later "قال أبو عبد الله" tail regardless.
+#   - hadith:bukhari:2569 "... وأصح عندي قاله أبو عبد الله": al-Bukhari's own
+#     verdict closing a long block of variant-chain collation ("قال شعبة عن
+#     مغيرة ...", "وقال إسحاق ..."). The compiler's voice here is remark-FIRST
+#     ("قاله" = "he said IT", the attribution trailing the remark), so a cut
+#     anchored on it would move only "قاله أبو عبد الله" and leave the whole
+#     apparatus on the primary -- the wrong direction. The apparatus itself is
+#     introduced by narrator-attributed variant chains ("قال شعبة عن ..."),
+#     the bare "قال <name>" shape `_apply_cut_override`'s own docstring and
+#     al-Nasai's carried residue both refuse a generic fix for. Disclosed, not
+#     patched, and reported to Task 16's own residue pass -- see the report.
+#
+# One transmitter formula IS added, `_BUKHARI_FORMULA` below: al-Bukhari's
+# apparatus is often a CHAIN -- "[genuine matn] قال الفربري قال أبو جعفر [بن
+# أبي حاتم] قال أبو عبد الله ..." -- where Muhammad ibn Yusuf al-Firabri (the
+# Sahih's own primary transmitter, the same role al-Lu'lu'i plays for Abu
+# Dawud and al-Qattan for Ibn Majah, R-A3-21) relays al-Bukhari's remark. The
+# kunya marker alone cuts only at the LAST link ("قال أبو عبد الله") and
+# leaves "قال الفربري قال أبو جعفر ..." fused on the scored primary -- exactly
+# the "cut at the earliest genuine boundary, not the first a single pattern
+# finds" failure R-A3-19 warns of. Measured: it is a genuine false NEGATIVE,
+# hadith:bukhari:2322's own matn scoring 0.839 (< 0.86) against its own stored
+# text before this arm was added. "قال الفربري" occurs in matn_ar exactly 3
+# times (2322, 2343, 6132), EVERY ONE the transmitter's tail apparatus, never
+# a hadith narrator (al-Firabri is three generations past the Prophet and
+# appears in no isnad). "قال أبو جعفر" is deliberately NOT added: it occurs
+# twice in matn, once as this apparatus (2322, already reached via the earlier
+# "قال الفربري") and once (5128) as a GENUINE narrator (Abu Ja'far al-Baqir)
+# delivering hadith content -- the bare "قال <name>" hazard a generic cut is
+# refused for.
+_BUKHARI_COMMENTARY, _BUKHARI_COMMENTARY_NEAR, _BUKHARI_HEARD = \
+    _compiler_commentary_markers("أبو عبد الله")
+_BUKHARI_FORMULA = re.compile(rf"(?<![{_ARABIC}])قال\s+الفربري(?![{_ARABIC}])")
+
+# --- Muslim's own compiler commentary (Task 16 A1, ruling R-A3-18) ----------
+#
+# Muslim ibn al-Hajjaj (kunya "أبو الحسين" -- #META# 010.AuthorNAME: "مسلم بن
+# الحجاج أبو الحسين القشيري النيسابوري") interjects his own voice far less
+# often than the four Sunan compilers, and almost always by NAME ("قال مسلم"),
+# not by kunya. Measured against the parsed matn_ar of all 7,460 units:
+#   - NAME "قال مسلم" (`_MUSLIM_FORMULA`, the collection-specific `extra`
+#     arm): 24 occurrences, EVERY ONE read in context (see task-16 report) --
+#     narrator identification ("قال مسلم أبو جمرة اسمه نصر بن عمران ..."),
+#     alternate-chain note ("قال مسلم ورواه الأشجعي ..."), Muslim's own
+#     transmission note ("قال مسلم قرأت على عيسى بن حماد ..."), or his own
+#     uncertainty/correction ("قال مسلم لا أدري ...", "قال مسلم أخطأ ..."). Not
+#     one is a narrator named Muslim delivering hadith content. Anchored on the
+#     BARE "قال مسلم" with no و/ف proclitic on purpose: the one proclitic
+#     occurrence, "فقال مسلم" at hadith:muslim:404-2, sits in the MIDDLE of an
+#     isnad-critique dialogue ("قال أبو إسحاق قال أبو بكر ... فقال مسلم تريد
+#     أحفظ من سليمان فقال له أبو بكر ..."), where a cut at "فقال مسلم" would
+#     strand "قال أبو إسحاق قال أبو بكر ..." on the primary -- the same bare
+#     "قال <name>" dialogue shape a generic fix is refused for; disclosed, not
+#     cut. The lookahead "(?![ARABIC])" keeps "مسلم" a whole word (never
+#     "مسلمة"/"المسلمين"/"مسلمون").
+#   - NOMINATIVE kunya "قال أبو الحسين" (the shared generator's `tight`): 2
+#     (711, 1647-2), both "قال أبو الحسين مسلم ..." -- Muslim naming himself by
+#     kunya AND name, correcting a chain, unambiguously his own voice.
+#   - `near`/`heard`: 0 each. ACCUSATIVE/GENITIVE kunya in matn_ar: 0 each --
+#     no narrator-collision to guard against, unlike Bukhari's file.
+_MUSLIM_COMMENTARY, _MUSLIM_COMMENTARY_NEAR, _MUSLIM_HEARD = \
+    _compiler_commentary_markers("أبو الحسين")
+_MUSLIM_FORMULA = re.compile(rf"(?<![{_ARABIC}])قال\s+مسلم(?![{_ARABIC}])")
+
 
 _COMPILER_MARKERS: dict[
     str, tuple[re.Pattern[str], re.Pattern[str], re.Pattern[str],
                re.Pattern[str] | None]
 ] = {
+    # Bukhari (Task 16 A1): kunya markers PLUS al-Firabri's transmitter
+    # formula (`_BUKHARI_FORMULA`), which marks the earlier boundary of the
+    # apparatus chain the kunya alone under-cuts.
+    "bukhari": (_BUKHARI_COMMENTARY, _BUKHARI_COMMENTARY_NEAR,
+                _BUKHARI_HEARD, _BUKHARI_FORMULA),
+    # Muslim (Task 16 A1): kunya markers PLUS the "قال مسلم" name formula.
+    "muslim": (_MUSLIM_COMMENTARY, _MUSLIM_COMMENTARY_NEAR,
+               _MUSLIM_HEARD, _MUSLIM_FORMULA),
     # Byte-identical to the pre-Task-13 tuple used at Abu Dawud's own call
     # site: same three patterns, same objects, no fourth (non-kunya) formula.
     "abudawud": (_ABUDAWUD_COMMENTARY, _ABUDAWUD_COMMENTARY_NEAR,

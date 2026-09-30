@@ -17,7 +17,7 @@ FULL = Path("/tmp/bukhari.txt")   # the real download; see Task 2 Step 1
 
 # sha256 of the sorted, comma-joined ids of every record the secondary-narration
 # rule cuts. Measured, not chosen; see test_exactly_the_measured_records_are_cut.
-_CUT_ID_DIGEST = "9ab1428bd9299eaa9b6354cbf6f650589a74a790b41071085c0f0c01e9fbaae3"
+_CUT_ID_DIGEST = "5d999deae60af0b445807844e9255fbb7df75f48de6b91cef7fef9dddcdda93c"
 
 
 def _split(matn: str, record_id: str) -> tuple[str, str | None]:
@@ -296,6 +296,11 @@ def test_bab_ar_paren_imbalance_is_a_bounded_known_source_defect():
 # them inside the test written to catch them.
 _QAL = "".join(chr(c) for c in (0x0642, 0x0627, 0x0644))            # قال
 _WA_QAL = chr(0x0648) + _QAL                                        # وقال
+# Task 16 A1: al-Bukhari's own compiler voice, "qala Abu Abdallah". Built from
+# codepoints for the same reason as the others -- never retyped.
+_BUKHARI_COMPILER = _QAL + " " + "".join(chr(c) for c in (
+    0x0623, 0x0628, 0x0648, 0x20, 0x0639, 0x0628, 0x062F, 0x20,
+    0x0627, 0x0644, 0x0644, 0x0647))                                # قال أبو عبد الله
 _HADDATHANA = "".join(chr(c) for c in (0x062D, 0x062F, 0x062B, 0x0646, 0x0627))
 _HADDATHANI = "".join(chr(c) for c in (0x062D, 0x062F, 0x062B, 0x0646, 0x064A))
 
@@ -346,9 +351,16 @@ def test_secondary_narration_is_cut_out_of_the_scored_matn(full):
     Each is an "attribution + narration verb" the edition uses to append a
     further chain after the primary matn. The cut lands immediately before
     the attribution, so `addenda_ar` opens with it.
+
+    Task 16 A1: hadith 10's cut moves EARLIER. al-Bukhari prints his own
+    remark ("qala Abu Abdallah") ahead of the supporting chain "wa-qala Abu
+    Mu'awiya haddathana...", and the earliest-boundary rule (R-A3-19) now cuts
+    at that compiler remark. The supporting chain is still in the addendum
+    (asserted by the "haddathana" check below), just no longer at its head; 22
+    and 40 are unaffected and still open with their own "qala".
     """
     by_id = {u.record_id: u for u in full.units}
-    for record_id, opener in (("hadith:bukhari:10", _WA_QAL),
+    for record_id, opener in (("hadith:bukhari:10", _BUKHARI_COMPILER),
                               ("hadith:bukhari:22", _QAL),
                               ("hadith:bukhari:40", _QAL)):
         u = by_id[record_id]
@@ -390,7 +402,10 @@ def test_nothing_is_lost_when_an_addendum_is_cut_away(full):
     # whole printed matn is now the primary and there is nothing to rejoin.
     # It is checked against the raw source by
     # test_the_quranic_primary_is_never_cut instead.
-    assert checked == 391
+    # 472 after Task 16 A1: al-Bukhari's own compiler voice ("qala Abu
+    # Abdallah") and al-Firabri's transmitter formula ("qala al-Firabri") are
+    # now cut into addenda too, +81 non-suffixed cut records.
+    assert checked == 472
     assert [u.record_id for u in suffixed] == ["hadith:bukhari:4537-2"]
     # The one repeat, against the SECOND printed occurrence of its number.
     second = raw[raw.index("\n# 4537 ") + 1:]
@@ -403,7 +418,7 @@ def test_full_text_of_an_uncut_unit_is_its_matn(full):
     second copy of anything on the 6,736 units the rule never touched."""
     from sanad_ingest.openiti import full_text
     uncut = [u for u in full.units if u.addenda_ar is None]
-    assert len(uncut) == 6737   # 6736 + hadith 4575, newly on the audit list
+    assert len(uncut) == 6656   # Task 16 A1: -81, al-Bukhari/al-Firabri commentary cut
     for u in uncut:
         assert full_text(u) == u.matn_ar, u.record_id
 
@@ -425,7 +440,10 @@ def test_exactly_the_measured_records_are_cut(full):
     cut = sorted(u.record_id for u in full.units if u.addenda_ar is not None)
     # 392, not the 393 of earlier rounds: 4575 joined the do-not-cut audit,
     # because the cut left a primary matn that was verbatim Qur'an 53:9-10.
-    assert len(cut) == 392
+    # 473 after Task 16 A1: +81, al-Bukhari's compiler voice and al-Firabri's
+    # transmitter formula now cut too (see test_exactly_the_measured_records
+    # note; 473 matches the built DB's Bukhari addenda count exactly).
+    assert len(cut) == 473
     assert "hadith:bukhari:4575" not in cut
     digest = hashlib.sha256(",".join(cut).encode("utf-8")).hexdigest()
     assert digest == _CUT_ID_DIGEST
@@ -598,10 +616,18 @@ def test_a_narration_verb_with_no_chain_behind_it_is_never_a_boundary(full):
     about faith". 2943 and 3723 are the two counterexamples round 1 used to
     reject the brief's bare-verb fallback; the forward test excludes both
     without needing a special case.
+
+    Task 16 A1: 1098 and 50 now DO carry an addendum -- but not from the verb.
+    Each ends with a separate al-Bukhari lexical/theological remark ("qala Abu
+    Abdallah ...") that the compiler-commentary marker rightly cuts. The
+    narration verb is still inside the matn, exactly as before, which is the
+    property this test protects: the addendum, if any, is al-Bukhari's own
+    voice, never the verb. 2943 and 3723 carry no such remark and stay whole.
     """
     by_id = {u.record_id: u for u in full.units}
     for hadith_no in ("1098", "50", "2943", "3723"):
-        assert by_id[f"hadith:bukhari:{hadith_no}"].addenda_ar is None, hadith_no
+        addenda = by_id[f"hadith:bukhari:{hadith_no}"].addenda_ar
+        assert addenda is None or addenda.startswith(_BUKHARI_COMPILER), hadith_no
 
 
 def test_an_object_pronoun_directly_after_the_verb_is_not_a_chain():
@@ -676,10 +702,18 @@ def test_an_interleaved_continuation_is_left_whole(full):
     _MAX_ADDENDUM, and all three were read by hand. The bound is a cap on
     blast radius, not a claim about Arabic: it means a rule this simple is
     not allowed to move a kilobyte of text on its own say-so.
+
+    Task 16 A1: 2581 now carries a 101-char al-Bukhari lexical gloss ("qala
+    Abu Abdallah ...") cut off its END; the 8,140-char Hudaybiyya narration,
+    aside and all, stays whole in the matn. That is the boundary that matters
+    here -- the aside is not cut -- so the assertion allows the trailing
+    compiler remark while still forbidding a cut at the aside. 2782 and 2880
+    carry no such remark and stay whole.
     """
     by_id = {u.record_id: u for u in full.units}
     for hadith_no in ("2581", "2782", "2880"):
-        assert by_id[f"hadith:bukhari:{hadith_no}"].addenda_ar is None, hadith_no
+        addenda = by_id[f"hadith:bukhari:{hadith_no}"].addenda_ar
+        assert addenda is None or addenda.startswith(_BUKHARI_COMPILER), hadith_no
     for u in full.units:
         if u.addenda_ar is not None:
             assert len(u.addenda_ar) <= 1000, u.record_id

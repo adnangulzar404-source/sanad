@@ -1836,6 +1836,34 @@ UNSCORABLE: dict[str, dict[str, tuple[str, str]]] = {
         'hadith:muslim:142-8': ("76d549465aafab4d14b57bf519e4d1e25f316d69313db4f34eab7696205eb0e4", _POINTER),
         # 'يقول فذكر بمثله' (1 record)
         'hadith:muslim:2671-3': ("dc3f8465471a490603837d07a0bf56f2d5927537d0a458f12969d573d7b876f3", _POINTER),
+        # --- Task 16 A1: pointer/deferral remainders EXPOSED by the compiler-
+        # commentary split. Each opened with a "بهذا الإسناد"/"بمثله" deferral
+        # in the source, but escaped Task 11's 30-char audit floor because
+        # Muslim's own trailing "قال مسلم ..." biographical/variant gloss padded
+        # the total length past it -- the exact "trailing commentary padded the
+        # length" hazard [[sanad-editorial-pointer-false-exact]] and Task 12's
+        # 58 Abu Dawud records document. Now that the A1 split moves the gloss
+        # to addenda_ar, the genuine remainder stands revealed as a bare
+        # deferral with no independently-quotable narration; sha256 recomputed
+        # from the POST-SPLIT matn (parse_openiti(raw, collection="muslim")).
+        # 1532-2's "بمثله" also tripped materialize's wholly-Qur'anic gate once
+        # exposed -- it is a pointer, not scripture; the gate fires on any
+        # scorable matn whose norm collides with an ayah representation, and
+        # marking it unscorable is the correct remedy (the cut is right, the
+        # remainder is simply not a text).
+        'hadith:muslim:1532-2': ("92d5f662cd531946a72590d721c4870f84847ca45e91a1907882dd20701105de", _POINTER),
+        # 'بهذا الإسناد وقال إن أبا العباس الشاعر أخبره' -- chain deferral + an
+        # isnad detail, no matn.
+        'hadith:muslim:1159-7': ("e75db96f3f4a50edfac123077924824c872b3aae057732cc01cca29121b4f713", _DEFERRAL),
+        # 'بهذا الإسناد فأما عبد الرحمن ... وأما بن جعفر فقال قال شعبة' -- chain
+        # deferral + a narrator-wording comparison note, no matn.
+        'hadith:muslim:1238-2': ("09dde6d821139d5b477e2e4d75be490361374021bdfba8a228f478fd83346813", _DEFERRAL),
+        # 'بهذا الإسناد وحديث معمر مثل حديث يونس غير أنه قال ...' -- chain
+        # deferral + a cross-narrator wording comparison, no independent matn.
+        'hadith:muslim:1647-2': ("fb41679686838b940def6b37e80fa2431531910ec4437483a07ae22a889592d9", _DEFERRAL),
+        # 'بهذا الإسناد وقال رزيق مولى بني فزارة' -- chain deferral + a dangling
+        # attribution fragment, no matn.
+        'hadith:muslim:1855-3': ("1b08d44873f6ef75aac86c2bfaf2721b003f67097bdb37f8a991a6027298fdde", _DEFERRAL),
     },
     "abudawud": {
         # Methodology (Task 12): every matn of 30 characters or fewer was

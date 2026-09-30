@@ -267,13 +267,21 @@ def test_the_full_printed_text_of_every_cut_record_verifies():
     Task 15 (Sunan Ibn Majah): 5,618. Its 166 cut records are all scorable --
     none is also on `UNSCORABLE["ibnmajah"]` -- so every one adds to this
     count. 5,452 + 166 = 5,618.
+
+    Task 16 A1 (Bukhari + Muslim commentary split): 5,719, +101. 81 Bukhari
+    newly-cut records are all scorable. Muslim gains 25 newly-cut records, but
+    5 of them are the split-exposed pointer/deferral heads that joined
+    `UNSCORABLE["muslim"]`, so only 20 are scorable: 81 + 20 = 101. Every one
+    of the 101 verifies EXACT in both directions -- matn alone and matn +
+    addendum -- which is the whole point of the split: the genuine matn, once
+    fused with al-Bukhari's or Muslim's own commentary, is now reachable.
     """
     from sanad.verify.engine import Verdict, verify_spans
     conn = db.connect(DB_PATH)
     rows = conn.execute(
         "SELECT id, text_ar, addenda_ar FROM records"
         " WHERE addenda_ar IS NOT NULL AND unscorable_reason IS NULL").fetchall()
-    assert len(rows) == 5618  # Task 15: +166 Ibn Majah
+    assert len(rows) == 5719  # Task 16 A1: +101 Bukhari/Muslim scorable-with-addendum
     failures = []
     for row in rows:
         for quoted in (row["text_ar"], row["text_ar"] + " " + row["addenda_ar"]):
@@ -443,7 +451,10 @@ def test_the_index_holds_one_row_per_scorable_representation():
     indexed = conn.execute("SELECT count(*) FROM records_fts").fetchone()[0]
     # Task 15: scorable +4340, variants +166 (all scorable-primary cuts),
     # indexed +4506 (4340 new primaries + 166 new variant rows).
-    assert (scorable, variants, indexed) == (39170, 5740, 44910)
+    # Task 16 A1: scorable -5 (5 Muslim primaries the commentary split exposed
+    # as pointers/deferrals, now UNSCORABLE), variants +106 (81 Bukhari + 25
+    # Muslim newly-cut records), indexed +101 (+106 variant rows, -5 primaries).
+    assert (scorable, variants, indexed) == (39165, 5846, 45011)
 
 
 # --- C1: nothing scorable as a hadith is wholly a Qur'anic quotation --------
@@ -566,6 +577,15 @@ def test_no_scorable_hadith_representation_is_wholly_quranic():
     materializing Ibn Majah, and this independent, test-owned sweep confirms
     it -- none of its 4,340 scorable primaries or 166 full-text variants is
     wholly a Qur'an quotation.
+
+    Task 16 A1 (Bukhari + Muslim commentary split) moves the representation
+    count to 38,775 (+101: -5 Muslim primaries now UNSCORABLE, +106 full-text
+    variants, 81 Bukhari + 25 Muslim). The sweep is still zero -- and this is
+    the guard the whole split exists to keep honest. The Muslim split exposed
+    five short pointer/deferral heads ("bi-mithlihi" and kin) whose norm
+    collides with an ayah representation; each is on `UNSCORABLE["muslim"]`
+    (see audit_lists.py) so it never reaches this sweep, and no Bukhari or
+    Muslim primary or variant that DOES reach it is wholly Qur'anic.
     """
     conn = db.connect(DB_PATH)
     blobs = _quran_blobs(conn)
@@ -576,7 +596,7 @@ def test_no_scorable_hadith_representation_is_wholly_quranic():
     reps += [(r["record_id"], r["variant"], r["norm_standard"]) for r in conn.execute(
         "SELECT v.record_id, v.variant, v.norm_standard FROM record_variants v"
         " JOIN records r ON r.id = v.record_id")]
-    assert len(reps) == 38674, "the sweep stopped covering what it was written for"
+    assert len(reps) == 38775, "the sweep stopped covering what it was written for"
     offenders = [(rid, variant) for rid, variant, norm in reps
                  if norm.strip() and any(f" {norm} " in b for b in blobs)]
     assert offenders == []
@@ -747,15 +767,26 @@ def test_every_other_excluded_record_is_excluded_whole():
     (1,015 total) -- hadith:ibnmajah:413, `UNSCORABLE["ibnmajah"]`'s one
     entry, a bare "نحوه" pointer with nothing after it to cut, so it carries
     no addendum (n=0, not present in the dict below).
+
+    Task 16 A1: 5 more excluded records join this count (1,020 total), and all
+    five are the same shape as 237 -- a pointer/deferral primary the Muslim
+    commentary split exposed AND gave a real addendum to (1159-7, 1238-2,
+    1532-2, 1647-2, 1855-3). Each carries a second representation (n=1), added
+    to the dict below alongside Muslim's earlier 1915-3 and 546-3.
     """
     conn = db.connect(DB_PATH)
     rows = conn.execute(
         "SELECT r.id, count(v.record_id) AS n FROM records r"
         " LEFT JOIN record_variants v ON v.record_id = r.id"
         " WHERE r.unscorable_reason IS NOT NULL GROUP BY r.id").fetchall()
-    assert len(rows) == 1015
+    assert len(rows) == 1020
     assert {r["id"]: r["n"] for r in rows if r["n"]} == {
         "hadith:bukhari:237": 1,
+        "hadith:muslim:1159-7": 1,
+        "hadith:muslim:1238-2": 1,
+        "hadith:muslim:1532-2": 1,
+        "hadith:muslim:1647-2": 1,
+        "hadith:muslim:1855-3": 1,
         "hadith:muslim:1915-3": 1,
         "hadith:muslim:546-3": 1,
         "hadith:abudawud:180": 1,
@@ -989,6 +1020,14 @@ def test_exactly_one_hadith_representation_sits_inside_an_ayah():
     why the two records tie in `verify_spans` and Muslim's own full id wins
     the tie -- see `eval/cases/hadith.yaml`'s
     `hadith-muslim-quranic-primary-verifies-as-printed` case.
+
+    Task 16 A1 (Bukhari + Muslim commentary split) moves the representation
+    count to 38,775 (same +101 breakdown as
+    `test_no_scorable_hadith_representation_is_wholly_quranic`'s Task 16 note)
+    without moving either list: re-run against the fixed build, none of the
+    newly-cut Bukhari or Muslim full-text representations, and none of the 5
+    Muslim records the split newly excluded, sits inside an ayah at either
+    tier.
     """
     from sanad.verify.engine import _ayat_containing, _contains_at
     conn = db.connect(DB_PATH)
@@ -999,7 +1038,7 @@ def test_exactly_one_hadith_representation_sits_inside_an_ayah():
         "SELECT v.record_id, v.variant, v.text_ar FROM record_variants v"
         " JOIN records r ON r.id = v.record_id WHERE r.kind = 'hadith'"
     ).fetchall()
-    assert len(reps) == 38674, len(reps)
+    assert len(reps) == 38775, len(reps)
 
     withheld, disclosed = [], []
     for rep in reps:
@@ -1040,6 +1079,13 @@ def test_muslim_record_count_and_scorability():
     first measured build (Task 11), not assumed. 721 unscorable and 122 cut
     are the audit's own output: see audit_lists.py's "muslim" section and the
     task-11 report for what each of the 721 is and why.
+
+    Task 16 A1: 726 unscorable and 147 cut. Muslim's compiler-commentary
+    markers ("qala Muslim", "qala Abu al-Husayn") cut 26 records, 25 of them
+    gaining a fresh addendum (one already had one); and the split exposed 5
+    short pointer/deferral heads that joined `UNSCORABLE["muslim"]`
+    (721 -> 726), moving 5 records from scorable to unscorable (6,739 ->
+    6,734). The raw source and its lockfile pins are untouched.
     """
     conn = db.connect(DB_PATH)
     total = conn.execute(
@@ -1054,7 +1100,7 @@ def test_muslim_record_count_and_scorability():
     cut = conn.execute(
         "SELECT count(*) FROM records WHERE kind='hadith' AND collection='muslim'"
         " AND addenda_ar IS NOT NULL").fetchone()[0]
-    assert (total, scorable, unscorable, cut) == (7460, 6739, 721, 122)
+    assert (total, scorable, unscorable, cut) == (7460, 6734, 726, 147)
 
 
 def test_abudawud_record_count_and_scorability():
@@ -3027,3 +3073,89 @@ def test_ibnmajah_bare_pointer_is_unscorable():
     rec = db.get_record(conn, "hadith:ibnmajah:413")
     assert rec.text_ar_sha256 == "da5b06f32a8be960e4896498557c3a5abf0318f6aa354cf9a2f1cdff8bc7dcbe"
     assert rec.unscorable_reason is not None
+
+
+# --- Task 16 A1: Bukhari and Muslim compiler-commentary sweep (R-A3-18) ------
+#
+# The two collections never swept in Tasks 12-15. Both markers are DERIVED
+# from the shared `_compiler_commentary_markers` generator (Bukhari's kunya
+# "أبو عبد الله", Muslim's "أبو الحسين"); Bukhari also carries al-Firabri's
+# transmitter formula and Muslim the "قال مسلم" name formula. Each marker's
+# full audit is in openiti.py's own comment block above its definition.
+
+
+def _real_bukhari_units():
+    from pathlib import Path
+
+    from sanad_ingest.fetch import fetch_source
+    from sanad_ingest.lockfile import load_lockfile
+    from sanad_ingest.openiti import parse_openiti
+
+    sources = {s.id: s for s in load_lockfile(Path("ingest/corpus.lock.toml"))}
+    locked = sources["openiti-bukhari-jk000110"]
+    raw = fetch_source(locked, Path(".corpus-cache"))
+    return parse_openiti(raw, collection="bukhari").units
+
+
+def _real_muslim_units():
+    from pathlib import Path
+
+    from sanad_ingest.fetch import fetch_source
+    from sanad_ingest.lockfile import load_lockfile
+    from sanad_ingest.openiti import parse_openiti
+
+    sources = {s.id: s for s in load_lockfile(Path("ingest/corpus.lock.toml"))}
+    locked = sources["openiti-muslim-jk000109"]
+    raw = fetch_source(locked, Path(".corpus-cache"))
+    return parse_openiti(raw, collection="muslim").units
+
+
+def test_no_unaudited_near_miss_for_the_bukhari_compiler_marker():
+    """R-A3-22/23's detector for al-Bukhari's own kunya + al-Firabri's
+    transmitter formula: sweep "qala/su'ila/sami'tu <=4-token gap> Abu(a)
+    Abdallah" -- varying BOTH token gap and grammatical case -- against the
+    shipped marker set (tight/near/heard + `_BUKHARI_FORMULA`).
+
+    The single surviving flag is hadith:bukhari:2821's VOCATIVE "يا أبا عبد
+    الله" ("O Abu Abdallah") -- a Companion addressed mid-narration, genuine
+    speech, correctly NOT cut (the "heard" marker requires a preceding
+    "سمعت", not the vocative particle "يا"). Read in context; a permanent,
+    audited exception, not a gap. hadith:bukhari:6132's accusative "حدثنا أبا
+    عبد الله" is no longer a near-miss because al-Firabri's formula now matches
+    that record's apparatus, so the configured set covers it.
+    """
+    import re
+
+    from sanad_ingest.openiti import (
+        _ARABIC, _BUKHARI_COMMENTARY, _BUKHARI_COMMENTARY_NEAR,
+        _BUKHARI_FORMULA, _BUKHARI_HEARD, find_near_misses)
+
+    configured = re.compile(
+        f"{_BUKHARI_COMMENTARY.pattern}|{_BUKHARI_COMMENTARY_NEAR.pattern}"
+        f"|{_BUKHARI_HEARD.pattern}|{_BUKHARI_FORMULA.pattern}")
+    sweep = re.compile(
+        rf"(?<![{_ARABIC}])[وف]?(?:قال|سئل|سمعت)(?:\s+\S+){{0,4}}"
+        rf"\s+(?:أبو|أبا)\s+عبد\s+الله(?![{_ARABIC}])")
+    assert find_near_misses(_real_bukhari_units(), configured, sweep) == [
+        "hadith:bukhari:2821"]
+
+
+def test_no_unaudited_near_miss_for_the_muslim_compiler_marker():
+    """The same detector for Muslim's kunya ("Abu(a) al-Husayn") + the "قال
+    مسلم" name formula. Clean: every record any widening of this sweep finds
+    is already matched by the configured pattern, so `find_near_misses` has
+    nothing left to surface even at a four-token, both-case sweep.
+    """
+    import re
+
+    from sanad_ingest.openiti import (
+        _ARABIC, _MUSLIM_COMMENTARY, _MUSLIM_COMMENTARY_NEAR, _MUSLIM_FORMULA,
+        _MUSLIM_HEARD, find_near_misses)
+
+    configured = re.compile(
+        f"{_MUSLIM_COMMENTARY.pattern}|{_MUSLIM_COMMENTARY_NEAR.pattern}"
+        f"|{_MUSLIM_HEARD.pattern}|{_MUSLIM_FORMULA.pattern}")
+    sweep = re.compile(
+        rf"(?<![{_ARABIC}])[وف]?(?:قال|سئل|سمعت)(?:\s+\S+){{0,4}}"
+        rf"\s+(?:أبو|أبا)\s+الحسين(?![{_ARABIC}])")
+    assert find_near_misses(_real_muslim_units(), configured, sweep) == []

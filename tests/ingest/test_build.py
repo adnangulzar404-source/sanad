@@ -865,18 +865,24 @@ def test_no_addendum_reaches_the_primary_representation(real_corpus):
     `UNSCORABLE["ibnmajah"]` -- hadith:ibnmajah:413, that list's one entry,
     was never cut, it is a bare pointer excluded whole -- so all 166 add to
     the scorable-with-addendum count instead (5,452 + 166 = 5,618).
+
+    Task 16: A1's Bukhari+Muslim commentary split makes these 127 / 5,719 (+5
+    unscorable-with-addendum from the split-exposed Muslim pointers, +101
+    net scorable-with-addendum). A2's pointer/deferral sweep then moves
+    muslim:1669-6 from scorable to unscorable, so its addendum crosses over:
+    128 unscorable-with-addendum and 5,718 scorable-with-addendum.
     """
     out, _, _ = real_corpus
     conn = db.connect(out)
     assert conn.execute(
         "SELECT count(*) FROM records WHERE addenda_ar IS NOT NULL"
-        " AND unscorable_reason IS NOT NULL").fetchone()[0] == 127  # Task 16 A1: +5 Muslim
+        " AND unscorable_reason IS NOT NULL").fetchone()[0] == 128  # A1 +5, A2 +1 (muslim:1669-6)
     rows = conn.execute(
         "SELECT r.id, r.text_ar, r.addenda_ar, f.norm_standard,"
         "       f.norm_aggressive FROM records r"
         " JOIN records_fts f ON f.record_id = r.id AND f.variant = 'primary'"
         " WHERE r.addenda_ar IS NOT NULL").fetchall()
-    assert len(rows) == 5719  # Task 16 A1: +101 Bukhari/Muslim scorable-with-addendum
+    assert len(rows) == 5718  # A1 +101; A2 -1 (muslim:1669-6 -> unscorable-with-addendum)
     for row in rows:
         assert row["addenda_ar"] not in row["text_ar"], row["id"]
         for form in ("standard", "aggressive"):
@@ -1000,9 +1006,9 @@ def test_an_empty_scored_text_aborts_the_build():
 # The audited list, restated here independently of the parser's copy. If the
 # two ever disagree, one of them was edited without the audit being redone.
 _UNSCORABLE_IDS = frozenset(f"hadith:bukhari:{n}" for n in (
-    "127", "237", "335", "394", "549", "557", "1379", "1915", "2483", "3457",
-    "3750", "3777", "3801", "3957", "4540", "5454", "5837",
-))
+    "127", "237", "335", "394", "549", "557", "587", "1379", "1915", "2483",
+    "3457", "3750", "3777", "3801", "3957", "4540", "5454", "5837",
+))  # Task 16 A2 added 587 (the "مثله إلى قوله" partial-quote deferral)
 # Famous short matns, read in the source and ruled genuine: "war is deceit",
 # "the moon split", "a rich man's delay is oppression", "every kindness is
 # charity". They are the guard against a length heuristic creeping back in.
@@ -1040,6 +1046,10 @@ def test_editorial_pointers_are_kept_but_never_scored(real_corpus):
     Task 15 (Ibn Majah) adds its own 1: hadith:ibnmajah:413
     (`UNSCORABLE["ibnmajah"]`), a bare "نحوه" pointer -- see
     `test_ibnmajah_bare_pointer_is_unscorable`.
+
+    Task 16 A1 adds 5 Muslim (split-exposed pointer/deferral heads), then A2's
+    non-length-capped sweep adds 1 more Bukhari (587) and 24 more Muslim
+    (partial-quote deferrals), so Bukhari is now 18 and Muslim 750.
     """
     out, _, _ = real_corpus
     conn = db.connect(out)
@@ -1052,7 +1062,7 @@ def test_editorial_pointers_are_kept_but_never_scored(real_corpus):
     flagged_nasai = {r for r in flagged if r.startswith("hadith:nasai:")}
     flagged_ibnmajah = {r for r in flagged if r.startswith("hadith:ibnmajah:")}
     assert flagged_bukhari == set(_UNSCORABLE_IDS)
-    assert len(flagged_muslim) == 726  # Task 16 A1: +5 split-exposed pointers/deferrals
+    assert len(flagged_muslim) == 750  # A1 +5 split-exposed; A2 +24 pointer/deferral sweep
     assert len(flagged_abudawud) == 139
     assert len(flagged_tirmidhi) == 80
     assert len(flagged_nasai) == 57
@@ -1104,6 +1114,12 @@ def test_no_unscorable_primary_is_in_the_search_index(real_corpus):
     a trailing "and he did not mention <name>" remark off each, leaving zero
     genuine narrative content ahead of it), and both retain that remark as a
     scorable "full" addendum.
+
+    Task 16 A1 raises this to 127 (the 5 split-exposed Muslim pointers each
+    keep their addendum as a scorable "full" representation), then A2 raises it
+    to 128: muslim:1669-6, moved to UNSCORABLE by the pointer/deferral sweep,
+    keeps its A1 addendum as a "full" representation the same way -- listed in
+    ascending string order below.
     """
     out, _, _ = real_corpus
     rows = db.connect(out).execute(
@@ -1155,6 +1171,7 @@ def test_no_unscorable_primary_is_in_the_search_index(real_corpus):
          ("hadith:muslim:1238-2", "full"),
          ("hadith:muslim:1532-2", "full"),
          ("hadith:muslim:1647-2", "full"),
+         ("hadith:muslim:1669-6", "full"),
          ("hadith:muslim:1855-3", "full"),
          ("hadith:muslim:1915-3", "full"),
          ("hadith:muslim:546-3", "full"),

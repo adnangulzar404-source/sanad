@@ -840,6 +840,17 @@ UNSCORABLE: dict[str, dict[str, tuple[str, str]]] = {
             ("4b9d1fad31b2db451efc1b8da5126228579e4b4c502d598146df5dd664d6a616", _DEFERRAL),
         "hadith:bukhari:3957":
             ("ce978d7770d5c1c95852945608a5bfe28bfa168ad4fd374541dba93f42cfc4cf", _DEFERRAL),
+        # --- Task 16 A2: non-length-capped pointer/deferral sweep. ---------
+        # hadith:bukhari:587 "مثله إلى قوله وأشهد أن محمدا رسول الله" -- "the
+        # like of it, up to his saying '... and I bear witness that Muhammad
+        # is the Messenger of Allah'". A partial-quote deferral: it names WHERE
+        # the abridged version stops, delivering no narration of its own. At 38
+        # characters it escaped Task 4's 30-char audit floor purely because the
+        # endpoint phrase pads its length -- the exact hazard
+        # [[sanad-editorial-pointer-false-exact]] records. The seed case the
+        # Task 16 brief named for this sweep; the only Bukhari record it found.
+        "hadith:bukhari:587":
+            ("3590c48e6494062171e333b6fec50f92e6360312507368bc8df38df357c54352", _DEFERRAL),
         # One word standing for the whole narration, the part marker "\ 1 \"
         # following it immediately in the source.
         "hadith:bukhari:1915":
@@ -1864,6 +1875,49 @@ UNSCORABLE: dict[str, dict[str, tuple[str, str]]] = {
         # 'بهذا الإسناد وقال رزيق مولى بني فزارة' -- chain deferral + a dangling
         # attribution fragment, no matn.
         'hadith:muslim:1855-3': ("1b08d44873f6ef75aac86c2bfaf2721b003f67097bdb37f8a991a6027298fdde", _DEFERRAL),
+        # --- Task 16 A2: non-length-capped pointer/deferral sweep. ---------
+        # The partial-quote deferral class Task 16's brief named (seed
+        # muslim:450-2): a chain-pointer ("بهذا الإسناد"/"بمثله"/"نحو حديث X")
+        # followed by an endpoint locator ("إلى قوله Y"/"حتى Y"/"انتهى عند
+        # قوله Y"/"إلى قصة الشاة") and usually "ولم يذكر ما بعده" -- it names
+        # WHERE another version stops, delivering NO narration of its own. Each
+        # escaped Task 11's 30-char floor only because the endpoint phrase pads
+        # its length, the [[sanad-editorial-pointer-false-exact]] hazard.
+        # Found by three sweeps over the post-A1 matns (pointer-opener + endpoint
+        # marker; the "لم يذكر ما بعده" signature; and non-opener "وساق/فذكر ...
+        # إلى قوله" deferrals), then read ONE AT A TIME. Records that instead
+        # DELIVER wording via "وزاد Y"/"وقال فيه Y" or that OPEN with a real matn
+        # clause before deferring were ruled SCORABLE and left off (e.g. 1370-2
+        # "وزاد فمن أخفر مسلما ..."; 2052-3/2847/334-3/675-4/901-3/1370 open with
+        # genuine narration; abudawud:3967/nasai:4026 deliver via زاد/وقال) --
+        # see the Task 16 report for the full scorable/unscorable disposition.
+        # sha256 of the POST-A1-split text_ar (parse_openiti(raw,
+        # collection="muslim")); 1669-6 alone also carries an A1 addendum, so
+        # its excluded primary keeps a scorable "full" representation, like 237.
+        'hadith:muslim:183-2': ("bf775fc94fce854706886052ceba131a9cfb38b4920ca09f895c9f59392b56ba", _POINTER),
+        'hadith:muslim:185-2': ("65b6540a0eaed2c4dad2463adb947b9a7fcfbf0cadc644acdd92485c1927782d", _DEFERRAL),
+        'hadith:muslim:450-2': ("ca2655c1b365a5156ba9708879aee7f6999c2babb83742312f979df4cdb31a03", _DEFERRAL),
+        'hadith:muslim:450-4': ("8918b132c6b3560e6a6c37bc75cadac0b6d7fcf138724501d9ac8abfea5774ef", _DEFERRAL),
+        'hadith:muslim:478-2': ("8dc2a9073b8bf31cc88252962f7d873415517228f9d6a0d247556a534974d969", _DEFERRAL),
+        'hadith:muslim:535-2': ("c0aa0a8bdef963e66ac1c7eed855c478d0b92c3c82f2878333da92e51b0c53ac", _DEFERRAL),
+        'hadith:muslim:675-2': ("893993424dab42932975e422d4d9b4617c538eee64064c1dc860ac10869e8046", _DEFERRAL),
+        'hadith:muslim:945-2': ("cb0224d37d1f4d7bf8ee0a07c92ede819220a5c274dd2c8d1a99fb26a7473d92", _DEFERRAL),
+        'hadith:muslim:1534-4': ("d44c338e9e6edee62b3bd64821c37937ffec32e6f05ece6578a39c50eab6bd09", _DEFERRAL),
+        'hadith:muslim:1632-2': ("5ba317ca09342d61d2ad62182a690496aadc576ae0df5e66c74aeaa82b9cbe37", _DEFERRAL),
+        'hadith:muslim:1669-6': ("e863fec6a34a16f23343c306f591d7b588b055c0d4a4061fde994aacfdbcf0ea", _DEFERRAL),
+        'hadith:muslim:1700-2': ("4c9115715e017c0f4f3ee5f3f00c054dfbfea679bc18b3e8de6fc6a93d2bf8e0", _DEFERRAL),
+        'hadith:muslim:1781-2': ("6e8a62b1263af5a68af5f2f06f39846b52241a17c5df93c73ab6bc7b845c323d", _DEFERRAL),
+        'hadith:muslim:2033-5': ("e51995d6ff1ac8dcb19b19f4c13ea3432795c1a022d0ed7d9379699cb33f6171", _DEFERRAL),
+        'hadith:muslim:2327-5': ("97211d5648ee6e627118ea475188fba24a909d23cc13435286818554c2387118", _DEFERRAL),
+        'hadith:muslim:2435-3': ("b491ba917b06e9952298382da1f44474a2aebd5c04baf56d56c8b50ac29fbe17", _DEFERRAL),
+        'hadith:muslim:2439-2': ("cb34cf072986ffd9b7d3d4f6e500f590d72db87b63447cdd8e7f2c7a4ed52f93", _DEFERRAL),
+        'hadith:muslim:2492-2': ("c9962eedfbfee57caab5257c61333119729e1df7c4b5862e5e6aeecb02100ef9", _DEFERRAL),
+        'hadith:muslim:2605-3': ("1d2475508072e4a102c7b7d62541123694e9310671f22a3d88f30bbc28a42682", _DEFERRAL),
+        'hadith:muslim:2688-2': ("3c952cef391186c28f8a985f2e88f5705546de5b99bc2f556d1545f79f8e0336", _DEFERRAL),
+        'hadith:muslim:2835-2': ("a51995c704a0edd11687e67af7b3b6dee554c59630e455be29089d0343acff6a", _DEFERRAL),
+        'hadith:muslim:2887-2': ("7433d7995166de083878b118eeb64505253f8967c15eae1fcd2f6d50e817de80", _DEFERRAL),
+        'hadith:muslim:2888-3': ("9f5d66db2d4d1b727491e8f04518782f52fe201138ef4314bc3ad377d091b535", _POINTER),
+        'hadith:muslim:2891-3': ("cfad0e0668009fc0a43b7cc32f1f8804caa5772870ac566c99a510c6c0cfc59c", _DEFERRAL),
     },
     "abudawud": {
         # Methodology (Task 12): every matn of 30 characters or fewer was

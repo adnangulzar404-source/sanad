@@ -275,13 +275,18 @@ def test_the_full_printed_text_of_every_cut_record_verifies():
     of the 101 verifies EXACT in both directions -- matn alone and matn +
     addendum -- which is the whole point of the split: the genuine matn, once
     fused with al-Bukhari's or Muslim's own commentary, is now reachable.
+
+    Task 16 A2 (pointer/deferral sweep): 5,718, -1. muslim:1669-6, previously a
+    scorable cut record, is a pure deferral and moves to UNSCORABLE (its A1
+    addendum stays as a "full" variant); the other 24 A2 exclusions had no
+    addendum and never counted here.
     """
     from sanad.verify.engine import Verdict, verify_spans
     conn = db.connect(DB_PATH)
     rows = conn.execute(
         "SELECT id, text_ar, addenda_ar FROM records"
         " WHERE addenda_ar IS NOT NULL AND unscorable_reason IS NULL").fetchall()
-    assert len(rows) == 5719  # Task 16 A1: +101 Bukhari/Muslim scorable-with-addendum
+    assert len(rows) == 5718  # A1 +101; A2 -1 (muslim:1669-6 -> unscorable-with-addendum)
     failures = []
     for row in rows:
         for quoted in (row["text_ar"], row["text_ar"] + " " + row["addenda_ar"]):
@@ -454,7 +459,11 @@ def test_the_index_holds_one_row_per_scorable_representation():
     # Task 16 A1: scorable -5 (5 Muslim primaries the commentary split exposed
     # as pointers/deferrals, now UNSCORABLE), variants +106 (81 Bukhari + 25
     # Muslim newly-cut records), indexed +101 (+106 variant rows, -5 primaries).
-    assert (scorable, variants, indexed) == (39165, 5846, 45011)
+    # Task 16 A2 (pointer/deferral sweep): scorable -25 (1 Bukhari + 24 Muslim
+    # deferrals now UNSCORABLE), variants unchanged (24 have no addendum;
+    # muslim:1669-6 already had one and keeps its "full" variant), indexed -25
+    # (each loses only its primary row).
+    assert (scorable, variants, indexed) == (39140, 5846, 44986)
 
 
 # --- C1: nothing scorable as a hadith is wholly a Qur'anic quotation --------
@@ -586,6 +595,10 @@ def test_no_scorable_hadith_representation_is_wholly_quranic():
     collides with an ayah representation; each is on `UNSCORABLE["muslim"]`
     (see audit_lists.py) so it never reaches this sweep, and no Bukhari or
     Muslim primary or variant that DOES reach it is wholly Qur'anic.
+
+    Task 16 A2 (pointer/deferral sweep) moves the representation count to
+    38,750 (-25 scorable hadith primaries now UNSCORABLE; variants unchanged).
+    The sweep is still zero.
     """
     conn = db.connect(DB_PATH)
     blobs = _quran_blobs(conn)
@@ -596,7 +609,7 @@ def test_no_scorable_hadith_representation_is_wholly_quranic():
     reps += [(r["record_id"], r["variant"], r["norm_standard"]) for r in conn.execute(
         "SELECT v.record_id, v.variant, v.norm_standard FROM record_variants v"
         " JOIN records r ON r.id = v.record_id")]
-    assert len(reps) == 38775, "the sweep stopped covering what it was written for"
+    assert len(reps) == 38750, "the sweep stopped covering what it was written for"
     offenders = [(rid, variant) for rid, variant, norm in reps
                  if norm.strip() and any(f" {norm} " in b for b in blobs)]
     assert offenders == []
@@ -773,19 +786,26 @@ def test_every_other_excluded_record_is_excluded_whole():
     commentary split exposed AND gave a real addendum to (1159-7, 1238-2,
     1532-2, 1647-2, 1855-3). Each carries a second representation (n=1), added
     to the dict below alongside Muslim's earlier 1915-3 and 546-3.
+
+    Task 16 A2: 25 more excluded records join this count (1,045 total) -- the
+    non-length-capped pointer/deferral sweep (1 Bukhari, 24 Muslim). Only ONE
+    of the 25, muslim:1669-6, carries a second representation (its A1 addendum);
+    it is added to the dict. The other 24 are excluded whole (n=0, absent from
+    the dict): they are pure deferrals with no addendum to keep.
     """
     conn = db.connect(DB_PATH)
     rows = conn.execute(
         "SELECT r.id, count(v.record_id) AS n FROM records r"
         " LEFT JOIN record_variants v ON v.record_id = r.id"
         " WHERE r.unscorable_reason IS NOT NULL GROUP BY r.id").fetchall()
-    assert len(rows) == 1020
+    assert len(rows) == 1045
     assert {r["id"]: r["n"] for r in rows if r["n"]} == {
         "hadith:bukhari:237": 1,
         "hadith:muslim:1159-7": 1,
         "hadith:muslim:1238-2": 1,
         "hadith:muslim:1532-2": 1,
         "hadith:muslim:1647-2": 1,
+        "hadith:muslim:1669-6": 1,
         "hadith:muslim:1855-3": 1,
         "hadith:muslim:1915-3": 1,
         "hadith:muslim:546-3": 1,
@@ -1028,6 +1048,10 @@ def test_exactly_one_hadith_representation_sits_inside_an_ayah():
     newly-cut Bukhari or Muslim full-text representations, and none of the 5
     Muslim records the split newly excluded, sits inside an ayah at either
     tier.
+
+    Task 16 A2 (pointer/deferral sweep) moves the representation count to
+    38,750 (-25 scorable hadith primaries) without moving either list: none of
+    the 25 newly-excluded deferrals was in the withheld or disclosed set.
     """
     from sanad.verify.engine import _ayat_containing, _contains_at
     conn = db.connect(DB_PATH)
@@ -1038,7 +1062,7 @@ def test_exactly_one_hadith_representation_sits_inside_an_ayah():
         "SELECT v.record_id, v.variant, v.text_ar FROM record_variants v"
         " JOIN records r ON r.id = v.record_id WHERE r.kind = 'hadith'"
     ).fetchall()
-    assert len(reps) == 38775, len(reps)
+    assert len(reps) == 38750, len(reps)
 
     withheld, disclosed = [], []
     for rep in reps:
@@ -1086,6 +1110,15 @@ def test_muslim_record_count_and_scorability():
     short pointer/deferral heads that joined `UNSCORABLE["muslim"]`
     (721 -> 726), moving 5 records from scorable to unscorable (6,739 ->
     6,734). The raw source and its lockfile pins are untouched.
+
+    Task 16 A2 (non-length-capped pointer/deferral sweep): 750 unscorable, 147
+    cut (unchanged). 24 more Muslim records join `UNSCORABLE["muslim"]` --
+    partial-quote deferrals ("bi-hadha al-isnad ... ila qawlihi X wa-lam
+    yadhkur ma ba'dahu") that name where another version stops without
+    delivering narration; each escaped Task 11's 30-char floor only because
+    its endpoint phrase padded the length. 6,734 -> 6,710 scorable. cut is
+    unchanged: 23 of the 24 carry no addendum, and muslim:1669-6 already had
+    one (from A1) that it keeps as a scorable "full" variant.
     """
     conn = db.connect(DB_PATH)
     total = conn.execute(
@@ -1100,7 +1133,7 @@ def test_muslim_record_count_and_scorability():
     cut = conn.execute(
         "SELECT count(*) FROM records WHERE kind='hadith' AND collection='muslim'"
         " AND addenda_ar IS NOT NULL").fetchone()[0]
-    assert (total, scorable, unscorable, cut) == (7460, 6734, 726, 147)
+    assert (total, scorable, unscorable, cut) == (7460, 6710, 750, 147)
 
 
 def test_abudawud_record_count_and_scorability():

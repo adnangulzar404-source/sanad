@@ -19,8 +19,18 @@ jobs:
         run: ruff check api ingest eval
       - name: Unit tests
         run: pytest -v --cov=sanad --cov=sanad_ingest
+      - name: Materialize the corpus for the eval gate
+        # `eval/runner.py --db` defaults to `data/sanad-quran.db`, which
+        # since Task 4 is the committed SOURCE-only DB (no `record_variants`,
+        # no `records_fts`) -- the gate below fails with `no such table:
+        # record_variants` against it. This step derives the same
+        # materialized DB the Docker image and Vercel deploy build (see
+        # Dockerfile / vercel.json), from the committed source-only DB, with
+        # no network access. The materialized DB is a build artifact of this
+        # job only -- it is never committed (R-A3-7).
+        run: sanad-ingest materialize --in data/sanad-quran.db --out /tmp/sanad-full.db
       - name: Adversarial evaluation gate
-        run: python eval/runner.py
+        run: python eval/runner.py --db /tmp/sanad-full.db
       - name: Ask guard gate
         run: python eval/ask_runner.py
       - name: Verify the committed corpus matches a fresh build

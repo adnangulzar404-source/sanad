@@ -338,7 +338,25 @@ _HADITH_CITE_AR = re.compile(
     r"(?:\s*[:\uFF1A]\s*(?P<second>\d+))?"
 )
 
-MAX_HADITH_NO = 7124
+# Per-collection maximum `hadith_no` (R-A3-13), measured from the built DB
+# (Task 15 + task-16 progress ledger), NOT a raw `MAX(CAST(hadith_no AS
+# INTEGER))` -- two pre-existing malformed Muslim ids
+# (`hadith:muslim:291429132913`, `hadith:muslim:293429352935`, both 12-digit
+# concatenations from Task 11) would blow that up to a bogus value. They stay
+# unreachable here regardless: `_MAX_HADITH_DIGITS` below caps any parsed run
+# at 4 digits, well short of 12. A single global bound (formerly Bukhari's
+# 7124 for everyone) was safe in the permissive direction -- an over-large
+# bound only ever produced a MISS -- but is wrong once every collection is
+# live: "Sunan Ibn Majah 6000" must not resolve, since Ibn Majah's real
+# maximum is 4341.
+MAX_HADITH_NO: dict[str, int] = {
+    "bukhari": 7124,
+    "muslim": 3033,
+    "abudawud": 5274,
+    "tirmidhi": 3956,
+    "nasai": 5758,
+    "ibnmajah": 4341,
+}
 # There is no hadith 0. The upper bound was enforced from the start and the
 # lower one was not, so "Bukhari 0" parsed to hadith_no='0' -- a reference to
 # a record that cannot exist, which downstream can only ever produce a
@@ -346,20 +364,24 @@ MAX_HADITH_NO = 7124
 # citation costs a downgrade to a correct plain match, a spurious one costs a
 # false accusation of misattribution.
 MIN_HADITH_NO = 1
-# How many digits a hadith number can have, derived from the bound above
-# rather than typed, so the two cannot disagree.
-_MAX_HADITH_DIGITS = len(str(MAX_HADITH_NO))
+# How many digits a hadith number can have. Every collection's maximum above
+# happens to be 4 digits, so one length bound (the largest of the six) serves
+# all of them; a future collection with a 5-digit maximum would need this
+# derived per-collection instead, but nothing here guesses that in advance.
+_MAX_HADITH_DIGITS = len(str(max(MAX_HADITH_NO.values())))
 
 
-def _hadith_number(digits: str) -> int | None:
-    """The hadith number a run of digits names, or None if it names none.
+def _hadith_number(digits: str, collection: str) -> int | None:
+    """The hadith number a run of digits names for `collection`, or None if
+    it names none.
 
     THE DIGIT RUN IS TAKEN WHOLE. It used to be `\\d{1,4}` with no trailing
     boundary, so "Bukhari 12345" was read as a citation of hadith 1234 and a
     correctly quoted hadith beside it came back WRONG_REFERENCE -- the same
     false accusation as a book-relative citation, from a narrower trigger.
-    The upper bound hid it for exactly the numbers that happen to exceed
-    7124: "Bukhari 99999" was already declined, "Bukhari 71240" was not.
+    The upper bound hid it for exactly the numbers that happen to exceed a
+    collection's own maximum: "Bukhari 99999" was already declined, "Bukhari
+    71240" was not.
 
     Length is checked BEFORE `int()`, and that ordering is load-bearing:
     CPython refuses to convert a digit string past a few thousand characters,
@@ -375,7 +397,7 @@ def _hadith_number(digits: str) -> int | None:
     if len(significant) > _MAX_HADITH_DIGITS:
         return None
     value = int(significant) if significant else 0
-    return value if MIN_HADITH_NO <= value <= MAX_HADITH_NO else None
+    return value if MIN_HADITH_NO <= value <= MAX_HADITH_NO[collection] else None
 
 
 def _resolve_collection(name: str) -> str | None:
@@ -423,7 +445,7 @@ def _collect_hadith_citations(
         # use is not part of the text being verified, unlike the matn/ayah
         # wording itself, which this module never re-spells. `raw` still
         # preserves the untouched matched text for display/audit.
-        value = _hadith_number(m.group("number"))
+        value = _hadith_number(m.group("number"), collection)
         if value is None:
             continue  # out of range -- never falls back to a verse reading
         refs.append(HadithReference(collection, str(value), m.group(0), m.start()))

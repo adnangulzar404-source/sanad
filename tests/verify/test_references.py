@@ -657,4 +657,55 @@ def _tirmidhi_and_verse_refs():
 
 def test_nearest_reference_crosses_kinds_for_a_non_bukhari_collection():
     assert nearest_reference(_tirmidhi_and_verse_refs(), 10).collection == "tirmidhi"
+
+
+# --- R-A3-13: per-collection MAX_HADITH_NO -----------------------------------
+#
+# A single global bound (Bukhari's 7124, applied to all six collections) was
+# safe in the permissive direction only: an over-large bound produces MISSES,
+# never a false accusation. It is wrong in the other direction now that every
+# collection is live -- "Sunan Ibn Majah 6000" must not resolve, since Ibn
+# Majah's own measured maximum is 4341. Each boundary below is exercised on
+# BOTH sides: the true maximum must still resolve (a legitimate citation must
+# not be wrongly rejected by the tightening) and one past it must not.
+
+@pytest.mark.parametrize("text,collection,hadith_no", [
+    ("Sahih al-Bukhari 7124", "bukhari", "7124"),
+    ("Sahih Muslim 3033", "muslim", "3033"),
+    ("Sunan Abi Dawud 5274", "abudawud", "5274"),
+    ("Jami at-Tirmidhi 3956", "tirmidhi", "3956"),
+    ("Sunan an-Nasai 5758", "nasai", "5758"),
+    ("Sunan Ibn Majah 4341", "ibnmajah", "4341"),
+])
+def test_each_collections_measured_maximum_still_resolves(text, collection, hadith_no):
+    refs = [r for r in parse_references(text) if isinstance(r, HadithReference)]
+    assert len(refs) == 1
+    assert (refs[0].collection, refs[0].hadith_no) == (collection, hadith_no)
+
+
+@pytest.mark.parametrize("text", [
+    "Sahih al-Bukhari 7125",
+    "Sahih Muslim 3034",
+    "Sunan Abi Dawud 5275",
+    "Jami at-Tirmidhi 3957",
+    "Sunan an-Nasai 5759",
+    "Sunan Ibn Majah 4342",
+])
+def test_one_past_each_collections_measured_maximum_does_not_resolve(text):
+    assert parse_references(text) == []
+    # still recognised as a citation, not silently handed to the verifier
+    assert parse_citations(text).spans
+
+
+def test_a_number_between_two_collections_maxima_only_resolves_for_the_wider_one():
+    """4341 (Ibn Majah's own maximum) is comfortably inside Bukhari's wider
+    range too, but it must resolve ONLY against the collection actually
+    cited -- the per-collection bound must not leak into a shared global one
+    that happens to still be large enough."""
+    refs = [r for r in parse_references("Sunan Ibn Majah 4341") if isinstance(r, HadithReference)]
+    assert len(refs) == 1 and refs[0].collection == "ibnmajah"
+    # 6000 is inside Bukhari's/Nasai's range but past Ibn Majah's and Muslim's
+    assert parse_references("Sunan Ibn Majah 6000") == []
+    assert parse_references("Sahih Muslim 6000") == []
+    assert parse_references("Sahih al-Bukhari 6000")  # still resolves for Bukhari
     assert nearest_reference(_tirmidhi_and_verse_refs(), 490).surah == 112

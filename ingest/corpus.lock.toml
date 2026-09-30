@@ -244,3 +244,40 @@ license_url      = "https://github.com/OpenITI/0325AH"
 content_sha256   = "5afdd931303a85babd351afd72063cad455327b13263f16c5de2f6df5f30a4d1"
 expected_records = 5769
 modifications    = "mARkdown structural markers parsed and discarded; no text altered"
+
+# Sunan Ibn Majah (Task 15): Muhammad ibn Yazid Abu 'Abdallah al-Qazwini,
+# known by his father's name Ibn Majah, d. 273 AH (NOT the 275 this file's own
+# #META# AuthorDIED line states -- see docs/SOURCES.md for why the upstream
+# header error is recorded rather than silently corrected). Same OpenITI
+# 0275AH repo and commit as Muslim/Abu Dawud (OpenITI shards by 25-year
+# death-block, and 273 falls in that block regardless of the header's own
+# 275). NAMING TRAP: the OpenITI id token is "ibnmaja" (no final h, see `id`
+# below) but the CANONICAL COLLECTION KEY is "ibnmajah" (with the final h) --
+# intentional; getting it wrong mints record ids under a collection the
+# citation grammar, title map and scope copy don't know about.
+# numbering_scheme = "abdalbaqi": the SAME editor (Muhammad Fu'ad 'Abd
+# al-Baqi) as Muslim, but his Ibn Majah numbering is its own scheme, distinct
+# from his Muslim numbering. Annotation stage is bare "-ara1" (Muslim/Abu
+# Dawud's precedent, not Tirmidhi's ".completed" or Nasai's ".mARkdown").
+# OpenITI is the transcriber, not the licensor; the underlying work is public
+# domain by age. See docs/SOURCES.md for the full basis, including this
+# edition's unfilled #META# EdNUMBER/EdYEAR fields.
+#
+# content_sha256/expected_records: build-measured, pinned after the first
+# measured build (see the report for this task).
+[[source]]
+id               = "openiti-ibnmaja-jk000141"
+kind             = "hadith-arabic"
+collection       = "ibnmajah"
+numbering_scheme = "abdalbaqi"
+format           = "openiti-markdown"
+title            = "سنن ابن ماجه (Sunan Ibn Majah)"
+publisher        = "OpenITI (transcription); Dar al-Fikr, Beirut (edition)"
+edition          = "ed. Muhammad Fuad Abd al-Baqi; OpenITI JK000141, ara1"
+url              = "https://raw.githubusercontent.com/OpenITI/0275AH/44e1c36738a2bf5c14dafa232a6ae1891e6171cd/data/0273IbnMaja/0273IbnMaja.Sunan/0273IbnMaja.Sunan.JK000141-ara1"
+commit           = "44e1c36738a2bf5c14dafa232a6ae1891e6171cd"
+license_id       = "public-domain"
+license_url      = "https://github.com/OpenITI/0275AH"
+content_sha256   = "657694d7a863460a53339a429399b54ad0a7c4c564e53e50d847aaab401290f2"
+expected_records = 4341
+modifications    = "mARkdown structural markers parsed and discarded; no text altered"

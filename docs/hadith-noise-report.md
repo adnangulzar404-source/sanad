@@ -214,3 +214,19 @@ Records ingested: 5769 &nbsp;&nbsp; Records flagged: 6
 | `hadith:nasai:2956` | Sunan an-Nasai 2956 | `%` | U+0025 |
 | `hadith:nasai:3150` | Sunan an-Nasai 3150 | `%` | U+0025 |
 | `hadith:nasai:5758` | Sunan an-Nasai 5758 | `.` | U+002E |
+
+## Source: `openiti-ibnmaja-jk000141` (ed. Muhammad Fuad Abd al-Baqi; OpenITI JK000141, ara1)
+
+Records ingested: 4341 &nbsp;&nbsp; Records flagged: 9
+
+| Record | Citation | Characters | Codepoints |
+| --- | --- | --- | --- |
+| `hadith:ibnmajah:742` | Sunan Ibn Majah 742 | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:ibnmajah:1272` | Sunan Ibn Majah 1272 | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:ibnmajah:1711` | Sunan Ibn Majah 1711 | `13` | U+0031 U+0033 |
+| `hadith:ibnmajah:1899` | Sunan Ibn Majah 1899 | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:ibnmajah:1900` | Sunan Ibn Majah 1900 | `%(` | U+0025 U+0028 |
+| `hadith:ibnmajah:2793` | Sunan Ibn Majah 2793 | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:ibnmajah:2845` | Sunan Ibn Majah 2845 | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:ibnmajah:3457` | Sunan Ibn Majah 3457 | `%()` | U+0025 U+0028 U+0029 |
+| `hadith:ibnmajah:3757` | Sunan Ibn Majah 3757 | `%()` | U+0025 U+0028 U+0029 |

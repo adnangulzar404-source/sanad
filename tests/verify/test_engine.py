@@ -566,14 +566,23 @@ _AL_NASAI_AR = "".join(chr(c) for c in
                        (0x0627, 0x0644, 0x0646, 0x0633, 0x0627, 0x0626, 0x064A))
 _SUNAN_AL_NASAI_AR = " ".join((_SUNAN_AR, _AL_NASAI_AR))
 
+# Task 15: Sunan Ibn Majah. "sunan" reuses `_SUNAN_AR` above; "ibn majah"
+# copied from references.py's own `_IBN_AR`/`_MAJAH_HEH_AR`, never retyped:
+# "ibn" U+0627 U+0628 U+0646 (alef beh noon), "majah" (heh form)
+# U+0645 U+0627 U+062C U+0647 (meem alef jeem heh).
+_IBN_AR = "".join(chr(c) for c in (0x0627, 0x0628, 0x0646))
+_MAJAH_HEH_AR = "".join(chr(c) for c in (0x0645, 0x0627, 0x062C, 0x0647))
+_SUNAN_IBN_MAJAH_AR = " ".join((_SUNAN_AR, _IBN_AR, _MAJAH_HEH_AR))
+
 _LATIN_CITE_NAME = {"bukhari": "Bukhari", "muslim": "Muslim", "abudawud": "Abu Dawud",
-                    "tirmidhi": "Tirmidhi", "nasai": "Nasai"}
+                    "tirmidhi": "Tirmidhi", "nasai": "Nasai", "ibnmajah": "Ibn Majah"}
 _ARABIC_CITE_NAME = {
     "bukhari": _SAHIH_AL_BUKHARI_AR,
     "muslim": _SAHIH_MUSLIM_AR,
     "abudawud": _SUNAN_ABI_DAWUD_AR,
     "tirmidhi": _JAMI_AT_TIRMIDHI_AR,
     "nasai": _SUNAN_AL_NASAI_AR,
+    "ibnmajah": _SUNAN_IBN_MAJAH_AR,
 }
 
 
@@ -1015,7 +1024,8 @@ def test_no_correctly_cited_hadith_is_ever_flagged_wrong_reference(conn):
     Nasai's scorable count moves to 5,714 once two records move to
     `UNSCORABLE["nasai"]`), 28,594 as of fix round 2 (R-A3-27; Nasai's
     scorable count moves to 5,712 once two more records -- 207-2, 353 --
-    move to `UNSCORABLE["nasai"]`) --
+    move to `UNSCORABLE["nasai"]`), 32,934 as of Task 15 (+ 4,340 Ibn Majah)
+    --
     each quoted verbatim and cited with ITS OWN collection's name and its
     own printed number, in the Latin citation form."""
     bad = []
@@ -1029,7 +1039,7 @@ def test_no_correctly_cited_hadith_is_ever_flagged_wrong_reference(conn):
         if m.verdict is Verdict.WRONG_REFERENCE or m.record is None \
                 or m.record.hadith_no != r.hadith_no:
             bad.append((r.id, m.verdict, m.record.id if m.record else None))
-    assert checked == 28594, checked
+    assert checked == 32934, checked
     assert bad == [], f"{len(bad)} regressed, e.g. {bad[:5]}"
 
 
@@ -1050,7 +1060,7 @@ def test_no_correctly_cited_hadith_is_flagged_in_the_arabic_citation_form(conn):
         if m.verdict is Verdict.WRONG_REFERENCE or m.record is None \
                 or m.record.hadith_no != r.hadith_no:
             bad.append((r.id, m.verdict, m.record.id if m.record else None))
-    assert checked == 28594, checked
+    assert checked == 32934, checked
     assert bad == [], f"{len(bad)} regressed, e.g. {bad[:5]}"
 
 
@@ -1084,6 +1094,10 @@ def test_every_wrongly_cited_hadith_is_flagged(conn):
 
     28,589 as of fix round 2 (R-A3-27): Nasai's scorable count moves to
     5,712 (5,711 excluding its own hadith 1); 22,878 + 5,711 = 28,589.
+
+    32,928 as of Task 15 (Ibn Majah): adds Ibn Majah's own scorable hadith
+    minus its own hadith 1 (4,340 scorable - 1 = 4,339; 28,589 + 4,339 =
+    32,928).
     """
     bad = []
     checked = 0
@@ -1094,7 +1108,7 @@ def test_every_wrongly_cited_hadith_is_flagged(conn):
         checked += 1
         if m.verdict is not Verdict.WRONG_REFERENCE:
             bad.append((r.id, m.verdict))
-    assert checked == 28589, checked
+    assert checked == 32928, checked
     assert bad == [], f"{len(bad)} not flagged, e.g. {bad[:5]}"
 
 
@@ -1120,7 +1134,9 @@ def test_every_record_cited_as_the_other_kind_is_flagged(conn):
     34,832). 34,830 as of fix round 2 (R-A3-27): two more Nasai records
     (207-2, 353) move to `UNSCORABLE["nasai"]` once the new "لم يذكر" arm
     cuts a trailing remark off each, so Nasai's scorable count drops to
-    5,712 (29,118 + 5,712 = 34,830). The citation used here (always
+    5,712 (29,118 + 5,712 = 34,830). 39,170 as of Task 15 (Ibn Majah): adds
+    Ibn Majah's 4,340 scorable hadith (34,830 + 4,340 = 39,170). The citation
+    used here (always
     "Bukhari" for a hadith, regardless of the record's own collection) does
     not need to change: it is deliberately the WRONG kind of citation for
     every record it is
@@ -1136,7 +1152,7 @@ def test_every_record_cited_as_the_other_kind_is_flagged(conn):
         checked += 1
         if m.verdict is not Verdict.WRONG_REFERENCE or m.given_reference is None:
             bad.append((r.id, m.verdict))
-    assert checked == 34830, checked
+    assert checked == 39170, checked
     assert bad == [], f"{len(bad)} not flagged, e.g. {bad[:5]}"
 
 
@@ -1399,12 +1415,18 @@ def test_a_hadith_cited_as_a_verse_it_is_not_inside_is_still_flagged(conn):
     Task 13: Tirmidhi prints the same matn too, at hadith:tirmidhi:1675 --
     "hadith:tirmidhi:..." sorts alphabetically after "hadith:a../b../m...",
     so it joins `also_at` at the end without disturbing the tie-break winner.
+
+    Task 15: Ibn Majah prints it twice more, at hadith:ibnmajah:2833 and
+    2834 -- "hadith:ibnmajah:..." sorts between "hadith:bukhari:..." and
+    "hadith:muslim:...", so both land in the middle of `also_at` without
+    disturbing the tie-break winner either.
     """
     matn = db.get_record(conn, "hadith:bukhari:2866").text_ar
     m = _only(verify_spans(conn, f"«{matn}» (54:1)"))
     assert m.verdict is Verdict.WRONG_REFERENCE
     assert m.record.id == "hadith:abudawud:2636"
-    assert m.also_at == ["hadith:bukhari:2866", "hadith:muslim:1739",
+    assert m.also_at == ["hadith:bukhari:2866", "hadith:ibnmajah:2833",
+                          "hadith:ibnmajah:2834", "hadith:muslim:1739",
                           "hadith:muslim:1740", "hadith:tirmidhi:1675"]
 
 

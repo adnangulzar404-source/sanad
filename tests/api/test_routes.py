@@ -64,7 +64,7 @@ def client(tmp_path_factory):
 # + 5,769 Nasai narrations (Task 14).
 # Written as the sum so that a change to any one collection has to be stated,
 # not absorbed into one opaque total.
-CORPUS_RECORDS = 6236 + 7129 + 7460 + 5274 + 3976 + 5769
+CORPUS_RECORDS = 6236 + 7129 + 7460 + 5274 + 3976 + 5769 + 4341
 
 
 def test_health_reports_corpus_loaded(client):
@@ -94,8 +94,8 @@ def test_corpus_endpoint_matches_its_response_model(client):
     assert body["stats"]["records"] == CORPUS_RECORDS
     # Tanzil Arabic, Pickthall, OpenITI Bukhari, OpenITI Muslim (Task 11),
     # OpenITI Abu Dawud (Task 12), OpenITI Tirmidhi (Task 13),
-    # OpenITI Nasai (Task 14).
-    assert len(body["sources"]) == 7
+    # OpenITI Nasai (Task 14), OpenITI Ibn Majah (Task 15).
+    assert len(body["sources"]) == 8
     assert {s["kind"] for s in body["sources"]} == {
         "quran-arabic", "quran-translation", "hadith-arabic"}
     tanzil = next(s for s in body["sources"] if s["kind"] == "quran-arabic")
@@ -153,9 +153,9 @@ def test_verify_english_only_prose_returns_empty_quotations(client):
 # would still pass a substring check but not this one.
 CORPUS_SCOPE = (
     "This corpus contains the Qur'an, Sahih al-Bukhari, Sahih Muslim, Sunan "
-    "Abi Dawud, Jami at-Tirmidhi, and Sunan an-Nasai. It does not contain "
-    "any other hadith collection. Absence from this corpus does not "
-    "establish that a quotation is fabricated."
+    "Abi Dawud, Jami at-Tirmidhi, Sunan an-Nasai, and Sunan Ibn Majah. It "
+    "does not contain any other hadith collection. Absence from this "
+    "corpus does not establish that a quotation is fabricated."
 )
 
 

@@ -160,10 +160,17 @@ def test_texts_absent_from_the_corpus_really_are_absent(conn, hadith_cases):
     hadith-tirmidhi-fabricated-attribution reuses the same string again (it is
     absent from Jami at-Tirmidhi too), checking it a third time. Six as of
     Task 14: hadith-nasai-fabricated-attribution reuses the same string once
-    more (absent from Sunan an-Nasai too), checking it a fourth time.
+    more (absent from Sunan an-Nasai too), checking it a fourth time. Seven as
+    of Task 15: hadith-ibnmajah-fabricated-attribution uses a DIFFERENT
+    string ("talab al-'ilm faridatun 'ala kulli muslimin wa-muslimatin", the
+    popular seeking-knowledge paraphrase), because Ibn Majah's own file DOES
+    carry a related, differently-worded report at hadith:ibnmajah:224 (see
+    that case's own rationale) -- reusing the standard fabricated-attribution
+    string here would not have exercised the thing worth checking for this
+    collection specifically.
     """
     absent = [c for c in hadith_cases if c.expect_scope_caveat]
-    assert len(absent) == 6
+    assert len(absent) == 7
     for case in absent:
         needle = case.text.strip()
         assert needle

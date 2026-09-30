@@ -434,19 +434,31 @@
 - id: hadith-muslim-quranic-primary-verifies-as-printed
   text: 'لقد كان لكم في رسول الله أسوة حسنة'
   expect_verdict: EXACT
-  expect_record: hadith:muslim:1473
+  expect_record: hadith:ibnmajah:2073
   rationale: >-
     The Prophet's own recitation of the opening clause of Qur'an 33:21 --
     "you have in the Messenger of Allah a good example" -- reported as a
-    hadith and printed as this edition's entire matn for 1473, with the rest
-    of the ayah not quoted. It must resolve to the hadith under its own
-    number and must not be reported as, or silently folded into, the ayah:
-    MEASURED EXACT against hadith:muslim:1473 with an empty `also_at`. The
-    Muslim analogue of hadith-quranic-primary-verifies-as-printed -- the same
-    hazard class Bukhari 4575 was built to catch (memory
-    sanad-hadith-quranic-matn-hazard), now confirmed to recur exactly as
+    hadith and printed as this edition's entire matn for Muslim 1473, with
+    the rest of the ayah not quoted. It must resolve to a hadith under its
+    own number and must not be reported as, or silently folded into, the
+    ayah. The Muslim analogue of hadith-quranic-primary-verifies-as-printed
+    -- the same hazard class Bukhari 4575 was built to catch (memory
+    sanad-hadith-quranic-matn-hazard), confirmed to recur exactly as
     predicted the moment a second collection's tafsir-adjacent chapters
     entered the corpus.
+
+    `expect_record` moved from hadith:muslim:1473 to hadith:ibnmajah:2073 in
+    Task 15: Ibn Majah 2073 carries the identical clause, attributed the same
+    way (Sa'id ibn Jubayr reporting Ibn Abbas citing it while reasoning about
+    oaths of prohibition), also correctly left scorable rather than caught by
+    `_reject_wholly_quranic_representations` -- a genuine attributed
+    quotation of the Prophet's own recitation, not a tafsir chapter printing
+    the ayah it comments on. "hadith:ibnmajah:..." sorts before
+    "hadith:muslim:..." under the lowest-full-id tie-break rule, so Ibn Majah
+    2073 is now the winner and Muslim 1473 moved into `also_at` -- the same
+    kind of tie-break-winner change already proven for
+    hadith-book-relative-citation-is-not-a-misattribution above, not a new
+    mechanism.
 
 # --- R-A3-15: a common English word that is also a collection name ----------
 #
@@ -897,3 +909,125 @@
     about isnad/wording transmission, not a report of the Prophet's words,
     and MUST NOT verify as one. MEASURED NOT_FOUND at 0.297 against the
     materialised corpus.
+
+# --- Task 15: Sunan Ibn Majah -------------------------------------------------
+#
+# The same fabricated/mis-cited saying already used against the first five
+# collections, per the project's standing char-safety convention.
+
+- id: hadith-ibnmajah-famous-matn-bare
+  text: 'ما أمرتكم به فخذوه وما نهيتكم عنه فانتهوا'
+  expect_verdict: EXACT
+  expect_record: hadith:ibnmajah:1
+  rationale: >-
+    "What I have commanded you, take it; what I have forbidden you, refrain
+    from it" -- the collection's own first hadith, byte-exact from the
+    materialised database, unique in the corpus (no tie, no addendum).
+    MEASURED EXACT 1.0 against hadith:ibnmajah:1.
+- id: hadith-ibnmajah-wrong-number
+  text: 'ما أمرتكم به فخذوه وما نهيتكم عنه فانتهوا (Ibn Majah 999)'
+  expect_verdict: WRONG_REFERENCE
+  expect_record: hadith:ibnmajah:1
+  rationale: >-
+    The same genuine wording as the case above, cited under a real, different
+    Ibn Majah hadith number that is not its own. MEASURED WRONG_REFERENCE
+    against hadith:ibnmajah:1 at 1.0 -- the text is verbatim so the only thing
+    wrong is the citation. Paired with the equivalent case for each of the
+    other five collections, which case the identical defect class corpus-wide.
+- id: hadith-ibnmajah-fabricated-attribution
+  text: 'طلب العلم فريضة على كل مسلم ومسلمة'
+  expect_verdict: NOT_FOUND
+  expect_scope_caveat: true
+  rationale: >-
+    "Seeking knowledge is an obligation upon every Muslim, male and female" --
+    the popular form of a saying usually traced to Ibn Majah, and the same
+    wording already cased as absent against every other collection in this
+    corpus. Measuring it against THIS collection specifically matters more
+    than for the other five: Ibn Majah's own file DOES carry a related report
+    at hadith:ibnmajah:224 (see the case below), so this is not a blind
+    repeat of the standard fabricated-attribution probe but a genuine check
+    that the popular paraphrase and the collection's own wording are not
+    silently conflated. MEASURED NOT_FOUND at 0.371 -- the two texts differ
+    enough (no "wa-muslimah", and a different continuation) that the popular
+    form does not verify against 224 either. Absence of THIS EXACT WORDING
+    from this collection is a statement about a database, not a grading of
+    the saying, hence the scope caveat.
+- id: hadith-ibnmajah-genuine-seeking-knowledge-matn-verifies
+  text: 'طلب العلم فريضة على كل مسلم وواضع العلم عند غير أهله كمقلد الخنازير الجوهر واللؤلؤ والذهب'
+  expect_verdict: EXACT
+  expect_record: hadith:ibnmajah:224
+  rationale: >-
+    Ibn Majah's OWN wording of the seeking-knowledge hadith, byte-exact from
+    the materialised database -- "on every Muslim" (no "wa-muslimah"),
+    continuing into the simile about entrusting knowledge to someone unfit
+    for it ("like hanging jewels, pearls and gold on pigs"), not the shorter
+    popular form in the case above. Demonstrates the matcher does not
+    conflate a widely circulated paraphrase with the collection's own
+    attested text in either direction. MEASURED EXACT 1.0 against
+    hadith:ibnmajah:224.
+- id: hadith-ibnmajah-editorial-pointer-is-not-a-text
+  text: '«نحوه»'
+  expect_verdict: NOT_FOUND
+  rationale: >-
+    "nahwahu" -- "similar to it" -- the same one-word editorial back-reference
+    already cased against every prior collection, and Ibn Majah's own single
+    pointer-class record, hadith:ibnmajah:413 (UNSCORABLE["ibnmajah"]):
+    printed in place of hadith:ibnmajah:412's fuller wording two units
+    earlier. A false EXACT here would be Sanad telling a reader that a
+    one-word editorial gloss is a hadith of the Prophet. MEASURED NOT_FOUND
+    at 0.444 against the materialised corpus.
+- id: hadith-ibnmajah-genitive-narrator-namesake-is-not-cut
+  text: 'سئل بن عباس عن عبد طلق امرأته تطليقتين ثم أعتقا يتزوجها قال نعم فقيل له عمن قال قضى بذلك رسول الله صلى الله عليه وسلم قال عبد الرزاق قال عبد الله بن المبارك لقد تحمل أبو الحسن هذا صخرة عظيمة على عنقه'
+  expect_verdict: EXACT
+  expect_record: hadith:ibnmajah:2082
+  rationale: >-
+    R-A3-21's own named hazard, cased directly: this unit's isnad names "Abu
+    al-Hasan, mawla of Banu Nawfal" in the GENITIVE ("'an Abi al-Hasan ..."),
+    a narrator unrelated to al-Qattan and unreachable by the compiler-
+    commentary marker generator (which builds no genitive pattern at all);
+    the matn's own tail then names a THIRD, different "Abu al-Hasan" in the
+    NOMINATIVE ("... laqad tahammala Abu al-Hasan hadhihi sakhratan
+    'azimatan 'ala 'unuqihi", 'Abd Allah ibn al-Mubarak's own praise for Abu
+    al-Hasan's bearing of this difficult ruling) -- structurally the same
+    shape the tight kunya marker targets, but ungoverned by any verb that
+    makes HIM the speaker, so the marker correctly does not fire. MEASURED
+    EXACT 1.0 against hadith:ibnmajah:2082, the full genuine matn intact
+    with no spurious cut.
+
+# --- Step 6a: false-NEGATIVE coverage for the R-A3-21 split ------------------
+#
+# The eval gate above measures false POSITIVES only. These two cases case the
+# same false-negative direction Tasks 12/13/14's own Step 6a closed for their
+# collections: a genuine matn with a dangling-attribution tail must still
+# VERIFY, and the tail moved into `addenda_ar` must NOT itself produce a
+# false EXACT.
+
+- id: hadith-ibnmajah-tawassul-dua-now-verifies
+  text: 'ادع الله لي أن يعافيني فقال إن شئت أخرت لك وهو خير وإن شئت دعوت فقال ادعه فأمره أن يتوضأ فيحسن وضوءه ويصلي ركعتين ويدعو بهذا الدعاء اللهم إني أسألك وأتوجه إليك بمحمد نبي الرحمة يا محمد إني قد توجهت بك إلى ربي في حاجتي هذه لتقضى اللهم فشفعه في'
+  expect_verdict: EXACT
+  expect_record: hadith:ibnmajah:1385
+  rationale: >-
+    The tawassul supplication ("O Allah, I ask You and turn to You through
+    Muhammad, the Prophet of mercy ..."), byte-exact from the materialised
+    database. The formula's own "hadha hadith" arm alone cuts at "hadha",
+    leaving "qala Abu Ishaq" (the narrator introducing the grading remark
+    that follows) dangling on the genuine du'a -- the same nested-attribution
+    shape Abu Dawud/Tirmidhi/Nasai's own NEAR_MISS_CUT_OVERRIDE entries
+    correct. NEAR_MISS_CUT_OVERRIDE["ibnmajah"] moves the extra 3 tokens
+    into the addendum. Before that second cut, quoting the genuine du'a alone
+    still verified (the dangling fragment does not corrupt scoring at this
+    length), but the STORED text_ar itself carried a narrator's name that is
+    not part of the Prophet's own supplication -- the defect this override
+    closes is display/byte-exactness, not verification, and this case proves
+    it did not regress verification while fixing that. MEASURED EXACT 1.0
+    against hadith:ibnmajah:1385.
+- id: hadith-ibnmajah-grading-fragment-is-not-a-text
+  text: '«قال أبو إسحاق هذا حديث صحيح»'
+  expect_verdict: NOT_FOUND
+  rationale: >-
+    The other half of hadith:ibnmajah:1385: the narrator's own grading remark
+    ("Abu Ishaq said: this hadith is [graded positively]"), living in
+    addenda_ar after the near-miss override, quoted alone. It is a
+    classification verdict about the report's reliability, not a report of
+    the Prophet's own words, and MUST NOT verify as one. MEASURED NOT_FOUND
+    at 0.6 against the materialised corpus.

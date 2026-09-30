@@ -301,6 +301,69 @@ modifications    = "mARkdown structural markers parsed and discarded; no text al
 
 The committed `data/sanad-quran.db` now holds 35,844 records: 6,236 ayat (Tanzil Uthmani, CC BY 3.0) + 7,129 Sahih al-Bukhari hadith + 7,460 Sahih Muslim hadith + 5,274 Sunan Abi Dawud hadith + 3,976 Jami at-Tirmidhi hadith + 5,769 Sunan an-Nasai hadith (public-domain bases above). Its whole-file SHA-256 is verified at build time and printed by `sanad-ingest build`; see `README.md` for the currently-committed value and the reproducibility check. Adding this fifth collection was proven not to perturb any of the first four: the Bukhari, Muslim, Abu Dawud, and Tirmidhi record sets are byte-identical, across every stored column, before and after Task 14 — built in an isolated `git worktree add --detach` at the pre-Task-14 commit, with the shared `.venv`'s editable-install package mapping overridden (not merely assumed inert) so the "before" build actually runs the old commit's code rather than silently re-running HEAD's.
 
+## Sunan Ibn Majah: the licensing basis
+
+The sixth and final hadith collection ingested (Task 15), completing the Kutub al-Sittah alongside the Qur'an, on the same basis as the five collections above, with its own numbering-scheme distinction recorded per source rather than assumed: Muhammad Fuad Abd al-Baqi's edition numbering is `numbering_scheme = "abdalbaqi"` — the same scheme name as Sahih Muslim's, because it is the same editor's numbering convention, applied independently to a different work.
+
+### The file
+
+`data/0273IbnMaja/0273IbnMaja.Sunan/0273IbnMaja.Sunan.JK000141-ara1` in `github.com/OpenITI/0275AH`. The file's own `#META#` header records the edition:
+
+```
+010.AuthorNAME  :: محمد بن يزيد أبو عبدالله القزويني
+011.AuthorBORN  :: 207
+011.AuthorDIED  :: 275                        (AH)
+020.BookTITLE   :: سنن ابن ماجه
+040.EdEDITOR    :: محمد فؤاد عبد الباقي        (Muhammad Fuad Abd al-Baqi)
+041.EdNUMBER    :: NODATA
+043.EdPUBLISHER :: دار الفكر                   (Dar al-Fikr)
+044.EdPLACE     :: بيروت                       (Beirut)
+045.EdYEAR      :: -
+```
+
+Selected the same way the five preceding files were: the JK-prefixed curated OpenITI version, not a `Shamela*`/`ShamAY*`/`Shia*` scrape. `EdNUMBER` and `EdYEAR` are unfilled in the file's own metadata — recorded here honestly rather than papered over, the same incomplete-metadata pattern already disclosed for Abu Dawud and Tirmidhi, and shipped under the same Stage A3 relaxed-bar ruling (R-A3-1). The file is at the bare `ara1` stage, OpenITI's least-annotated markup pass (the same stage as Abu Dawud's file, one stage behind Tirmidhi's `.completed` and two behind Nasai's `.mARkdown`) — this affects only how much of OpenITI's own structural markup has been finished, not the licensing basis below.
+
+**A recorded correction, not a silent one: the file's own `011.AuthorDIED :: 275` is wrong.** Ibn Majah (Muhammad ibn Yazid Abu Abdallah al-Qazwini) died in 273 AH (887 CE) — the date given by every standard biographical source (al-Dhahabi's *Siyar A'lam al-Nubala'*, Ibn Kathir's *al-Bidaya wa'l-Nihaya*, and the consensus of later hadith-science literature). The `#META#` header's "275" is an upstream transcription error in this OpenITI file, not a genuine scholarly variant date. `corpus.lock.toml`'s own `edition` field and this document both pin 273 AH, and this paragraph exists so the discrepancy is never mistaken for an unreviewed field. The two-year error has no bearing on the public-domain basis below either way — both dates are more than a millennium in the past.
+
+### Why we may ship it — the legal basis
+
+**Basis: the work's own public-domain status.** Muhammad ibn Yazid Abu Abdallah al-Qazwini, known as Ibn Majah, died in 273 AH (887 CE) — not the file's own erroneous "275" (see above). The matn and the isnad are public domain in every jurisdiction, without qualification — the identical basis the five collections above ship on, restated here rather than assumed, because a basis recorded once is not automatically a basis for a sixth work by a sixth author.
+
+**Not an OpenITI licence grant, and the distinction is load-bearing here for exactly the reason it was for the first five collections.** OpenITI is the transcriber, not the rights holder of anything requiring a grant: what they contribute is transcription and structural markup, and a faithful mechanical transcription of a public-domain text attracts no new copyright. Their markup (mARkdown structural markers, page/volume anchors) is not carried into the corpus — the parser consumes it and discards it. Abd al-Baqi's editorial apparatus — his introductions, footnotes, and the typesetting choices of his edition — is likewise not carried into the corpus; what is ingested is matn and isnad. His **numbering** is a separate matter from his apparatus: a sequential count of units is a fact about how the edition is organized, not a copyrightable expression, and it is recorded as `numbering_scheme = "abdalbaqi"` precisely so it is never confused with the other five editions' numbering or presented as if it were.
+
+**Ibn Majah's own classical formulas are retained byte-exact as part of the canonical text, and are not exposed as a grading apparatus.** Modern authenticity gradings are copyrighted scholarly work outside this corpus's basis, exactly as for the rest of this corpus. Ibn Majah's own editorial remarks, and a transmitter's ("al-Qattan"), are a different thing: part of the primary source text itself, over a millennium old, on the same public-domain basis as the matn and isnad around them. This file is the first to carry TWO distinct editorial voices rather than one — the compiler's own ("qala Abu Abdallah [ibn Majah]", or his bare name, "bin Majah") and a transmitter's aside ("qala Abu al-Hasan [al-Qattan]") — both moved into `addenda_ar` by `_IBNMAJAH_COMMENTARY`/`_IBNMAJAH_FORMULA` on the same verb-governed rule as the five collections before it (R-A3-23: a nominative "qala" or accusative "sami'tu ... yaqul" names the speaker and is cut; a genitive "'an"/"min" names someone being spoken about and is never cut). Every genitive occurrence of both kunyas was individually confirmed to sit inside `isnad_ar`, naming a different person each time; a genitive-plus-nominative namesake collision at hadith:ibnmajah:2082 (two further, different people also named "Abu al-Hasan") was read in full and confirmed to be correctly left uncut. They are preserved, byte-exact, and still displayed as part of the record's full printed text; they are simply not scored as the matn, and Sanad never surfaces them as a grading verdict. Sanad confirms wording; it does not grade (R-A3-2).
+
+**Two further hand-audited corrections beyond the marker table itself, recorded here because they bear on what "byte-exact" means for this file specifically.** `NEVER_CUT["ibnmajah"]` keeps hadith:ibnmajah:2131 (a vow-fulfilment ruling) whole: a bare, unnamed "qala" mid-report reads exactly like the shared secondary-narration splitter's own cut signal, but here it is the primary narration's own continuation, not a second chain opening — cutting it would have stranded the Prophet's actual reply in the addendum. `UNSCORABLE["ibnmajah"]` marks hadith:ibnmajah:413 (the single word "نحوه", "similarly to it") as a bare editorial pointer to 412's fuller wording two units earlier, not an independent saying — the same phenomenon already recorded on Bukhari, Tirmidhi, and Nasai's own lists.
+
+**Attribution to OpenITI is given as credit, not as licence compliance**, on the same terms as the five entries above: recorded in `sources` with file, edition, commit and retrieval date, and shown in the provenance panel.
+
+### The pinned commit and hash
+
+```toml
+[[source]]
+id               = "openiti-ibnmaja-jk000141"
+kind             = "hadith-arabic"
+collection       = "ibnmajah"
+numbering_scheme = "abdalbaqi"
+format           = "openiti-markdown"
+title            = "سنن ابن ماجه (Sunan Ibn Majah)"
+publisher        = "OpenITI (transcription); Dar al-Fikr, Beirut (edition)"
+edition          = "ed. Muhammad Fuad Abd al-Baqi; OpenITI JK000141, ara1"
+url              = "https://raw.githubusercontent.com/OpenITI/0275AH/44e1c36738a2bf5c14dafa232a6ae1891e6171cd/data/0273IbnMaja/0273IbnMaja.Sunan/0273IbnMaja.Sunan.JK000141-ara1"
+commit           = "44e1c36738a2bf5c14dafa232a6ae1891e6171cd"
+license_id       = "public-domain"
+license_url      = "https://github.com/OpenITI/0275AH"
+content_sha256   = "657694d7a863460a53339a429399b54ad0a7c4c564e53e50d847aaab401290f2"
+expected_records = 4341
+modifications    = "mARkdown structural markers parsed and discarded; no text altered"
+```
+
+`commit` is pinned for the same reason as the five entries above: OpenITI is a live git repository whose files are re-OCRed in place. `content_sha256` covers the complete raw file, computed by the build itself (`sanad-ingest build`, measured-then-pinned per the project's build-measured-placeholder convention) and re-verified green on every subsequent build. `expected_records` (4,341) is the raw file's own count of numbered units. See `ingest/corpus.lock.toml` for the authoritative, machine-checked copy of this entry.
+
+### The built corpus
+
+The committed `data/sanad-quran.db` now holds 40,185 records — the complete Kutub al-Sittah plus the Qur'an: 6,236 ayat (Tanzil Uthmani, CC BY 3.0) + 7,129 Sahih al-Bukhari hadith + 7,460 Sahih Muslim hadith + 5,274 Sunan Abi Dawud hadith + 3,976 Jami at-Tirmidhi hadith + 5,769 Sunan an-Nasai hadith + 4,341 Sunan Ibn Majah hadith (public-domain bases above). Its whole-file SHA-256 is verified at build time and printed by `sanad-ingest build`; see `README.md` for the currently-committed value and the reproducibility check. Adding this sixth and final collection was proven not to perturb any of the first five: the Bukhari, Muslim, Abu Dawud, Tirmidhi, and Nasai record sets are byte-identical, across every stored column, before and after Task 15 — built in an isolated `git archive`-extracted copy of the pre-Task-15 commit under `python3 -S` (with `sanad_ingest.openiti.__file__` asserted to resolve into that isolated tree before trusting any digest), cross-checked against a second, independent row-level digest comparison of the committed database itself.
+
 ## Source decisions
 
 | Source | Decision | Reason |
@@ -315,6 +378,7 @@ The committed `data/sanad-quran.db` now holds 35,844 records: 6,236 ayat (Tanzil
 | OpenITI `0275AH`, JK000142 (Sunan Abi Dawud) | **Shipped** | Same basis as the two collections above: author's death (275 AH) is the public-domain basis, not any OpenITI grant; JK-prefixed curated version; per-file metadata incomplete (EdNUMBER/EdPLACE/EdYEAR unfilled) but shipped under the Stage A3 relaxed-bar ruling (R-A3-1) |
 | OpenITI `0300AH`, JK000140 (Jami at-Tirmidhi) | **Shipped** | Same basis as the three collections above: author's death (279 AH) is the public-domain basis, not any OpenITI grant; JK-prefixed curated version, uniquely at the `.completed` processing stage; per-file metadata incomplete (EdNUMBER/EdYEAR unfilled, EdPLACE/EdPUBLISHER filled) but shipped under the Stage A3 relaxed-bar ruling (R-A3-1) |
 | OpenITI `0325AH`, JK000130 (Sunan an-Nasai) | **Shipped** | Same basis as the four collections above: author's death (303 AH) is the public-domain basis, not any OpenITI grant; JK-prefixed curated version; per-file metadata fully complete (EdNUMBER/EdYEAR/EdPLACE/EdPUBLISHER all filled); file is at the `ara1.mARkdown` stage, the richest markup pass of the three this project has ingested |
+| OpenITI `0275AH`, JK000141 (Sunan Ibn Majah) | **Shipped** | Same basis as the five collections above: author's death (273 AH — the file's own `AuthorDIED :: 275` is an upstream error, corrected and disclosed) is the public-domain basis, not any OpenITI grant; JK-prefixed curated version; per-file metadata incomplete (EdNUMBER/EdYEAR unfilled, EdPLACE/EdPUBLISHER filled) but shipped under the Stage A3 relaxed-bar ruling (R-A3-1); completes the Kutub al-Sittah |
 
 ## Review checklist
 

@@ -416,7 +416,7 @@ def test_builds_hadith_records_with_matn_as_the_scored_text(real_corpus):
     out, _, _ = real_corpus
     conn = db.connect(out)
     n = conn.execute("SELECT count(*) FROM records WHERE kind='hadith'").fetchone()[0]
-    assert n == 29608  # Task 14: +5769 Nasai (7129 Bukhari + 7460 Muslim + 5274 Abu Dawud + 3976 Tirmidhi)
+    assert n == 33949  # Task 15: +4341 Ibn Majah (7129 Bukhari + 7460 Muslim + 5274 Abu Dawud + 3976 Tirmidhi + 5769 Nasai)
     row = conn.execute(
         "SELECT text_ar, isnad_ar, norm_light, norm_standard, norm_aggressive "
         "FROM records WHERE id='hadith:bukhari:1'").fetchone()
@@ -500,7 +500,7 @@ def test_every_hadith_norm_derives_from_its_matn_alone(real_corpus):
     rows = db.connect(out).execute(
         "SELECT id, text_ar, norm_light, norm_standard, norm_aggressive"
         " FROM records WHERE kind='hadith'").fetchall()
-    assert len(rows) == 29608  # Task 14: +5769 Nasai
+    assert len(rows) == 33949  # Task 15: +4341 Ibn Majah
     for row in rows:
         for form in ("light", "standard", "aggressive"):
             assert row[f"norm_{form}"] == normalize(row["text_ar"], form), row["id"]
@@ -510,7 +510,7 @@ def test_corpus_holds_both_the_quran_and_the_hadith(real_corpus):
     out, _, _ = real_corpus
     counts = dict(db.connect(out).execute(
         "SELECT kind, count(*) FROM records GROUP BY kind").fetchall())
-    assert counts == {"ayah": 6236, "hadith": 29608}  # Task 14: +5769 Nasai
+    assert counts == {"ayah": 6236, "hadith": 33949}  # Task 15: +4341 Ibn Majah
 
 
 def test_hadith_records_carry_their_collection_metadata(real_corpus):
@@ -533,15 +533,17 @@ def test_every_hadith_reference_display_is_unique(real_corpus):
     # is prefixed with the collection's own printed name ("Sahih al-Bukhari" vs
     # "Sahih Muslim"), so two different editions numbering their narrations
     # identically is not, on its own, a collision. Task 12 (Abu Dawud, prefixed
-    # "Sunan Abi Dawud") and Task 13 (Tirmidhi, prefixed "Jami at-Tirmidhi")
-    # join the same check with the same result: zero collisions, measured,
-    # not assumed to generalise from two collections to four.
+    # "Sunan Abi Dawud"), Task 13 (Tirmidhi, prefixed "Jami at-Tirmidhi"),
+    # Task 14 (Nasai, prefixed "Sunan an-Nasai"), and Task 15 (Ibn Majah,
+    # prefixed "Sunan Ibn Majah") join the same check with the same result:
+    # zero collisions, measured, not assumed to generalise from two
+    # collections to six.
     out, _, _ = real_corpus
     rows = db.connect(out).execute(
         "SELECT reference_display FROM records WHERE kind='hadith'").fetchall()
     refs = [r[0] for r in rows]
-    assert len(refs) == 29608
-    assert len(set(refs)) == 29608
+    assert len(refs) == 33949
+    assert len(set(refs)) == 33949
 
 
 def test_mukarrar_variant_is_marked_in_the_citation(real_corpus):
@@ -783,6 +785,12 @@ def test_the_appended_narrations_are_stored_but_never_scored(real_corpus):
     addendum the same way Abu Dawud's did -- see
     test_tirmidhi_record_count_and_scorability for the full account.
 
+    Task 14 (Nasai) moves this to 5,574 across two fix rounds (+274, then
+    +60/+2 Tirmidhi, then +96). Task 15 (Ibn Majah) moves it to 5,740: 166
+    cut records, its own TWO editorial voices (al-Qattan's aside, the
+    compiler's own) plus two hand-audited `NEAR_MISS_CUT_OVERRIDE` boundaries
+    -- see test_ibnmajah_record_count_and_scorability for the full account.
+
     hadith 22 is one of the three boundaries named in the fix brief: the
     primary matn ends at "...as the seed grows beside a stream", and a second
     chain ("Wuhayb said: Amr narrated to us...") follows it with a variant
@@ -797,7 +805,7 @@ def test_the_appended_narrations_are_stored_but_never_scored(real_corpus):
     conn = db.connect(out)
     n = conn.execute(
         "SELECT count(*) FROM records WHERE addenda_ar IS NOT NULL").fetchone()[0]
-    assert n == 5574  # Task 14: +274 Nasai; fix round 1 (R-A3-25): +60 Nasai, +2 Tirmidhi; fix round 2 (R-A3-27): +96 Nasai
+    assert n == 5740  # Task 15: +166 Ibn Majah
     rec = db.get_record(conn, "hadith:bukhari:22")
     assert rec.addenda_ar and _HADDATHANA in rec.addenda_ar
     assert _HADDATHANA not in rec.text_ar
@@ -851,18 +859,24 @@ def test_no_addendum_reaches_the_primary_representation(real_corpus):
     unscorable-with-addendum count rises by exactly 64 (41 + 64 = 105); the
     remaining 3,691 new Tirmidhi cut records are scorable, so the
     scorable-with-addendum count rises by 3,691 (1,346 + 3,691 = 5,037).
+
+    122 unscorable-with-addendum (unchanged) and 5,618 scorable-with-addendum
+    after Task 15 (Ibn Majah): none of its 166 cut records is also on
+    `UNSCORABLE["ibnmajah"]` -- hadith:ibnmajah:413, that list's one entry,
+    was never cut, it is a bare pointer excluded whole -- so all 166 add to
+    the scorable-with-addendum count instead (5,452 + 166 = 5,618).
     """
     out, _, _ = real_corpus
     conn = db.connect(out)
     assert conn.execute(
         "SELECT count(*) FROM records WHERE addenda_ar IS NOT NULL"
-        " AND unscorable_reason IS NOT NULL").fetchone()[0] == 122  # +6 Nasai; fix round 1: +7 Nasai, +2 Tirmidhi; fix round 2 (R-A3-27): +2 Nasai (207-2, 353)
+        " AND unscorable_reason IS NOT NULL").fetchone()[0] == 122  # Task 15: +0 Ibn Majah
     rows = conn.execute(
         "SELECT r.id, r.text_ar, r.addenda_ar, f.norm_standard,"
         "       f.norm_aggressive FROM records r"
         " JOIN records_fts f ON f.record_id = r.id AND f.variant = 'primary'"
         " WHERE r.addenda_ar IS NOT NULL").fetchall()
-    assert len(rows) == 5452  # Task 14: +268 Nasai; fix round 1 (R-A3-25): +53 Nasai; fix round 2 (R-A3-27): +94 Nasai
+    assert len(rows) == 5618  # Task 15: +166 Ibn Majah
     for row in rows:
         assert row["addenda_ar"] not in row["text_ar"], row["id"]
         for form in ("standard", "aggressive"):
@@ -882,6 +896,9 @@ def test_the_full_printed_text_is_scored_alongside_the_primary(real_corpus):
 
     5,142 after Task 13 (Tirmidhi): every one of its 3,755 cut records gets
     the same second representation, no exceptions.
+
+    5,740 after Task 15 (Ibn Majah): its 166 cut records get the same second
+    representation too, no exceptions (5,574 + 166 = 5,740).
     """
     out, _, _ = real_corpus
     conn = db.connect(out)
@@ -891,7 +908,7 @@ def test_the_full_printed_text_is_scored_alongside_the_primary(real_corpus):
         "       v.norm_aggressive FROM records r"
         " LEFT JOIN record_variants v ON v.record_id = r.id"
         " WHERE r.addenda_ar IS NOT NULL").fetchall()
-    assert len(rows) == 5574  # Task 14: +274 Nasai; fix round 1 (R-A3-25): +60 Nasai, +2 Tirmidhi; fix round 2 (R-A3-27): +96 Nasai
+    assert len(rows) == 5740  # Task 15: +166 Ibn Majah
     checked = 0
     for row in rows:
         # 237 (and Task 11's Muslim 1915-3, 546-3, and fix round 1's 41
@@ -903,7 +920,7 @@ def test_the_full_printed_text_is_scored_alongside_the_primary(real_corpus):
         for form in ("light", "standard", "aggressive"):
             assert row[f"norm_{form}"] == normalize(row["whole"], form), row["id"]
         checked += 1
-    assert checked == 5574  # Task 14: +274 Nasai; fix round 1 (R-A3-25): +60 Nasai, +2 Tirmidhi; fix round 2 (R-A3-27): +96 Nasai
+    assert checked == 5740  # Task 15: +166 Ibn Majah
 
 
 def test_a_record_with_no_addendum_has_no_second_representation(real_corpus):
@@ -1019,6 +1036,10 @@ def test_editorial_pointers_are_kept_but_never_scored(real_corpus):
     Task 14 (Nasai) adds 53. Fix round 1 (R-A3-25) adds 2 more (1738, 3492).
     Fix round 2 (R-A3-27) adds 2 more still (207-2, 353, `_CHAIN_LEAK`): see
     `test_nasai_record_count_and_scorability`'s fix-round note for why.
+
+    Task 15 (Ibn Majah) adds its own 1: hadith:ibnmajah:413
+    (`UNSCORABLE["ibnmajah"]`), a bare "نحوه" pointer -- see
+    `test_ibnmajah_bare_pointer_is_unscorable`.
     """
     out, _, _ = real_corpus
     conn = db.connect(out)
@@ -1029,13 +1050,15 @@ def test_editorial_pointers_are_kept_but_never_scored(real_corpus):
     flagged_abudawud = {r for r in flagged if r.startswith("hadith:abudawud:")}
     flagged_tirmidhi = {r for r in flagged if r.startswith("hadith:tirmidhi:")}
     flagged_nasai = {r for r in flagged if r.startswith("hadith:nasai:")}
+    flagged_ibnmajah = {r for r in flagged if r.startswith("hadith:ibnmajah:")}
     assert flagged_bukhari == set(_UNSCORABLE_IDS)
     assert len(flagged_muslim) == 721
     assert len(flagged_abudawud) == 139
     assert len(flagged_tirmidhi) == 80
     assert len(flagged_nasai) == 57
+    assert flagged_ibnmajah == {"hadith:ibnmajah:413"}
     assert flagged == (flagged_bukhari | flagged_muslim | flagged_abudawud
-                        | flagged_tirmidhi | flagged_nasai)
+                        | flagged_tirmidhi | flagged_nasai | flagged_ibnmajah)
     for record_id in sorted(_UNSCORABLE_IDS):
         rec = db.get_record(conn, record_id)
         # Nothing is deleted: the record stays, keeps its citation, and keeps

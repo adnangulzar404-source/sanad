@@ -66,7 +66,24 @@ _TIRMIDHI_PAGE_XREF_UNIT = (
 # which requires the "~~" that marks a genuine continuation.
 _TIRMIDHI_PAGE_XREF = re.compile(
     rf"(PageV\d+P\d+)(?!\d)(?:{_TIRMIDHI_PAGE_XREF_UNIT}){{1,2}}")
-_MILESTONE = re.compile(r"ms\d{4}")
+# Ibn Majah (Task 15): milestones in this file are THREE digits ("ms001" ..
+# "ms879"), not the four ("ms0007", "ms0293", ...) every previously-shipped
+# collection's cached file uses exclusively (measured: Bukhari/Muslim/
+# Abu Dawud/Tirmidhi/Nasai are 100% 4-digit, 0% any other width; Ibn Majah is
+# 100% 3-digit, 0% 4-digit). `ms\d{4}` -- hardcoded from the first file this
+# parser ever saw -- therefore never matches a single one of Ibn Majah's 879
+# milestones, and 418 of its 4,341 records carry a literal, unstripped
+# "msNNN" token inside their SCORED text_ar as a direct result (measured
+# against a parse with no other change) -- exactly the structural-markup-
+# leaking-into-canonical-text hazard this module's own docstring says a
+# docs-only parser would produce, now reproduced by a width assumption
+# instead. Widened to `\d+` (any digit run), which is a strict superset for
+# every already-shipped file: each one's milestones are already followed by
+# a non-digit boundary, so `\d+`'s greedy match consumes exactly the same
+# four digits `\d{4}` did and stops there -- re-verified by a full
+# byte-identical rebuild of Bukhari/Muslim/Abu Dawud/Tirmidhi/Nasai after
+# this change (see the ingest report for this task).
+_MILESTONE = re.compile(r"ms\d+")
 _PART = re.compile(r"\\\s*\d+\s*\\")          # the "\ 1 \" part marker
 _QURAN_MARK = re.compile(r"@QB@|@QE@")        # markers go, quoted words stay
 _SECTION = re.compile(r"^###")                # ### | , ### || , ### |||
@@ -653,6 +670,38 @@ def _strip_reference_numbers(matn: str) -> str:
     return stripped if stripped else matn
 
 
+def _strip_stray_asterisk(matn: str) -> str:
+    """Remove a literal "*" left in a (post-split) PRIMARY matn -- Ibn Majah
+    only, run last, same call-site convention as `_strip_reference_numbers`.
+
+    The "*" that opens `flush()`'s OWN isnad/matn split (`rest.split("*", 1)`)
+    is always consumed there and never reaches this far. What this strips is
+    a SECOND, nested "*" -- the edition's own compressed-repeat convention
+    ("... 'an al-nabi ... * bi-nahwih", a second isnad printed inline, its own
+    matn abbreviated to a bare pointer) -- which ordinarily lands in the
+    addendum as a harmless side effect of `_split_secondary`'s cut landing
+    before it, not because anything strips it. `hadith:ibnmajah:2131` is the
+    one record (measured) where `NEVER_CUT["ibnmajah"]` keeps the WHOLE unit,
+    nested "*" included, because the alternative -- letting `_split_secondary`
+    cut at the bare "qala" it mistakes for this second chain's own opening --
+    discards the primary narration's genuine punchline (see that entry's own
+    comment). Ibn Majah is the only collection today where `NEVER_CUT` can
+    retain a second "*": Bukhari's three `NEVER_CUT` entries measure zero
+    (their addenda hold no nested repeat at all), so this is not a hook a
+    future collection's own NEVER_CUT entries can assume -- each must be
+    checked afresh, the same as every other guard in this file.
+
+    Muslim's own file independently carries a literal "*" in three matns and
+    Tirmidhi's in one addendum -- pre-existing in BASE, unrelated to this
+    fix, and OUT OF SCOPE here: fixing them would touch `_clean()`, which
+    every one of the five prior collections' byte-identity proof depends on
+    staying untouched. Flagged for a future, dedicated round instead of
+    silently folded into this one.
+    """
+    stripped = " ".join(matn.replace("*", " ").split())
+    return stripped if stripped else matn
+
+
 # --- Nasai's own compiler commentary (Task 14, ruling R-A3-20) ------------
 #
 # Al-Nasai (kunya "أبو عبد الرحمن") appends his own voice after a matn --
@@ -990,6 +1039,191 @@ _NASAI_FORMULA = re.compile(
     rf"|(?<![{_ARABIC}])[وف]?اللفظ\s+ل"
     rf"|(?<![{_ARABIC}])غير\s+محفوظ(?![{_ARABIC}])")
 
+# --- Ibn Majah's compiler AND transmitter commentary (Task 15, R-A3-21) ----
+#
+# TWO voices, not one, need splitting out of this file -- the brief's own
+# inventory measured only the transmitter's. Ibn Majah's own remark is a
+# DIFFERENT defect the inventory never checked for.
+#
+# 1. Abu al-Hasan (ibn Salama) al-Qattan -- the Sunan's primary TRANSMITTER
+#    from Ibn Majah (the same role Abu Ali al-Lu'lu'i plays for Abu Dawud) --
+#    remarks after a matn to record an ALTERNATE chain for the same report
+#    ("... قال أبو الحسن [بن سلمة/القطان] حدثنا/ثنا/أخبرنا ... فذكر نحوه
+#    [بإسناده]", "he mentioned it similarly, with this chain"). Kunya "أبو
+#    الحسن", derived from `_compiler_commentary_markers`, not hand-written.
+#    Measured wrap-tolerant (the raw, naive count undercounts for the same
+#    "~~" line-wrap reason Nasai's did -- see Task 14's own R-A3-25/26 -- so
+#    every count here is read from the PARSED, already-joined unit text, not
+#    a bare `grep`): nominative 40 (33 immediately after قال/سئل, the
+#    brief's own count; 7 recovered only by reading across a wrap), of which
+#    4 (321, 413, 596, 649) sit entirely inside `isnad_ar` -- this record's
+#    own "*" boundary falls AFTER the remark, so it is carried as part of
+#    the NEXT report's isnad and never reaches scored text_ar by placement
+#    alone, the same structural luck that protects Abu Dawud's genitive --
+#    and 2 are not governed by قال/سئل at all (2082 "لقد تحمل أبو الحسن هذا
+#    صخرة عظيمة على عنقه", praise for HIS OWN hadith-bearing, no verb;
+#    3458 "حدثنا أبو الحسن القطان ...", see `_IBNMAJAH_FORMULA` below). The
+#    remaining 34 are read individually and are every one a clean
+#    alternate-chain remark. Accusative 2, both "سمعت أبا الحسن [الطنافسي]
+#    يقول" -- 2051 names a DIFFERENT Abu al-Hasan (Ali ibn Muhammad
+#    al-Tanafisi, one of Ibn Majah's own teachers, not al-Qattan); still
+#    correctly cut, since the rule targets "someone's reported remark fused
+#    onto the matn", not "specifically al-Qattan's remark". Genitive 4, all
+#    inside `isnad_ar`, all a DIFFERENT narrator ("... مولى بني نوفل", "X ibن
+#    أبي الحسن" twice, "الحسن بن أبي الحسن البراد") -- never reachable
+#    regardless, both because `_compiler_commentary_markers` builds no
+#    genitive pattern at all (see its own docstring) and because isnad_ar is
+#    never scored -- checked individually per record, not assumed from Abu
+#    Dawud's precedent.
+#
+# 2. Ibn Majah's OWN voice -- Muhammad ibn Yazid, kunya "Abu 'Abdallah"
+#    (#META# 010.AuthorNAME: "محمد بن يزيد أبو عبدالله القزويني") -- grading
+#    and attribution remarks ("هذا حديث غريب", "لم يحدث به إلا ...", word
+#    glosses). This is the "OTHER editorial formula" the brief asked to be
+#    measured for: its own inventory checked only "قال أبو عبد الرحمن"
+#    (al-Nasai's kunya, to rule out a collision) and never checked Ibn
+#    Majah's OWN kunya, which happens to share its first word with
+#    al-Nasai's ("أبو عبد ...") but is a different person and a different
+#    defect -- the COMPILER's own voice, not a narrator collision. Reached
+#    two ways: his kunya ("قال أبو عبد الله[ بن ماجة]", nominative 29 raw --
+#    19 immediately after قال, 7 of those explicitly followed by "بن
+#    ماجة"/"يعني بن ماجة" confirming the identification; 1 (2835) inside
+#    isnad_ar, harmless by the same placement rule as above; the remaining 9
+#    are bare narrator kunyas inside isnads -- "Abu 'Abdallah al-Aghurr",
+#    "al-Ash'ari", "al-Alhani", each a DIFFERENT person, correctly untouched
+#    since no verb governs them; accusative 2 -- "سمعت محمد بن يزيد أبا عبد
+#    الله يقول" (309, the transmitter reporting having heard IBN MAJAH
+#    HIMSELF, named in full -- `heard`'s own token-gap does not reach past
+#    the inserted name, a genuine miss `find_near_misses` caught; given its
+#    own anchored arm in `_IBNMAJAH_FORMULA` below, not a widening of the
+#    shared generator) and "يا أبا عبد الله" (4159, VOCATIVE, addressed
+#    to a Companion mid-narration -- correctly untouched, `heard` requires a
+#    preceding "سمعت", not a bare vocative); genitive 9, all inside
+#    isnad_ar, all different narrators, unreachable for the same two reasons
+#    as above) -- OR his own NAME, "بن ماجة" (does not decline through
+#    `_kunya_case_forms`, so it needs its own pattern below, not a reuse of
+#    `_compiler_commentary_markers`): 24 raw occurrences, 8 already sit right
+#    after a kunya occurrence the pattern above already cuts in the same
+#    unit ("قال أبو عبد الله بن ماجة ...", "... يعني بن ماجة ..."), the other
+#    16 -- "قال بن ماجة" (13), "قاله بن ماجة" (2, a different conjugation,
+#    "he said IT"), "قال محمد بن ماجة" (1, his name in full) -- read
+#    individually below and every one a genuinely editorial remark, correctly
+#    excluded from the matn. One of the two "قاله بن ماجة" occurrences,
+#    hadith:ibnmajah:2162, has "قاله" ("he said IT") referring BACKWARD to an
+#    isnad-uniqueness remark ("تفرد به بن أبي عمر وحده") that precedes it --
+#    the opposite order from every other "qala <compiler> ..." shape in this
+#    file -- so the marker's own cut at "قاله" leaves that remark dangling on
+#    the genuine matn; corrected by `NEAR_MISS_CUT_OVERRIDE["ibnmajah"]`. The
+#    other 15 need no such correction.
+#
+# `هذا حديث` (Tirmidhi's own grading-tail opener) recurs here too, at a much
+# smaller scale and a different construction: 10 occurrences, 3 already
+# inside a tail one of the two markers above already cuts in the same unit;
+# the other 7 are almost always "هذا حديث <name>" ("this is so-and-so's
+# version/recension" -- naming WHOSE wording a combined chain follows, not a
+# grading term) rather than Tirmidhi's "هذا حديث <grading term>"; once,
+# 1385, it IS a grading term ("هذا حديث صحيح", attributed to "أبو إسحاق", a
+# third narrator) -- the marker's own cut is at "هذا", correct as far as it
+# goes, but leaves "قال أبو إسحاق" (the narrator introducing that grading
+# remark) dangling on the genuine matn; corrected by a second, later cut via
+# `NEAR_MISS_CUT_OVERRIDE["ibnmajah"]`, the same one-hop nested-attribution
+# shape as Abu Dawud/Tirmidhi/Nasai's own entries. The other 6 of the 7 need
+# no such correction and are a clean, unconditional tail boundary as read --
+# added as its own arm since nothing in this
+# file ever uses "هذا حديث" inside genuine narrative.
+#
+# Sighted but NOT added -- each is genuine narrative on every SCORED
+# (`matn_ar`, not the joined display text) occurrence, measured record by
+# record, not assumed:
+#   - "خالفه"/"خالفهم" (3, matn-scored): all three are "لا يضرهم من خالفهم"
+#     (10, 3952 -- the famous "a group of my nation will remain triumphant
+#     on the truth, UNHARMED BY THOSE WHO OPPOSE THEM" hadith) or "فخالفهم
+#     رسول الله" (3022 -- the Prophet's own act of differing from a
+#     pre-Islamic practice) -- the SAME genuine-narrative sense Nasai's own
+#     single exception (hadith:nasai:3047) established for this verb, here
+#     the ONLY sense present, not an exception to a formula. No entry added;
+#     unlike Nasai, this file gives no isnad-critique use of the verb at
+#     all.
+#   - "رفعه" (7): 6 are the "Allah RAISES him a degree" reward idiom or
+#     raising/lowering the head in prayer or bringing a prophecy about, the
+#     identical idiom class Nasai's own `COMMENTARY_NEVER_CUT` covers; one
+#     (3491, "وأنهى أمتي عن الكي رفعه") is a terse, unattributed isnad note
+#     with no narrator's name to anchor a boundary on (unlike Nasai's own
+#     "رفعه <name>" shape) -- left as four residual characters on an
+#     otherwise-genuine matn, a measured, disclosed judgement call: it risks
+#     neither a false EXACT nor a NOT_FOUND, so it is not the class this
+#     ruling exists to close.
+#   - "غريب" bare (1, "كن في الدنيا كأنك غريب" -- be a STRANGER in this
+#     world), "ضعيف" (4, a WEAK, oppressed man), "خطأ" bare (2, killed/died
+#     BY MISTAKE, legal terminology), "الصواب" (2, "let him seek out what is
+#     nearest to being CORRECT" during prayer -- the identical doctrinal
+#     content Nasai's own 1240-1247 exceptions already established for this
+#     word), "لم يسمع" (1, "he saw the WOMEN HAD NOT HEARD [the sermon]") --
+#     every one read, every one an ordinary sense of a common word in the
+#     only occurrences this file has, never editorial.
+#
+# Two further one-off remarks by OTHER named individuals -- neither tracked
+# voice -- were found ("قال محمد بن يحيى وهو الصواب ...", hadith:342; "قال
+# أبو عاصم ... مرسل ...", hadith:2497) but BOTH sit entirely inside
+# `addenda_ar` already: the source's own "*" already isolates a full
+# alternate chain there, and these remarks are INSIDE that already-cut
+# secondary narration -- confirmed by checking `matn_ar` alone, not the
+# joined display text used for the sweeps above. No action needed and none
+# is taken. A remark naming neither tracked voice and landing in the SCORED
+# primary would be the same "known ceiling" R-A3-23 already accepted for Abu
+# Dawud's bare "قلت" self-reference -- not chased here for the same reason,
+# and measurement found none to exist.
+_IBNMAJAH_QATTAN_TIGHT, _IBNMAJAH_QATTAN_NEAR, _IBNMAJAH_QATTAN_HEARD = \
+    _compiler_commentary_markers("أبو الحسن")
+_IBNMAJAH_COMPILER_TIGHT, _IBNMAJAH_COMPILER_NEAR, _IBNMAJAH_COMPILER_HEARD = \
+    _compiler_commentary_markers("أبو عبد الله")
+
+# Combining two collections' worth of markers with a bare "|" (rather than
+# giving Ibn Majah two independent split passes) keeps `_split_compiler_
+# commentary`'s own "earliest candidate wins" rule working across BOTH
+# voices at once: `re.Pattern.search` already returns the leftmost match of
+# an alternation, so a record where the transmitter's remark precedes the
+# compiler's own (or vice versa) is still cut at whichever comes first,
+# exactly as the single-voice collections already are.
+_IBNMAJAH_COMMENTARY = re.compile(
+    rf"(?:{_IBNMAJAH_QATTAN_TIGHT.pattern})|(?:{_IBNMAJAH_COMPILER_TIGHT.pattern})")
+_IBNMAJAH_COMMENTARY_NEAR = re.compile(
+    rf"(?:{_IBNMAJAH_QATTAN_NEAR.pattern})|(?:{_IBNMAJAH_COMPILER_NEAR.pattern})")
+_IBNMAJAH_HEARD = re.compile(
+    rf"(?:{_IBNMAJAH_QATTAN_HEARD.pattern})|(?:{_IBNMAJAH_COMPILER_HEARD.pattern})")
+
+# hadith:ibnmajah:3458's "حدثنا أبو الحسن القطان ثنا إبراهيم بن نصر ..." is
+# the ONE occurrence in the whole file (measured across isnad_ar and
+# matn+addenda both) where al-Qattan's remark is introduced by a
+# transmission verb (حدثنا/ثنا/أخبرنا/أنبأنا/حدثناه) instead of قال/سئل --
+# `_compiler_commentary_markers`'s own tight/near never reach it, and widening
+# that SHARED generator's verb set would change abudawud/tirmidhi/nasai's
+# byte-identical output for a single Ibn Majah record. Anchored on the exact
+# phrase, not the bare verb set, because "حدثنا" alone opens the vast
+# majority of this file's own isnad chains and a bare verb+kunya pattern
+# would false-positive on every one of them.
+#
+# hadith:ibnmajah:309's "سمعت محمد بن يزيد أبا عبد الله يقول سمعت أحمد بن عبد
+# الرحمن المخزومي يقول ..." -- found by `find_near_misses`'s own sweep, not
+# by the read-through above -- is the ONE occurrence (measured: `grep -c`
+# against the raw file) where Ibn Majah's own name, "محمد بن يزيد", is
+# inserted in apposition between "سمعت" and his kunya "أبا عبد الله": the
+# transmitter naming him in full before the kunya that identifies him. This
+# sits outside `_compiler_commentary_markers`'s own token-gap tolerance for
+# `heard`, and widening that SHARED generator's gap would reach past the
+# genuine narrative on abudawud/tirmidhi/nasai's records too. Anchored on the
+# exact phrase for the same reason as 3458's "حدثنا أبو الحسن القطان" above --
+# a single record, not a general verb-plus-name shape. Left uncorrected, the
+# primary matn would run on through an entire further discussion comparing
+# this hadith against 'A'isha's contradicting report ("... yabulu qa'idan
+# ... a'lamu bihadha minha ...") -- a different, and differently attested,
+# report, not this hadith's own wording.
+_IBNMAJAH_FORMULA = re.compile(
+    rf"(?<![{_ARABIC}])هذا\s+حديث(?![{_ARABIC}])"
+    rf"|(?<![{_ARABIC}])قال(?:ه)?\s+(?:محمد\s+)?بن\s+ماجة(?![{_ARABIC}])"
+    rf"|(?<![{_ARABIC}])حدثنا\s+أبو\s+الحسن\s+القطان(?![{_ARABIC}])"
+    rf"|(?<![{_ARABIC}])سمعت\s+محمد\s+بن\s+يزيد\s+أبا\s+عبد\s+الله(?![{_ARABIC}])")
+
 
 _COMPILER_MARKERS: dict[
     str, tuple[re.Pattern[str], re.Pattern[str], re.Pattern[str],
@@ -1003,6 +1237,8 @@ _COMPILER_MARKERS: dict[
                  _TIRMIDHI_HEARD, _TIRMIDHI_FORMULA),
     "nasai": (_NASAI_COMMENTARY, _NASAI_COMMENTARY_NEAR, _NASAI_HEARD,
               _NASAI_FORMULA),
+    "ibnmajah": (_IBNMAJAH_COMMENTARY, _IBNMAJAH_COMMENTARY_NEAR,
+                 _IBNMAJAH_HEARD, _IBNMAJAH_FORMULA),
 }
 
 
@@ -1745,6 +1981,13 @@ def parse_openiti(
                 # PRIMARY matn is once every commentary cut above has already
                 # happened, never on `addenda_ar`.
                 matn = _strip_reference_numbers(matn)
+            if collection == "ibnmajah":
+                # See `_strip_stray_asterisk`'s own comment: a `NEVER_CUT`
+                # entry can retain a nested "*" this collection's edition
+                # embeds; strip it from whatever the PRIMARY matn is once
+                # every cut above has already happened, never from
+                # `addenda_ar`.
+                matn = _strip_stray_asterisk(matn)
 
         # hadith:nasai:400 only -- see `_fix_nasai_400_isnad_matn_split`'s own
         # comment; a no-op for every other record_id.

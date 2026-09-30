@@ -419,6 +419,33 @@ NEAR_MISS_CUT_OVERRIDE: dict[str, dict[str, tuple[str, int]]] = {
         "hadith:nasai:5074":
             ("a4a42a24f467447d13f4b9fd88428d8141653b49698d75e8b001cccc11729ed3", 1),
     },
+    # Ibn Majah (Task 15). Two records where a compiler-commentary/formula
+    # arm cuts at the right verb but a nested attribution sits between it
+    # and the genuine matn, same dangling shape as every entry above.
+    #
+    # hadith:ibnmajah:1385: "... yaa Muhammad inni qad tawajjahtu bika ila
+    # rabbi fi hajati hadhihi li-tuqda Allahumma fa-shaffi'hu fiyya QALA ABU
+    # ISHAQ hadha hadith sahih" -- `_IBNMAJAH_FORMULA`'s "hadha hadith" arm
+    # cuts at "hadha", but "qala Abu Ishaq" (the narrator introducing the
+    # grading remark that follows, not Ibn Majah's own voice) is left
+    # dangling on the genuine supplication. 3 trailing tokens moved.
+    #
+    # hadith:ibnmajah:2162: "... wa-a'tahu ajrahu TAFARRADA BIHI IBN ABI
+    # 'UMAR WAHDAHU qalahu Ibn Majah" -- "qalahu Ibn Majah" ("Ibn Majah said
+    # IT") refers BACKWARD to the isnad-uniqueness remark that precedes it,
+    # not forward -- the opposite order from every other collection's
+    # "qala <compiler> ..." shape, so `_IBNMAJAH_FORMULA`'s own marker
+    # anchors correctly on "قاله بن ماجة" but the remark it is attributing
+    # sits entirely in front of the anchor. "tafarrada bihi ... wahdahu" is
+    # unambiguously isnad apparatus (who alone narrated this from his
+    # peers), never narrative content about a cupping fee. 6 trailing tokens
+    # moved.
+    "ibnmajah": {
+        "hadith:ibnmajah:1385":
+            ("49ed8c2312567636d05865c1cdde27df4f3eea7120dc2d5b5eae935022595f65", 3),
+        "hadith:ibnmajah:2162":
+            ("439436a5a20ca69f2e7646a82c5a8dd4785f4230c039a4ca568d90dfdab84d9e", 6),
+    },
 }
 
 # --- Abu Ali al-Lu'lu'i's own voice: the one do-not-cut exception -----------
@@ -648,6 +675,36 @@ NEVER_CUT: dict[str, dict[str, tuple[str, str]]] = {
         "hadith:bukhari:4575":
             ("86e0300ecb069cd2cd368656cfe256e667974b1ca965e3a7cd61a4b3ea0eab03",
              _QURANIC_PRIMARY),
+    },
+    # Ibn Majah (Task 15). "... fa-qala rasulu Llahi salla Llahu 'alayhi
+    # wa-sallam: hal biha wathan? Qala: la" ("... is there an idol there? He
+    # said: no") is immediately followed, with no separating word at all, by
+    # a SECOND complete isnad ("... QALA awfi bi-nadhrik HADDATHANA Abu Bakr
+    # ibn Abi Shayba ..."), whose own chain looks enough like a real isnad
+    # (a run of narrator names ending "'an al-nabi ... * bi-nahwih") that
+    # `_split_secondary`'s forward check treats it as one, which under R-A3-18's
+    # own rule lets a BARE "qala" with no name in front of it count as the cut
+    # point too (`min_name=0`, since the chain behind the verb already settled
+    # the question). But this bare "qala" is not a narrator opening a second
+    # chain -- it is the Prophet's own reply, "Fulfil your vow", the genuine
+    # conclusion of THIS narration's own story (a man's father asks the
+    # Prophet about a vow to sacrifice at Buwana; was there an idol there? No;
+    # then fulfil it). Cutting here would leave the primary ending on the
+    # story's own question-and-answer about the idol, with its actual
+    # punchline moved into the addendum alongside an unrelated second chain.
+    # Left uncut entirely, per this file's own rule that leaving a bug we
+    # already have (an oversized primary) is always preferable to a boundary
+    # that discards genuine content: none of `_IBNMAJAH_COMMENTARY`/`_FORMULA`
+    # match anywhere in what follows ("Abu Bakr ibn Abi Shayba" is not al-Qattan,
+    # not Ibn Majah's own kunya, not his name), so the whole unit stays intact.
+    "ibnmajah": {
+        "hadith:ibnmajah:2131":
+            ("6fb9495add12f726140601f4cf7b6d242e7fbd807aad2928e6eed096deadfcf0",
+             "bare qala swallowed a second, unrelated isnad's forward-chain "
+             "check: the primary's own genuine punchline (the Prophet's "
+             "reply) sat past a bare 'qala' that only looks like a narrator "
+             "opening a second chain because a real isnad happens to follow "
+             "it"),
     },
 }
 
@@ -2509,5 +2566,18 @@ UNSCORABLE: dict[str, dict[str, tuple[str, str]]] = {
             ("1f15e9a2272fc4fbd2abb016fda7bf1dc8838a25731334d5e300c4dc07190b5a", _TRUNCATED_OPENING),
         "hadith:nasai:5100":  # "المتفلجات وساق الحديث"
             ("00dfb08ebae7ef777b409116f0088d0ed1be7c420040f51869cee3b692455d3c", _TRUNCATED_OPENING),
+    },
+    # Ibn Majah (Task 15). Every matn of 3 tokens or fewer was read in
+    # context (56 measured); the other 55 are genuine, complete, terse
+    # Prophetic sayings ("al-harbu khad'ah" -- war is deceit; "al-'aynu haqq"
+    # -- the evil eye is real -- and the like). Only one is a bare pointer:
+    # hadith:ibnmajah:413's own matn is the single word "نحوه" ("similarly to
+    # it"), referring back to 412's fuller wording two units earlier -- the
+    # same _POINTER phenomenon already on Bukhari's own list, and (measured)
+    # the identical sha256 as Bukhari's own "نحوه" occurrences, since the
+    # digest is of the matn string alone, not the record id.
+    "ibnmajah": {
+        "hadith:ibnmajah:413":
+            ("da5b06f32a8be960e4896498557c3a5abf0318f6aa354cf9a2f1cdff8bc7dcbe", _POINTER),
     },
 }

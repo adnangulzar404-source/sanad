@@ -101,16 +101,20 @@ def test_an_editorial_pointer_is_not_verified_as_a_hadith():
 
 
 def test_a_famous_short_hadith_still_verifies_exactly():
-    """"al-harb khud'a" is printed, byte-identically, five times across four
-    collections (Bukhari 2866; Muslim 1739, 1740; Abu Dawud 2636; Task 13
-    adds Tirmidhi 1675). Task 12 added the fourth copy, and with it the FIRST
-    case anywhere in this corpus of the tie-break's "lowest id wins" rule
-    choosing a non-Bukhari winner: the full id "hadith:abudawud:2636" sorts
-    before "hadith:bukhari:2866" lexicographically ("a" < "b"), so Abu Dawud
-    is the disclosed match. Task 13's fifth copy does not change the winner
-    -- "hadith:tirmidhi:..." sorts after all three other collections' ids
-    ("t" is the latest letter) -- it only grows `also_at` by one. Verified,
-    not assumed -- read directly from `verify_spans`'s own tie-break output.
+    """"al-harb khud'a" is printed, byte-identically, seven times across five
+    collections (Bukhari 2866; Muslim 1739, 1740; Abu Dawud 2636; Tirmidhi
+    1675; Task 15 adds Ibn Majah 2833, 2834). Task 12 added the fourth copy,
+    and with it the FIRST case anywhere in this corpus of the tie-break's
+    "lowest id wins" rule choosing a non-Bukhari winner: the full id
+    "hadith:abudawud:2636" sorts before "hadith:bukhari:2866"
+    lexicographically ("a" < "b"), so Abu Dawud is the disclosed match.
+    Tirmidhi's fifth copy does not change the winner -- "hadith:tirmidhi:..."
+    sorts after every other collection's own id ("t" is the latest letter)
+    -- it only grows `also_at` by one, and Ibn Majah's own two copies do the
+    same: "hadith:ibnmajah:..." sorts between "hadith:bukhari:..." and
+    "hadith:muslim:...", so both land in `also_at`'s middle, not at either
+    end. Verified, not assumed -- read directly from `verify_spans`'s own
+    tie-break output.
     """
     from sanad.verify.engine import Verdict, verify_spans
     conn = db.connect(DB_PATH)
@@ -119,8 +123,8 @@ def test_a_famous_short_hadith_still_verifies_exactly():
     assert matches[0].verdict is Verdict.EXACT
     assert matches[0].record.id == "hadith:abudawud:2636"
     assert matches[0].also_at == [
-        "hadith:bukhari:2866", "hadith:muslim:1739", "hadith:muslim:1740",
-        "hadith:tirmidhi:1675",
+        "hadith:bukhari:2866", "hadith:ibnmajah:2833", "hadith:ibnmajah:2834",
+        "hadith:muslim:1739", "hadith:muslim:1740", "hadith:tirmidhi:1675",
     ]
 
 
@@ -259,13 +263,17 @@ def test_the_full_printed_text_of_every_cut_record_verifies():
     46/566 fix (also this round, see
     `test_tirmidhi_record_count_and_scorability`'s note) does not change
     this count: both are, and remain, `UNSCORABLE["tirmidhi"]`.
+
+    Task 15 (Sunan Ibn Majah): 5,618. Its 166 cut records are all scorable --
+    none is also on `UNSCORABLE["ibnmajah"]` -- so every one adds to this
+    count. 5,452 + 166 = 5,618.
     """
     from sanad.verify.engine import Verdict, verify_spans
     conn = db.connect(DB_PATH)
     rows = conn.execute(
         "SELECT id, text_ar, addenda_ar FROM records"
         " WHERE addenda_ar IS NOT NULL AND unscorable_reason IS NULL").fetchall()
-    assert len(rows) == 5452  # fix round 2 (R-A3-27): +94 Nasai
+    assert len(rows) == 5618  # Task 15: +166 Ibn Majah
     failures = []
     for row in rows:
         for quoted in (row["text_ar"], row["text_ar"] + " " + row["addenda_ar"]):
@@ -419,15 +427,23 @@ def test_the_index_holds_one_row_per_scorable_representation():
     exposed, not a Nasai-specific change), so the cumulative baseline this
     task's own delta is measured against is 5,144, not 5,142: 5,144 + 334 =
     5,478.
+
+    Task 15 (Sunan Ibn Majah) moves these to (39170, 5740, 44910). Ibn Majah
+    contributes 4,341 hadith records, of which 4,340 are scorable
+    (34,830 + 4,340 = 39,170) and 166 carry a second ("full", cut)
+    representation, all 166 of them scorable-primary cuts (0 excluded-primary
+    -- `UNSCORABLE["ibnmajah"]`'s one entry, 413, was never cut in the first
+    place): 5,574 + 166 = 5,740. Indexed rises by exactly scorable-primaries
+    + variants (4,340 + 166 = 4,506): 40,404 + 4,506 = 44,910.
     """
     conn = db.connect(DB_PATH)
     scorable = conn.execute(
         "SELECT count(*) FROM records WHERE unscorable_reason IS NULL").fetchone()[0]
     variants = conn.execute("SELECT count(*) FROM record_variants").fetchone()[0]
     indexed = conn.execute("SELECT count(*) FROM records_fts").fetchone()[0]
-    # fix round 2 (R-A3-27): scorable -2 (207-2, 353 to UNSCORABLE), variants
-    # +96 (the six-shape sweep's new cuts), indexed +94 net.
-    assert (scorable, variants, indexed) == (34830, 5574, 40404)
+    # Task 15: scorable +4340, variants +166 (all scorable-primary cuts),
+    # indexed +4506 (4340 new primaries + 166 new variant rows).
+    assert (scorable, variants, indexed) == (39170, 5740, 44910)
 
 
 # --- C1: nothing scorable as a hadith is wholly a Qur'anic quotation --------
@@ -538,6 +554,18 @@ def test_no_scorable_hadith_representation_is_wholly_quranic():
     sweep). The sweep is still zero: none of the newly-covered "مختصر"/"لم
     يذكر"/"رواه"/"روى"/"اللفظ ل"/"اختلف على"/"غير محفوظ" cuts is wholly
     Qur'anic.
+
+    Task 15 (Sunan Ibn Majah) moves the representation count to 38,674:
+    32,934 scorable hadith primaries corpus-wide (39,170 total scorable
+    records minus the Qur'an's own 6,236 ayat -- see
+    `test_the_index_holds_one_row_per_scorable_representation` for the full
+    scorable/variants breakdown) plus 5,740 full-text representations. The
+    sweep is still zero on the first measured build:
+    `build._reject_wholly_quranic_representations` (the same build-time gate
+    this sweep independently re-implements) raised nothing while
+    materializing Ibn Majah, and this independent, test-owned sweep confirms
+    it -- none of its 4,340 scorable primaries or 166 full-text variants is
+    wholly a Qur'an quotation.
     """
     conn = db.connect(DB_PATH)
     blobs = _quran_blobs(conn)
@@ -548,7 +576,7 @@ def test_no_scorable_hadith_representation_is_wholly_quranic():
     reps += [(r["record_id"], r["variant"], r["norm_standard"]) for r in conn.execute(
         "SELECT v.record_id, v.variant, v.norm_standard FROM record_variants v"
         " JOIN records r ON r.id = v.record_id")]
-    assert len(reps) == 34168, "the sweep stopped covering what it was written for"
+    assert len(reps) == 38674, "the sweep stopped covering what it was written for"
     offenders = [(rid, variant) for rid, variant, norm in reps
                  if norm.strip() and any(f" {norm} " in b for b in blobs)]
     assert offenders == []
@@ -714,13 +742,18 @@ def test_every_other_excluded_record_is_excluded_whole():
     `_CHAIN_LEAK` group once the new "لم يذكر" arm cuts a trailing
     "and he did not mention <name>" remark off each, both already carrying
     that remark as an addendum.
+
+    Task 15 (Sunan Ibn Majah): 1 more excluded record joins this count
+    (1,015 total) -- hadith:ibnmajah:413, `UNSCORABLE["ibnmajah"]`'s one
+    entry, a bare "نحوه" pointer with nothing after it to cut, so it carries
+    no addendum (n=0, not present in the dict below).
     """
     conn = db.connect(DB_PATH)
     rows = conn.execute(
         "SELECT r.id, count(v.record_id) AS n FROM records r"
         " LEFT JOIN record_variants v ON v.record_id = r.id"
         " WHERE r.unscorable_reason IS NOT NULL GROUP BY r.id").fetchall()
-    assert len(rows) == 1014
+    assert len(rows) == 1015
     assert {r["id"]: r["n"] for r in rows if r["n"]} == {
         "hadith:bukhari:237": 1,
         "hadith:muslim:1915-3": 1,
@@ -942,6 +975,20 @@ def test_exactly_one_hadith_representation_sits_inside_an_ayah():
     fix-round note) without moving either list: re-run against the fixed
     build, none of the six-shape sweep's newly-cut Nasai representations
     sits inside an ayah at either tier.
+
+    Task 15 (Sunan Ibn Majah) moves the representation count to 38,674 (same
+    breakdown as `test_no_scorable_hadith_representation_is_wholly_quranic`'s
+    own Task 15 note) and DOES move the withheld list, by one:
+    hadith:ibnmajah:2073 is the byte-identical twin of hadith:muslim:1473
+    above -- the same narrator quoting the same opening clause of Qur'an
+    33:21 -- and inherits the exact same disposition for the exact same
+    reason: withheld at the aggressive tier, not confirmed at the standard
+    one, because this edition's own plain transcription spells "fi" with a
+    dotted ya where the Qur'an's Uthmani rasm spells it with a dotless alif
+    maqsura. The disclosed list does not move. This is also, independently,
+    why the two records tie in `verify_spans` and Muslim's own full id wins
+    the tie -- see `eval/cases/hadith.yaml`'s
+    `hadith-muslim-quranic-primary-verifies-as-printed` case.
     """
     from sanad.verify.engine import _ayat_containing, _contains_at
     conn = db.connect(DB_PATH)
@@ -952,7 +999,7 @@ def test_exactly_one_hadith_representation_sits_inside_an_ayah():
         "SELECT v.record_id, v.variant, v.text_ar FROM record_variants v"
         " JOIN records r ON r.id = v.record_id WHERE r.kind = 'hadith'"
     ).fetchall()
-    assert len(reps) == 34168, len(reps)
+    assert len(reps) == 38674, len(reps)
 
     withheld, disclosed = [], []
     for rep in reps:
@@ -971,6 +1018,7 @@ def test_exactly_one_hadith_representation_sits_inside_an_ayah():
          ["quran:2:260", "quran:4:142", "quran:11:6", "quran:18:57"]),
         ("hadith:muslim:1473", "primary", ["quran:33:21"]),
         ("hadith:muslim:2380-5", "primary", ["quran:18:77"]),
+        ("hadith:ibnmajah:2073", "primary", ["quran:33:21"]),
     ]
     assert disclosed == [
         ("hadith:bukhari:3658", "primary", ["quran:54:1"]),
@@ -1161,16 +1209,19 @@ def test_abudawud_spot_checked_matns_are_byte_exact():
 # Task 12 found a fourth copy at Abu Dawud 2636, and Task 13 a fifth at
 # Tirmidhi 1675.
 def test_a_genuine_short_hadith_shared_across_collections_still_verifies():
-    """Bukhari 2866, Muslim 1739/1740, (Task 12) Abu Dawud 2636, and (Task
-    13) Tirmidhi 1675 all print the same three words.
+    """Bukhari 2866, Muslim 1739/1740, (Task 12) Abu Dawud 2636, (Task 13)
+    Tirmidhi 1675, and (Task 15) Ibn Majah 2833/2834 all print the same
+    three words.
 
     The tie-break rule ("lowest id wins, the rest are disclosed") was proven
     within one collection (383 and 774, both Bukhari); Task 11 exercised it
     firing ACROSS collections for the first time (Bukhari won the tie then).
     Task 12 changed WHICH collection wins, without changing the rule: Abu
     Dawud's full id sorts first lexicographically ("hadith:abudawud:..." <
-    "hadith:bukhari:..."), so it is the winner now and the other three (now
-    four) move into `also_at`. See `test_a_famous_short_hadith_still_verifies_exactly`
+    "hadith:bukhari:..."), so it is the winner now and the rest move into
+    `also_at`. Task 15 adds two more entries without changing the winner --
+    "hadith:ibnmajah:..." sorts between "hadith:bukhari:..." and
+    "hadith:muslim:...". See `test_a_famous_short_hadith_still_verifies_exactly`
     above for the same fact asserted the other direction.
     """
     from sanad.verify.engine import Verdict, verify_spans
@@ -1180,8 +1231,8 @@ def test_a_genuine_short_hadith_shared_across_collections_still_verifies():
     assert matches[0].verdict is Verdict.EXACT
     assert matches[0].record.id == "hadith:abudawud:2636"
     assert matches[0].also_at == [
-        "hadith:bukhari:2866", "hadith:muslim:1739", "hadith:muslim:1740",
-        "hadith:tirmidhi:1675",
+        "hadith:bukhari:2866", "hadith:ibnmajah:2833", "hadith:ibnmajah:2834",
+        "hadith:muslim:1739", "hadith:muslim:1740", "hadith:tirmidhi:1675",
     ]
 
 
@@ -2447,6 +2498,7 @@ import pytest as _pytest
     ("openiti-abudawud-jk000142", "abudawud"),
     ("openiti-tirmidhi-jk000140", "tirmidhi"),
     ("openiti-nasai-jk000130", "nasai"),
+    ("openiti-ibnmaja-jk000141", "ibnmajah"),
 ])
 def test_isnad_matn_addenda_conserve_every_byte_of_the_presplit_unit(
         source_id, collection):
@@ -2503,6 +2555,15 @@ def test_isnad_matn_addenda_conserve_every_byte_of_the_presplit_unit(
             # already-tested behaviour as a NEW conservation violation.
             s = re.sub(r"\[\d+\]", "", s)
             s = re.sub(r"\s+", " ", s).strip()
+        if collection == "ibnmajah":
+            # The other intentional, documented content removal this fix
+            # round adds: `_strip_stray_asterisk` deletes a literal "*" this
+            # edition's own nested-repeat convention leaves in the primary
+            # matn after `NEVER_CUT["ibnmajah"]` keeps hadith:ibnmajah:2131
+            # whole -- see that function's own docstring. Stripped from both
+            # sides here for the same reason as tirmidhi's brackets above.
+            s = re.sub(r"\*", " ", s)
+            s = re.sub(r"\s+", " ", s).strip()
         return s
 
     checked = 0
@@ -2521,17 +2582,20 @@ def test_isnad_matn_addenda_conserve_every_byte_of_the_presplit_unit(
 
 _NASAI_PREFIX_COLLISION_RESIDUE = [
     "hadith:nasai:1207", "hadith:nasai:1361", "hadith:nasai:1375",
-    "hadith:nasai:1613", "hadith:nasai:1729", "hadith:nasai:1740",
-    "hadith:nasai:1973", "hadith:nasai:2025", "hadith:nasai:2134",
-    "hadith:nasai:2186", "hadith:nasai:2260", "hadith:nasai:231",
-    "hadith:nasai:2374", "hadith:nasai:2377", "hadith:nasai:2773",
-    "hadith:nasai:2788", "hadith:nasai:2789", "hadith:nasai:2847",
-    "hadith:nasai:2848", "hadith:nasai:2849", "hadith:nasai:2869",
-    "hadith:nasai:2941", "hadith:nasai:3177", "hadith:nasai:3241",
-    "hadith:nasai:3297", "hadith:nasai:3335", "hadith:nasai:338",
-    "hadith:nasai:339", "hadith:nasai:3574", "hadith:nasai:3575",
-    "hadith:nasai:3576", "hadith:nasai:3577", "hadith:nasai:3590",
-    "hadith:nasai:37", "hadith:nasai:3733", "hadith:nasai:3735",
+    "hadith:nasai:1613", "hadith:nasai:1668", "hadith:nasai:1671",
+    "hadith:nasai:1693", "hadith:nasai:1729", "hadith:nasai:1740",
+    "hadith:nasai:1754", "hadith:nasai:1973", "hadith:nasai:2016",
+    "hadith:nasai:2025", "hadith:nasai:2134", "hadith:nasai:2186",
+    "hadith:nasai:221", "hadith:nasai:2260", "hadith:nasai:231",
+    "hadith:nasai:233", "hadith:nasai:2374", "hadith:nasai:2377",
+    "hadith:nasai:2773", "hadith:nasai:2788", "hadith:nasai:2789",
+    "hadith:nasai:2847", "hadith:nasai:2848", "hadith:nasai:2849",
+    "hadith:nasai:2869", "hadith:nasai:2941", "hadith:nasai:3177",
+    "hadith:nasai:3241", "hadith:nasai:3297", "hadith:nasai:3335",
+    "hadith:nasai:338", "hadith:nasai:339", "hadith:nasai:3536",
+    "hadith:nasai:3574", "hadith:nasai:3575", "hadith:nasai:3576",
+    "hadith:nasai:3577", "hadith:nasai:3590", "hadith:nasai:37",
+    "hadith:nasai:3710", "hadith:nasai:3733", "hadith:nasai:3735",
     "hadith:nasai:3774", "hadith:nasai:3812", "hadith:nasai:3834",
     "hadith:nasai:3835", "hadith:nasai:3836", "hadith:nasai:3837",
     "hadith:nasai:3838", "hadith:nasai:3839", "hadith:nasai:3840",
@@ -2539,26 +2603,30 @@ _NASAI_PREFIX_COLLISION_RESIDUE = [
     "hadith:nasai:3851", "hadith:nasai:3879", "hadith:nasai:3884",
     "hadith:nasai:3885", "hadith:nasai:3909", "hadith:nasai:3910",
     "hadith:nasai:3921", "hadith:nasai:3976", "hadith:nasai:4049",
-    "hadith:nasai:411", "hadith:nasai:4125", "hadith:nasai:4126",
-    "hadith:nasai:4127", "hadith:nasai:4175", "hadith:nasai:4277",
-    "hadith:nasai:4279", "hadith:nasai:4334", "hadith:nasai:4342",
-    "hadith:nasai:4420", "hadith:nasai:4447", "hadith:nasai:4493",
+    "hadith:nasai:411", "hadith:nasai:412", "hadith:nasai:4125",
+    "hadith:nasai:4126", "hadith:nasai:4127", "hadith:nasai:4175",
+    "hadith:nasai:4277", "hadith:nasai:4279", "hadith:nasai:4334",
+    "hadith:nasai:4342", "hadith:nasai:4420", "hadith:nasai:4447",
+    "hadith:nasai:4480", "hadith:nasai:4482", "hadith:nasai:4493",
     "hadith:nasai:4495", "hadith:nasai:4519", "hadith:nasai:4521",
     "hadith:nasai:4524", "hadith:nasai:4535", "hadith:nasai:4537",
     "hadith:nasai:4568", "hadith:nasai:4598", "hadith:nasai:4634",
-    "hadith:nasai:4668", "hadith:nasai:4691", "hadith:nasai:48",
-    "hadith:nasai:4908", "hadith:nasai:4917", "hadith:nasai:4918",
-    "hadith:nasai:4919", "hadith:nasai:4922", "hadith:nasai:4923",
-    "hadith:nasai:4938", "hadith:nasai:4939", "hadith:nasai:4967",
+    "hadith:nasai:4668", "hadith:nasai:4673", "hadith:nasai:4691",
+    "hadith:nasai:4736", "hadith:nasai:48", "hadith:nasai:4908",
+    "hadith:nasai:4917", "hadith:nasai:4918", "hadith:nasai:4919",
+    "hadith:nasai:4922", "hadith:nasai:4923", "hadith:nasai:4938",
+    "hadith:nasai:4939", "hadith:nasai:4967", "hadith:nasai:497",
     "hadith:nasai:4996", "hadith:nasai:5094", "hadith:nasai:5096",
-    "hadith:nasai:5248", "hadith:nasai:5348", "hadith:nasai:5499",
-    "hadith:nasai:5548", "hadith:nasai:5582", "hadith:nasai:5583",
-    "hadith:nasai:5585", "hadith:nasai:5586", "hadith:nasai:5591",
-    "hadith:nasai:5621", "hadith:nasai:5622", "hadith:nasai:5629",
-    "hadith:nasai:5630", "hadith:nasai:5632", "hadith:nasai:5637",
-    "hadith:nasai:5649", "hadith:nasai:5678", "hadith:nasai:5699",
-    "hadith:nasai:5701", "hadith:nasai:605", "hadith:nasai:619",
-    "hadith:nasai:687", "hadith:nasai:7", "hadith:nasai:911",
+    "hadith:nasai:5166", "hadith:nasai:5248", "hadith:nasai:534",
+    "hadith:nasai:5348", "hadith:nasai:5499", "hadith:nasai:553",
+    "hadith:nasai:5548", "hadith:nasai:555", "hadith:nasai:5582",
+    "hadith:nasai:5583", "hadith:nasai:5585", "hadith:nasai:5586",
+    "hadith:nasai:5591", "hadith:nasai:5621", "hadith:nasai:5622",
+    "hadith:nasai:5629", "hadith:nasai:5630", "hadith:nasai:5632",
+    "hadith:nasai:5634", "hadith:nasai:5637", "hadith:nasai:5649",
+    "hadith:nasai:5678", "hadith:nasai:5699", "hadith:nasai:5701",
+    "hadith:nasai:605", "hadith:nasai:619", "hadith:nasai:687",
+    "hadith:nasai:7", "hadith:nasai:736", "hadith:nasai:911",
     "hadith:nasai:951", "hadith:nasai:986", "hadith:nasai:987",
     "hadith:nasai:996",
 ]
@@ -2614,6 +2682,23 @@ def test_prefix_collision_detector_nasai_residue_is_fully_read():
     this detector (it produces no collision) -- is the one record this fix
     round protected with `COMMENTARY_NEVER_CUT` precisely because a bare
     marker match landing at the wrong position is worse than no match.
+
+    Task 15 (Ibn Majah) widens this list from 121 to 142 ids, with NO
+    removals: adding a sixth collection supplies 21 new completions this
+    detector could not see before -- a Nasai record's own head, with 1-8
+    trailing tokens dropped, now matches an Ibn Majah record's complete text
+    (e.g. hadith:nasai:1668's "salat al-layl mathna mathna fa-idha khifta
+    al-subha fa-awtir bi-wahida" against hadith:ibnmajah:1319's shorter
+    "salat al-layl mathna mathna"). Every one of the 21 was read: the same
+    ordinary, correctly-scored feature the other 121 already document --
+    shorter and longer narrations of the same report sharing a head -- not a
+    new editorial-leak shape. Ibn Majah's own residue (63 hits, all against
+    the corpus as a whole) is measured and reported in the task's own review
+    report but deliberately NOT pinned here or given its own gate, for the
+    same reason bukhari/muslim/abudawud/tirmidhi/quran are not: it was read
+    only at sample density (roughly 55 of 63), not exhaustively the way this
+    round's six named shapes were audited for Nasai, so gating it now would
+    freeze an under-read list rather than a fully-read one.
     """
     from sanad_ingest.openiti import find_prefix_collisions
 
@@ -2636,3 +2721,309 @@ def test_prefix_collision_detector_nasai_residue_is_fully_read():
         f"al-Nasai's prefix-collision residue changed -- a new hit needs "
         f"reading before this pin is widened, or a fixed one needs "
         f"removing from it. Per-collection counts: {dict(per_collection)}")
+
+
+def test_no_unaudited_near_miss_for_the_ibnmajah_compiler_marker():
+    """R-A3-20's own detector, run for Ibn Majah's TWO verb+kunya markers at
+    once: "قال"/"سئل"/"سمعت" against both the nominative and accusative forms
+    of both al-Qattan's ("أبو/أبا الحسن") and the compiler's own ("أبو/أبا عبد
+    الله") kunya, at every token gap 0-4, with `_IBNMAJAH_COMMENTARY`,
+    `_IBNMAJAH_COMMENTARY_NEAR`, `_IBNMAJAH_HEARD`, and `_IBNMAJAH_FORMULA` all
+    in `configured` so the sweep only reports gaps the shipped marker set does
+    not already cover.
+
+    Empty: hadith:ibnmajah:309 (the one genuine gap this sweep originally
+    found, at `heard`'s own tolerance boundary) is now covered by
+    `_IBNMAJAH_FORMULA`'s anchored fourth arm. A separate, wider gap-8 sweep
+    (not shipped as a test -- gap 8 is wide enough to also catch ordinary
+    narrative and was used only as a one-off manual check) confirmed
+    hadith:ibnmajah:2082's genitive "Abu al-Hasan, mawla of Banu Nawfal" and
+    nominative "Abu al-Hasan ... tahammala hadhihi" are two DIFFERENT people,
+    neither al-Qattan -- a correct exclusion, not a hazard, and eval-cased
+    directly as `hadith-ibnmajah-genitive-narrator-namesake-is-not-cut`.
+    """
+    import re
+
+    from sanad_ingest.openiti import (
+        _ARABIC, _IBNMAJAH_COMMENTARY, _IBNMAJAH_COMMENTARY_NEAR,
+        _IBNMAJAH_FORMULA, _IBNMAJAH_HEARD, find_near_misses)
+
+    configured = re.compile(
+        f"{_IBNMAJAH_COMMENTARY.pattern}|{_IBNMAJAH_COMMENTARY_NEAR.pattern}"
+        f"|{_IBNMAJAH_HEARD.pattern}|{_IBNMAJAH_FORMULA.pattern}")
+    sweep = re.compile(
+        rf"(?<![{_ARABIC}])[وف]?(?:قال|سئل|سمعت)(?:\s+\S+){{0,4}}"
+        rf"\s+(?:أبو|أبا)\s+(?:الحسن|عبد\s+الله)(?![{_ARABIC}])")
+    assert find_near_misses(_real_ibnmajah_units(), configured, sweep) == []
+
+
+# --- Task 15: Sunan Ibn Majah (R-A3-21) --------------------------------------
+#
+# Every Arabic literal below is a codepoint tuple read out of the built
+# database with a one-off script, per the top-of-file convention, never typed.
+
+
+def _real_ibnmajah_units():
+    from sanad_ingest.lockfile import load_lockfile
+    from sanad_ingest.openiti import parse_openiti
+    from pathlib import Path
+
+    sources = {s.id: s for s in load_lockfile(Path("ingest/corpus.lock.toml"))}
+    locked = sources["openiti-ibnmaja-jk000141"]
+    cache = Path(".corpus-cache") / (
+        f"{locked.id}-{locked.format}-"
+        + __import__("hashlib").sha256(locked.url.encode("utf-8")).hexdigest()[:8]
+        + ".txt")
+    raw = cache.read_text(encoding="utf-8")
+    return parse_openiti(raw, collection="ibnmajah").units
+
+
+def test_ibnmajah_record_count_and_scorability():
+    r"""The measured, lockfile-pinned facts about the sixth and final hadith
+    collection.
+
+    4,341 is `expected_records` in corpus.lock.toml, the raw file's own
+    numbered-unit count. 1 unscorable (hadith:ibnmajah:413, a bare "نحوه"
+    pointer -- `UNSCORABLE["ibnmajah"]`), 166 cut (110 already split by the
+    generic "*"-marked secondary narration before any Ibn Majah-specific
+    marker exists, 56 newly split by this task's own markers).
+
+    Ibn Majah carries TWO editorial voices, not one: a transmitter's own
+    aside ("qala Abu al-Hasan [al-Qattan]", kunya "أبو الحسن") and the
+    compiler's own ("qala Abu 'Abdallah[ ibn Majah]", kunya "أبو عبد الله",
+    or his bare name "بن ماجة"), combined into one marker pair via `_compiler_
+    commentary_markers` called twice and `|`-joined so `_split_compiler_
+    commentary`'s "earliest candidate wins" rule still holds across both
+    voices at once -- see openiti.py's own comment above `_IBNMAJAH_QATTAN_
+    TIGHT`/`_IBNMAJAH_COMPILER_TIGHT` for the full, individually-read count
+    (40 nominative/2 accusative/4 genitive for al-Qattan's voice, 29
+    nominative/2 accusative/9 genitive plus 24 bare-name occurrences for Ibn
+    Majah's own; every genitive occurrence, both voices, confirmed to sit
+    inside `isnad_ar`, naming a different person each time -- no namesake
+    ever reaches scored text). `_IBNMAJAH_FORMULA` covers "هذا حديث" (10,
+    Tirmidhi's own tail-opener, recurring here at much smaller scale), the
+    one-off "حدثنا أبو الحسن القطان" transmission-verb gap (3458), and a
+    second one-off found only by `find_near_misses`'s own sweep, not by the
+    read-through: hadith:ibnmajah:309's "سمعت محمد بن يزيد أبا عبد الله
+    يقول" (Ibn Majah named in full between سمعت and his own kunya, outside
+    `heard`'s token-gap tolerance).
+
+    Sighted but NOT added, every occurrence read individually against
+    `matn_ar` alone (not the joined display text): "خالفه"/"خالفهم" (3, all
+    genuine narrative -- unlike Nasai, this file gives no isnad-critique use
+    of the verb at all), "رفعه" (7, 6 the reward/prayer-posture idiom, 1 a
+    terse unattributed note with no name to anchor a boundary on, disclosed
+    not chased), "غريب"/"ضعيف"/"خطأ" bare/"الصواب"/"لم يسمع" (ordinary senses
+    of common words, no editorial use in this file's occurrences). Two
+    further one-off remarks by untracked individuals (hadith:342, 2497) sit
+    entirely inside `addenda_ar` already, confirmed against `matn_ar` alone.
+
+    Two hand-audited corrections beyond the marker table itself:
+    `NEAR_MISS_CUT_OVERRIDE["ibnmajah"]` (hadith:ibnmajah:1385's dangling
+    "qala Abu Ishaq", hadith:ibnmajah:2162's dangling "tafarrada bihi ...
+    wahdahu" -- see their own dedicated tests below) and
+    `NEVER_CUT["ibnmajah"]` (hadith:ibnmajah:2131 -- see its own test below).
+
+    A pre-existing, out-of-scope defect found while auditing these cuts:
+    Muslim's own file independently carries a literal "*" (this edition's
+    nested-repeat marker) in three scored matns, and Tirmidhi's in one
+    addendum -- both in BASE, unrelated to this task, and NOT fixed here
+    because doing so would touch `_clean()`, which every one of the five
+    prior collections' byte-identical proof depends on staying untouched.
+    `_strip_stray_asterisk` fixes the one Ibn Majah record where `NEVER_CUT`
+    would otherwise leave one behind, collection-scoped, touching nothing
+    else -- see its own docstring.
+
+    Digit width is NOT a universal OpenITI convention: this file's own
+    milestones are 3 digits (`msNNN`), not the 4-digit `msNNNN` all five
+    prior collections use. `_MILESTONE` widened from `ms\d{4}` to `ms\d+`
+    to strip both, verified byte-identical for all five prior collections
+    (see the review report for the full cross-commit proof).
+    """
+    conn = db.connect(DB_PATH)
+    total = conn.execute(
+        "SELECT count(*) FROM records WHERE kind='hadith' AND collection='ibnmajah'"
+    ).fetchone()[0]
+    scorable = conn.execute(
+        "SELECT count(*) FROM records WHERE kind='hadith' AND collection='ibnmajah'"
+        " AND unscorable_reason IS NULL").fetchone()[0]
+    unscorable = conn.execute(
+        "SELECT count(*) FROM records WHERE kind='hadith' AND collection='ibnmajah'"
+        " AND unscorable_reason IS NOT NULL").fetchone()[0]
+    cut = conn.execute(
+        "SELECT count(*) FROM records WHERE kind='hadith' AND collection='ibnmajah'"
+        " AND addenda_ar IS NOT NULL").fetchone()[0]
+    assert (total, scorable, unscorable, cut) == (4341, 4340, 1, 166)
+
+_IBNMAJAH_1_MATN = "".join(chr(c) for c in (
+    0x0645, 0x0627, 0x0020, 0x0623, 0x0645, 0x0631, 0x062a, 0x0643, 0x0645, 
+    0x0020, 0x0628, 0x0647, 0x0020, 0x0641, 0x062e, 0x0630, 0x0648, 0x0647, 
+    0x0020, 0x0648, 0x0645, 0x0627, 0x0020, 0x0646, 0x0647, 0x064a, 0x062a, 
+    0x0643, 0x0645, 0x0020, 0x0639, 0x0646, 0x0647, 0x0020, 0x0641, 0x0627, 
+    0x0646, 0x062a, 0x0647, 0x0648, 0x0627, 
+))
+
+
+def test_ibnmajah_hadith_1_is_byte_exact():
+    conn = db.connect(DB_PATH)
+    rec = db.get_record(conn, "hadith:ibnmajah:1")
+    assert rec.text_ar == _IBNMAJAH_1_MATN
+    assert rec.unscorable_reason is None
+
+
+
+# hadith:ibnmajah:2131 -- a father asking the Prophet about a vow to sacrifice
+# at Buwana; "was there an idol there? No." "Then fulfil your vow." Immediately
+# followed, with no separating word, by a second complete isnad reaching the
+# same report via a different chain -- whose own forward-looking chain shape
+# let a BARE "qala" (with no name) count as `_split_secondary`'s own cut point,
+# stranding the Prophet's actual reply ("fulfil your vow") in the addendum
+# alongside an unrelated second chain. `NEVER_CUT["ibnmajah"]` keeps the whole
+# unit intact; `_strip_stray_asterisk` removes the literal "*" the edition's
+# own nested-repeat convention would otherwise leave sitting in scored text.
+_IBNMAJAH_2131_MATN = "".join(chr(c) for c in (
+    0x0623, 0x0646, 0x0020, 0x0623, 0x0628, 0x0627, 0x0647, 0x0627, 0x0020, 
+    0x0644, 0x0642, 0x064a, 0x0020, 0x0627, 0x0644, 0x0646, 0x0628, 0x064a, 
+    0x0020, 0x0635, 0x0644, 0x0649, 0x0020, 0x0627, 0x0644, 0x0644, 0x0647, 
+    0x0020, 0x0639, 0x0644, 0x064a, 0x0647, 0x0020, 0x0648, 0x0633, 0x0644, 
+    0x0645, 0x0020, 0x0648, 0x0647, 0x064a, 0x0020, 0x0631, 0x062f, 0x064a, 
+    0x0641, 0x0647, 0x0020, 0x0644, 0x0647, 0x0020, 0x0641, 0x0642, 0x0627, 
+    0x0644, 0x0020, 0x0625, 0x0646, 0x064a, 0x0020, 0x0646, 0x0630, 0x0631, 
+    0x062a, 0x0020, 0x0623, 0x0646, 0x0020, 0x0623, 0x0646, 0x062d, 0x0631, 
+    0x0020, 0x0628, 0x0628, 0x0648, 0x0627, 0x0646, 0x0629, 0x0020, 0x0641, 
+    0x0642, 0x0627, 0x0644, 0x0020, 0x0631, 0x0633, 0x0648, 0x0644, 0x0020, 
+    0x0627, 0x0644, 0x0644, 0x0647, 0x0020, 0x0635, 0x0644, 0x0649, 0x0020, 
+    0x0627, 0x0644, 0x0644, 0x0647, 0x0020, 0x0639, 0x0644, 0x064a, 0x0647, 
+    0x0020, 0x0648, 0x0633, 0x0644, 0x0645, 0x0020, 0x0647, 0x0644, 0x0020, 
+    0x0628, 0x0647, 0x0627, 0x0020, 0x0648, 0x062b, 0x0646, 0x0020, 0x0642, 
+    0x0627, 0x0644, 0x0020, 0x0644, 0x0627, 0x0020, 0x0642, 0x0627, 0x0644, 
+    0x0020, 0x0623, 0x0648, 0x0641, 0x0020, 0x0628, 0x0646, 0x0630, 0x0631, 
+    0x0643, 0x0020, 0x062d, 0x062f, 0x062b, 0x0646, 0x0627, 0x0020, 0x0623, 
+    0x0628, 0x0648, 0x0020, 0x0628, 0x0643, 0x0631, 0x0020, 0x0628, 0x0646, 
+    0x0020, 0x0623, 0x0628, 0x064a, 0x0020, 0x0634, 0x064a, 0x0628, 0x0629, 
+    0x0020, 0x062b, 0x0646, 0x0627, 0x0020, 0x0628, 0x0646, 0x0020, 0x062f, 
+    0x0643, 0x064a, 0x0646, 0x0020, 0x0639, 0x0646, 0x0020, 0x0639, 0x0628, 
+    0x062f, 0x0020, 0x0627, 0x0644, 0x0644, 0x0647, 0x0020, 0x0628, 0x0646, 
+    0x0020, 0x0639, 0x0628, 0x062f, 0x0020, 0x0627, 0x0644, 0x0631, 0x062d, 
+    0x0645, 0x0646, 0x0020, 0x0639, 0x0646, 0x0020, 0x064a, 0x0632, 0x064a, 
+    0x062f, 0x0020, 0x0628, 0x0646, 0x0020, 0x0645, 0x0642, 0x0633, 0x0645, 
+    0x0020, 0x0639, 0x0646, 0x0020, 0x0645, 0x064a, 0x0645, 0x0648, 0x0646, 
+    0x0629, 0x0020, 0x0628, 0x0646, 0x062a, 0x0020, 0x0643, 0x0631, 0x062f, 
+    0x0645, 0x0020, 0x0639, 0x0646, 0x0020, 0x0627, 0x0644, 0x0646, 0x0628, 
+    0x064a, 0x0020, 0x0635, 0x0644, 0x0649, 0x0020, 0x0627, 0x0644, 0x0644, 
+    0x0647, 0x0020, 0x0639, 0x0644, 0x064a, 0x0647, 0x0020, 0x0648, 0x0633, 
+    0x0644, 0x0645, 0x0020, 0x0628, 0x0646, 0x062d, 0x0648, 0x0647, 
+))
+
+
+def test_the_ibnmajah_never_cut_exception_verifies_whole():
+    from sanad.verify.engine import Verdict, verify_spans
+    conn = db.connect(DB_PATH)
+    rec = db.get_record(conn, "hadith:ibnmajah:2131")
+    assert rec.text_ar == _IBNMAJAH_2131_MATN
+    assert "*" not in rec.text_ar
+    assert rec.addenda_ar is None
+    assert rec.unscorable_reason is None
+    m = verify_spans(conn, f"«{rec.text_ar}»")
+    assert len(m) == 1
+    assert m[0].verdict is Verdict.EXACT
+    assert m[0].record.id == "hadith:ibnmajah:2131"
+
+
+
+# hadith:ibnmajah:1385 -- the tawassul supplication ("O Allah, I ask You and
+# turn to You through Muhammad, the Prophet of mercy ..."). `_IBNMAJAH_
+# FORMULA`'s "hadha hadith" arm cuts at "hadha" but leaves "qala Abu Ishaq"
+# (the narrator introducing the grading remark that follows) dangling on the
+# genuine du'a -- corrected by `NEAR_MISS_CUT_OVERRIDE["ibnmajah"]`, the same
+# nested-attribution shape as Abu Dawud/Tirmidhi/Nasai's own entries.
+#
+# hadith:ibnmajah:2162 -- a cupping-fee ruling. "qalahu Ibn Majah" ("Ibn Majah
+# said IT") refers BACKWARD to "tafarrada bihi Ibn Abi 'Umar wahdahu" (an
+# isnad-uniqueness remark) that precedes it -- the opposite order from every
+# other "qala <compiler> ..." shape in this file -- so the marker's own
+# anchor on "qalahu" leaves that remark dangling on the genuine matn.
+_IBNMAJAH_1385_MATN = "".join(chr(c) for c in (
+    0x0627, 0x062f, 0x0639, 0x0020, 0x0627, 0x0644, 0x0644, 0x0647, 0x0020, 
+    0x0644, 0x064a, 0x0020, 0x0623, 0x0646, 0x0020, 0x064a, 0x0639, 0x0627, 
+    0x0641, 0x064a, 0x0646, 0x064a, 0x0020, 0x0641, 0x0642, 0x0627, 0x0644, 
+    0x0020, 0x0625, 0x0646, 0x0020, 0x0634, 0x0626, 0x062a, 0x0020, 0x0623, 
+    0x062e, 0x0631, 0x062a, 0x0020, 0x0644, 0x0643, 0x0020, 0x0648, 0x0647, 
+    0x0648, 0x0020, 0x062e, 0x064a, 0x0631, 0x0020, 0x0648, 0x0625, 0x0646, 
+    0x0020, 0x0634, 0x0626, 0x062a, 0x0020, 0x062f, 0x0639, 0x0648, 0x062a, 
+    0x0020, 0x0641, 0x0642, 0x0627, 0x0644, 0x0020, 0x0627, 0x062f, 0x0639, 
+    0x0647, 0x0020, 0x0641, 0x0623, 0x0645, 0x0631, 0x0647, 0x0020, 0x0623, 
+    0x0646, 0x0020, 0x064a, 0x062a, 0x0648, 0x0636, 0x0623, 0x0020, 0x0641, 
+    0x064a, 0x062d, 0x0633, 0x0646, 0x0020, 0x0648, 0x0636, 0x0648, 0x0621, 
+    0x0647, 0x0020, 0x0648, 0x064a, 0x0635, 0x0644, 0x064a, 0x0020, 0x0631, 
+    0x0643, 0x0639, 0x062a, 0x064a, 0x0646, 0x0020, 0x0648, 0x064a, 0x062f, 
+    0x0639, 0x0648, 0x0020, 0x0628, 0x0647, 0x0630, 0x0627, 0x0020, 0x0627, 
+    0x0644, 0x062f, 0x0639, 0x0627, 0x0621, 0x0020, 0x0627, 0x0644, 0x0644, 
+    0x0647, 0x0645, 0x0020, 0x0625, 0x0646, 0x064a, 0x0020, 0x0623, 0x0633, 
+    0x0623, 0x0644, 0x0643, 0x0020, 0x0648, 0x0623, 0x062a, 0x0648, 0x062c, 
+    0x0647, 0x0020, 0x0625, 0x0644, 0x064a, 0x0643, 0x0020, 0x0628, 0x0645, 
+    0x062d, 0x0645, 0x062f, 0x0020, 0x0646, 0x0628, 0x064a, 0x0020, 0x0627, 
+    0x0644, 0x0631, 0x062d, 0x0645, 0x0629, 0x0020, 0x064a, 0x0627, 0x0020, 
+    0x0645, 0x062d, 0x0645, 0x062f, 0x0020, 0x0625, 0x0646, 0x064a, 0x0020, 
+    0x0642, 0x062f, 0x0020, 0x062a, 0x0648, 0x062c, 0x0647, 0x062a, 0x0020, 
+    0x0628, 0x0643, 0x0020, 0x0625, 0x0644, 0x0649, 0x0020, 0x0631, 0x0628, 
+    0x064a, 0x0020, 0x0641, 0x064a, 0x0020, 0x062d, 0x0627, 0x062c, 0x062a, 
+    0x064a, 0x0020, 0x0647, 0x0630, 0x0647, 0x0020, 0x0644, 0x062a, 0x0642, 
+    0x0636, 0x0649, 0x0020, 0x0627, 0x0644, 0x0644, 0x0647, 0x0645, 0x0020, 
+    0x0641, 0x0634, 0x0641, 0x0639, 0x0647, 0x0020, 0x0641, 0x064a, 
+))
+_IBNMAJAH_1385_ADDENDA = "".join(chr(c) for c in (
+    0x0642, 0x0627, 0x0644, 0x0020, 0x0623, 0x0628, 0x0648, 0x0020, 0x0625, 
+    0x0633, 0x062d, 0x0627, 0x0642, 0x0020, 0x0647, 0x0630, 0x0627, 0x0020, 
+    0x062d, 0x062f, 0x064a, 0x062b, 0x0020, 0x0635, 0x062d, 0x064a, 0x062d, 
+))
+_IBNMAJAH_2162_MATN = "".join(chr(c) for c in (
+    0x0623, 0x0646, 0x0020, 0x0627, 0x0644, 0x0646, 0x0628, 0x064a, 0x0020, 
+    0x0635, 0x0644, 0x0649, 0x0020, 0x0627, 0x0644, 0x0644, 0x0647, 0x0020, 
+    0x0639, 0x0644, 0x064a, 0x0647, 0x0020, 0x0648, 0x0633, 0x0644, 0x0645, 
+    0x0020, 0x0627, 0x062d, 0x062a, 0x062c, 0x0645, 0x0020, 0x0648, 0x0623, 
+    0x0639, 0x0637, 0x0627, 0x0647, 0x0020, 0x0623, 0x062c, 0x0631, 0x0647, 
+))
+_IBNMAJAH_2162_ADDENDA = "".join(chr(c) for c in (
+    0x062a, 0x0641, 0x0631, 0x062f, 0x0020, 0x0628, 0x0647, 0x0020, 0x0628, 
+    0x0646, 0x0020, 0x0623, 0x0628, 0x064a, 0x0020, 0x0639, 0x0645, 0x0631, 
+    0x0020, 0x0648, 0x062d, 0x062f, 0x0647, 0x0020, 0x0642, 0x0627, 0x0644, 
+    0x0647, 0x0020, 0x0628, 0x0646, 0x0020, 0x0645, 0x0627, 0x062c, 0x0629, 
+))
+
+
+def test_the_ibnmajah_near_miss_cut_overrides_verify():
+    from sanad.verify.engine import Verdict, verify_spans
+    conn = db.connect(DB_PATH)
+
+    rec = db.get_record(conn, "hadith:ibnmajah:1385")
+    assert rec.text_ar == _IBNMAJAH_1385_MATN
+    assert rec.addenda_ar == _IBNMAJAH_1385_ADDENDA
+    m = verify_spans(conn, f"«{rec.text_ar}»")
+    assert len(m) == 1
+    assert m[0].verdict is Verdict.EXACT
+    assert m[0].record.id == "hadith:ibnmajah:1385"
+
+    rec2 = db.get_record(conn, "hadith:ibnmajah:2162")
+    assert rec2.text_ar == _IBNMAJAH_2162_MATN
+    assert rec2.addenda_ar == _IBNMAJAH_2162_ADDENDA
+    m2 = verify_spans(conn, f"«{rec2.text_ar}»")
+    assert len(m2) == 1
+    assert m2[0].verdict is Verdict.EXACT
+    assert m2[0].record.id == "hadith:ibnmajah:2162"
+
+
+
+def test_ibnmajah_bare_pointer_is_unscorable():
+    """hadith:ibnmajah:413's entire matn is the single word "نحوه" ("similarly
+    to it"), referring back to 412's fuller wording two units earlier -- the
+    same `_POINTER` phenomenon already on Bukhari/Tirmidhi/Nasai's own lists,
+    and (measured) the identical sha256 as their own "نحوه" occurrences, since
+    the digest is of the matn string alone. Read in context along with every
+    other matn of 3 tokens or fewer (56 measured); the other 55 are genuine,
+    complete, terse Prophetic sayings.
+    """
+    conn = db.connect(DB_PATH)
+    rec = db.get_record(conn, "hadith:ibnmajah:413")
+    assert rec.text_ar_sha256 == "da5b06f32a8be960e4896498557c3a5abf0318f6aa354cf9a2f1cdff8bc7dcbe"
+    assert rec.unscorable_reason is not None

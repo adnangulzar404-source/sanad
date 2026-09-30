@@ -871,18 +871,25 @@ def test_no_addendum_reaches_the_primary_representation(real_corpus):
     net scorable-with-addendum). A2's pointer/deferral sweep then moves
     muslim:1669-6 from scorable to unscorable, so its addendum crosses over:
     128 unscorable-with-addendum and 5,718 scorable-with-addendum.
+
+    Task 16 A2 fix-round (back-reference/omission shapes) moves these to
+    136 / 5,710: 8 of the 151 newly-excluded records (muslim:1433-7 and
+    tirmidhi 328/493/888/985/1389/1452/2824-2) already carried an addendum a
+    prior round had cut, so each crosses from scorable-with-addendum to
+    unscorable-with-addendum. The other 143 have no addendum, so neither count
+    sees them.
     """
     out, _, _ = real_corpus
     conn = db.connect(out)
     assert conn.execute(
         "SELECT count(*) FROM records WHERE addenda_ar IS NOT NULL"
-        " AND unscorable_reason IS NOT NULL").fetchone()[0] == 128  # A1 +5, A2 +1 (muslim:1669-6)
+        " AND unscorable_reason IS NOT NULL").fetchone()[0] == 136  # A2 fix-round +8
     rows = conn.execute(
         "SELECT r.id, r.text_ar, r.addenda_ar, f.norm_standard,"
         "       f.norm_aggressive FROM records r"
         " JOIN records_fts f ON f.record_id = r.id AND f.variant = 'primary'"
         " WHERE r.addenda_ar IS NOT NULL").fetchall()
-    assert len(rows) == 5718  # A1 +101; A2 -1 (muslim:1669-6 -> unscorable-with-addendum)
+    assert len(rows) == 5710  # A2 fix-round: -8 (newly-unscorable records that carried an addendum)
     for row in rows:
         assert row["addenda_ar"] not in row["text_ar"], row["id"]
         for form in ("standard", "aggressive"):
@@ -1050,6 +1057,13 @@ def test_editorial_pointers_are_kept_but_never_scored(real_corpus):
     Task 16 A1 adds 5 Muslim (split-exposed pointer/deferral heads), then A2's
     non-length-capped sweep adds 1 more Bukhari (587) and 24 more Muslim
     (partial-quote deferrals), so Bukhari is now 18 and Muslim 750.
+
+    Task 16 A2 fix-round (back-reference and omission shapes) adds 132 more
+    Muslim, 6 more Abu Dawud and 13 more Tirmidhi -- back-references,
+    meta-comments, omission notes and isnad-scaffold heads that deliver no
+    narration of their own -- so Muslim is now 882, Abu Dawud 145 and Tirmidhi
+    93. Bukhari (18), Nasai (57) and Ibn Majah (1) are unchanged: the same
+    six-collection sweep found none of this class in them.
     """
     out, _, _ = real_corpus
     conn = db.connect(out)
@@ -1062,9 +1076,9 @@ def test_editorial_pointers_are_kept_but_never_scored(real_corpus):
     flagged_nasai = {r for r in flagged if r.startswith("hadith:nasai:")}
     flagged_ibnmajah = {r for r in flagged if r.startswith("hadith:ibnmajah:")}
     assert flagged_bukhari == set(_UNSCORABLE_IDS)
-    assert len(flagged_muslim) == 750  # A1 +5 split-exposed; A2 +24 pointer/deferral sweep
-    assert len(flagged_abudawud) == 139
-    assert len(flagged_tirmidhi) == 80
+    assert len(flagged_muslim) == 882  # A2 fix-round +132 back-reference/omission shapes
+    assert len(flagged_abudawud) == 145  # A2 fix-round +6
+    assert len(flagged_tirmidhi) == 93  # A2 fix-round +13
     assert len(flagged_nasai) == 57
     assert flagged_ibnmajah == {"hadith:ibnmajah:413"}
     assert flagged == (flagged_bukhari | flagged_muslim | flagged_abudawud
@@ -1120,6 +1134,13 @@ def test_no_unscorable_primary_is_in_the_search_index(real_corpus):
     to 128: muslim:1669-6, moved to UNSCORABLE by the pointer/deferral sweep,
     keeps its A1 addendum as a "full" representation the same way -- listed in
     ascending string order below.
+
+    Task 16 A2 fix-round raises this to 136: 8 of the 151 back-reference/
+    omission records the sweep newly excluded already carried an addendum a
+    prior round had cut, which stays as a scorable "full" representation
+    (muslim:1433-7 and tirmidhi 328/493/888/985/1389/1452/2824-2). The other
+    143 have no addendum and so add no index row. Listed in ascending string
+    order below.
     """
     out, _, _ = real_corpus
     rows = db.connect(out).execute(
@@ -1169,6 +1190,7 @@ def test_no_unscorable_primary_is_in_the_search_index(real_corpus):
          ("hadith:bukhari:237", "full"),
          ("hadith:muslim:1159-7", "full"),
          ("hadith:muslim:1238-2", "full"),
+         ("hadith:muslim:1433-7", "full"),
          ("hadith:muslim:1532-2", "full"),
          ("hadith:muslim:1647-2", "full"),
          ("hadith:muslim:1669-6", "full"),
@@ -1196,6 +1218,8 @@ def test_no_unscorable_primary_is_in_the_search_index(real_corpus):
          ("hadith:tirmidhi:119", "full"),
          ("hadith:tirmidhi:127", "full"),
          ("hadith:tirmidhi:1328", "full"),
+         ("hadith:tirmidhi:1389", "full"),
+         ("hadith:tirmidhi:1452", "full"),
          ("hadith:tirmidhi:148", "full"),
          ("hadith:tirmidhi:1605", "full"),
          ("hadith:tirmidhi:163", "full"),
@@ -1214,12 +1238,14 @@ def test_no_unscorable_primary_is_in_the_search_index(real_corpus):
          ("hadith:tirmidhi:2568-2", "full"),
          ("hadith:tirmidhi:2570", "full"),
          ("hadith:tirmidhi:280", "full"),
+         ("hadith:tirmidhi:2824-2", "full"),
          ("hadith:tirmidhi:285", "full"),
          ("hadith:tirmidhi:2864", "full"),
          ("hadith:tirmidhi:2929", "full"),
          ("hadith:tirmidhi:2934", "full"),
          ("hadith:tirmidhi:299", "full"),
          ("hadith:tirmidhi:30", "full"),
+         ("hadith:tirmidhi:328", "full"),
          ("hadith:tirmidhi:343", "full"),
          ("hadith:tirmidhi:3435-2", "full"),
          ("hadith:tirmidhi:347", "full"),
@@ -1228,6 +1254,7 @@ def test_no_unscorable_primary_is_in_the_search_index(real_corpus):
          ("hadith:tirmidhi:441", "full"),
          ("hadith:tirmidhi:444", "full"),
          ("hadith:tirmidhi:46", "full"),
+         ("hadith:tirmidhi:493", "full"),
          ("hadith:tirmidhi:504", "full"),
          ("hadith:tirmidhi:529", "full"),
          ("hadith:tirmidhi:535", "full"),
@@ -1252,10 +1279,12 @@ def test_no_unscorable_primary_is_in_the_search_index(real_corpus):
          ("hadith:tirmidhi:800", "full"),
          ("hadith:tirmidhi:836", "full"),
          ("hadith:tirmidhi:872", "full"),
+         ("hadith:tirmidhi:888", "full"),
          ("hadith:tirmidhi:915", "full"),
          ("hadith:tirmidhi:926", "full"),
          ("hadith:tirmidhi:968", "full"),
-         ("hadith:tirmidhi:971", "full")]
+         ("hadith:tirmidhi:971", "full"),
+         ("hadith:tirmidhi:985", "full")]
 
 
 def test_a_famous_short_matn_is_still_indexed_and_scorable(real_corpus):

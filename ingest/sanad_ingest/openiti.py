@@ -1884,14 +1884,11 @@ def content_mass(norm_aggressive: str) -> int:
     whatever marker it hides behind, so it reduces to ~0; a genuine delivered
     "qala: <words>" / "zada: <words>" keeps its words and scores high.
 
-    This is the PRIMARY net of round 5. It is the round-3/4 residue sweep with
-    the escape removed TWICE over: (a) it does NOT exclude a record for carrying
-    a delivery marker (the round-4 `_PP_DELIVERS` guard, which hid every pointer
-    wrapped in a qala/yaqul frame), and (b) it absorbs a name after a frame verb
-    (`_PP_FRAME_INTRO`), so "qala <narrator>" is scaffold, not content. It keys
-    on NO marker word and NO position, which is the whole point: the seven prior
-    closures each narrowed a filter and the next pointer walked through the
-    exclusion. Content mass has no exclusion to walk through.
+    This function only DEFINES the read-sweep population (see
+    `in_pointer_sweep_population`); it is not a safety net. Safety rests on the
+    pinned hand-read rulings over that population
+    (tests/ingest/data/pointer_sweep_rulings.tsv), which carry a measured miss
+    rate, not a proof.
 
     Distinct from `find_pure_pointers`/`_pp_residue`, which KEEP frame verbs so a
     genuine "wa-zada Y" stays scorable there; here that job is done by keeping

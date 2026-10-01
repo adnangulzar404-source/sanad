@@ -3055,23 +3055,14 @@ UNSCORABLE: dict[str, dict[str, tuple[str, str]]] = {
     },
 }
 
-# --- A2 round 5 (Task 16): vocabulary-free content-mass net ------------------
+# --- A2 round 5 (Task 16): content-mass pointers -----------------------------
 #
-# The pure-pointer class escaped SEVEN closures, each a narrowing filter whose
-# exclusion the next pointer walked through (round 4: the qala/yaqul/zada
-# `_PP_DELIVERS` guard hid every pointer wrapped in a speech frame). Round 5
-# keys on NO marker: `openiti.content_mass` strips scaffolding (honorific,
-# basmala, isnad/chain names, reference/deferral vocabulary, and a frame verb
-# plus the narrator name it introduces) and counts what is LEFT. Every scorable
-# hadith primary with content-mass <= 3 (the audit-scope boundary K, validated
-# by auditing the clean band above it) was read one record at a time in
-# task-16-A2round5-audit.md; the 28 below deliver no self-contained matn and are
-# pinned unscorable. The other 1,061 in the band deliver a clause/ruling/scene
-# and stay scorable (pinned in tests/ingest/test_real_corpus.py) -- including the
-# two one/two-word genuine matns the content-mass net surfaces but that DELIVER
-# (muslim:274-13 "da'hu" and muslim:581-2), which are keeps, not pointers. These
-# 28 each carry a qala/yaqul/sami'tu or ghayra-anna token, which is exactly why
-# the round-4 residue sweep could not see them. sha256 is of text_ar, computed
+# Round 5 used `openiti.content_mass` to surface low-content records; the 28
+# below were ruled pointers and pinned unscorable. Round 5's claim that this
+# net, with a "clean band above K", closed the class was WRONG (re-review found
+# 75 more). Safety now rests on the hand-read sweep over the whole population
+# (`_A2_READ_SWEEP_POINTERS`, pinned by tests/ingest/data/pointer_sweep_rulings.tsv);
+# content_mass only DEFINES that population. sha256 is of text_ar, computed
 # directly from the source build (never hand-typed); equal shas are equal matn
 # strings (e.g. the commonplace frame "'an al-nabi [saw]" recurs verbatim).
 _A2R5_CONTENT_MASS_POINTERS: dict[str, dict[str, tuple[str, str]]] = {

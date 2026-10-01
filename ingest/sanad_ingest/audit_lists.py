@@ -3088,8 +3088,6 @@ _A2R5_CONTENT_MASS_POINTERS: dict[str, dict[str, tuple[str, str]]] = {
     "bukhari": {
         "hadith:bukhari:1656":
             ("9a01fb95bee94e0a81804633536470dd41d684dc26a12aeb5d8bdc757bc87370", _BARE_RULING),
-        "hadith:bukhari:3332":
-            ("8b9006dfb51995c80b593253756dcdc3fe896dd41787ee9508e35a03e6420e59", _CHAIN_LEAK),
         "hadith:bukhari:4251":
             ("4efc1ba41a2d7e71ca7778453f8e973a32c99597dca1ac07e1bd219febb553cc", _FRAME_ONLY),
         "hadith:bukhari:4745":
@@ -3142,4 +3140,1032 @@ _A2R5_CONTENT_MASS_POINTERS: dict[str, dict[str, tuple[str, str]]] = {
 }
 
 for _coll, _entries in _A2R5_CONTENT_MASS_POINTERS.items():
+    UNSCORABLE.setdefault(_coll, {}).update(_entries)
+
+# --- A2 read sweep (Task 16): the pinned read-sweep ground truth --------------
+#
+# Every scorable hadith in the bounded population P (content_mass <= 7, or
+# carrying a reference/deferral token; see openiti.in_pointer_sweep_population)
+# was read by hand, at 66de6f0. Every POINTER/UNSURE was read a second time
+# blind, every KEEP carrying a reference token was read again, a random sample
+# of the other KEEPs was read again, and disagreements were adjudicated. The
+# rulings are .superpowers/sdd/2026-09-27-hadith-collections-a3/sweep/
+# FINAL-RULINGS.tsv (8,721 rows: 495 POINTER, 8,226 KEEP); the committed copy
+# the gate reads is tests/ingest/data/pointer_sweep_rulings.tsv. The 495
+# POINTERs are pinned below. The entries were generated mechanically from the
+# rulings plus the built DB (sha256 of text_ar), never typed; the reason
+# constant was chosen from each ruling's recorded reason.
+_SEGMENT = ("narration segmented into addenda_ar; text_ar is only a frame; "
+            "unscorable until the split is repaired")
+_FRAGMENT_VARIANT = ("variant note delivering only a fragment, not a complete "
+                     "clause")
+
+_A2_READ_SWEEP_POINTERS: dict[str, dict[str, tuple[str, str]]] = {
+    "bukhari": {
+        "hadith:bukhari:102":
+            ("10f93c98e362c23bed62ab4fe4df3d940d807d39bddec6da82ac477d3fd49a66", _ISNAD_COMMENT),
+        "hadith:bukhari:218":
+            ("386ff8cf3f4e2ee5e7a48658b413effb28f030408f6b6e76074b79801d2e2864", _FRAME_ONLY),
+        "hadith:bukhari:1171":
+            ("8abe360582b05b36dd1baf5569601df6c396f5d58f60ccbe3dcfd4a010ada191", _DEFERRAL),
+        "hadith:bukhari:1620":
+            ("5d12be11992a4265e474a962e4f129b47c44ce0d133708069e80e8a3c19fbdd5", _FRAME_ONLY),
+        "hadith:bukhari:1651":
+            ("aa2b2d27bc6c66e2423508a1eab4a55e03b8bbe6482ecda56f568325f58168b9", _DEFERRAL),
+        "hadith:bukhari:1653":
+            ("fa0d6509e0ef34565dbcedcbf3f565b4e66341b8be11e64e0eb2d53198d891f7", _FRAME_ONLY),
+        "hadith:bukhari:1657":
+            ("9f2c743de19e068a94fb9a81e75c64a7794a1514824d911c8792a5cc394f7fa9", _BARE_RULING),
+        "hadith:bukhari:1663":
+            ("66aee602227f038358d3703288e55746c46361f4ede3f1e49ad4b539d8896831", _SEGMENT),
+        "hadith:bukhari:2101":
+            ("38839dd73355b213976af8868910e772a3da3358b3fc75c2f77471f811851f20", _FRAGMENT_VARIANT),
+        "hadith:bukhari:2117":
+            ("b63949e4499d230375ffa434109bc99dea6af2649c1f911c063a1dbb7d8b74c5", _POINTER),
+        "hadith:bukhari:2390":
+            ("91ca0314c533d0fc72e4b181bfd725927995f61a268ab8e51197db0a293051ca", _DEFERRAL),
+        "hadith:bukhari:3901":
+            ("d157611367b3e49d7727a20979cee4cc505414d92ccdb8326ba84fe8cb249237", _ISNAD_COMMENT),
+        "hadith:bukhari:3905":
+            ("020c812f5e7fc329b7ed42ae9f24e402cf4e61746e31f97762c56957f52bf568", _FRAME_ONLY),
+        "hadith:bukhari:4446":
+            ("a6d413d083de0ec78e90d687f72f031bba7174652d84f2c369874d1e4fd76900", _POINTER),
+        "hadith:bukhari:4562":
+            ("d67ec633c15b1620fd2b6d5d99f83930aed2f8656f0a4ee08ae47eac116a69f0", _OMISSION_NOTE),
+        "hadith:bukhari:4662":
+            ("6e532279fc604e52c41a6559af63d5f9cf69aa0aef154bf1f7e912a50889c333", _FRAME_ONLY),
+        "hadith:bukhari:5018":
+            ("321a89c3eb89edc2d04b6ea2a0dea8ac8b5740edad645f9ae993769d7afec43b", _POINTER),
+        "hadith:bukhari:5090":
+            ("a7ec84089989bbbba9780352777c1e6303e2153a8d1197379c79efc7a00c1f2a", _FRAME_ONLY),
+        "hadith:bukhari:6068":
+            ("c0700f12c3c6a4cc2e6f70f79ba0604749a6c6b84e3c16666aa5482f6e574729", _FRAME_ONLY),
+        "hadith:bukhari:6599":
+            ("86d46987eff346a4cd0947b5c53c5083f3e627bf3ba7de377d8551eaeedb40f0", _ISNAD_COMMENT),
+        "hadith:bukhari:6831":
+            ("049530466da4ed503fce8fc10519280d97cc5f35f29efdc6c8c4a8ab2e12250b", _DEFERRAL),
+        "hadith:bukhari:6906":
+            ("1061d003b813872de7918d6da3c2e3ef8c8a67e8e081dbe26135c9316c381b2a", _FRAME_ONLY),
+        "hadith:bukhari:6907":
+            ("3b14df8d831704ce3e34bb1e208aced3a88adc606fffd89b0bef647696ceb4cc", _FRAME_ONLY),
+        "hadith:bukhari:7070":
+            ("4ae8a16047e53fa7a38b114fec6d5e8524312fa5b40f067427dffc4bf133120d", _FRAGMENT_VARIANT),
+        "hadith:bukhari:7093":
+            ("46528029b7f0ee8c61575772e9c8e7c775513a1b18b97101c06c7ebb9ad01ca7", _DEFERRAL),
+    },
+    "muslim": {
+        "hadith:muslim:8-2":
+            ("98def1c82f8379184cf83ce8290ab1e984de071e1cac7d3ec3607964556ad6cd", _OMISSION_NOTE),
+        "hadith:muslim:8-3":
+            ("cc3375c4dc0b8c5284acbd050e5fdc82a4824c7fe1524fe69cc2729e67e0f620", _OMISSION_NOTE),
+        "hadith:muslim:9-2":
+            ("bb0ca8d5445dd15497704751fca126a04580ba398fb3bdc1c90c4b851936026e", _FRAGMENT_VARIANT),
+        "hadith:muslim:21-3":
+            ("068ed2cf18877ddcf45738f81f8262ca416d2a57d45c293f476061c8b702f52e", _DEFERRAL),
+        "hadith:muslim:37-3":
+            ("e198cdd1afab6dd3aaeddfbbee158b1b4543999f119ed91fcec4894e8b53c2de", _POINTER),
+        "hadith:muslim:43-3":
+            ("816f2c002b5a650340978a4575443211fa17436d404df18462ade18a8f2e10c4", _FRAGMENT_VARIANT),
+        "hadith:muslim:57-2":
+            ("d820328947bd010777ef303009e538d3a5b6c8111c99bec0db1f90987ec0fc28", _DEFERRAL),
+        "hadith:muslim:57-7":
+            ("438d3a093c414108191132facb6909ad5a6c8b79eb42d8e25069227fd71ca8fc", _DEFERRAL),
+        "hadith:muslim:59-4":
+            ("e7774467ab253c7bc754cd0f637710f3df6adb1f23ee93fde989dd6655488df8", _FRAGMENT_VARIANT),
+        "hadith:muslim:85-4":
+            ("abcc22c53a3016f1aec1e14dfd77ebe5101c40c81b38aad2145a6a53b3b1e96e", _FRAGMENT_VARIANT),
+        "hadith:muslim:108-2":
+            ("da87be02677701e9b5a837a7adbc1b2cb9485e0f1aa6fdd24b9344e27958f44b", _FRAGMENT_VARIANT),
+        "hadith:muslim:124-2":
+            ("95dcbd67112acdff4d156eb8ea7feeaee9629ed62ae57483b9ce86e13cf428ea", _ISNAD_COMMENT),
+        "hadith:muslim:136-2":
+            ("7abf159561da5f76c69de70e20ea6d0dfc2391b8fe3d25dd8321a013a7d69600", _OMISSION_NOTE),
+        "hadith:muslim:151-3":
+            ("cc87edcb4ea6ca8edd595a8afa50175e85760d9f80fc2ce790223843e71f6e6d", _POINTER),
+        "hadith:muslim:200-3":
+            ("066f657c8ef71892e7afaf030c24548aab8062f8ae856de5a8095b524f73c750", _OMISSION_NOTE),
+        "hadith:muslim:227-2":
+            ("388fadbacba8b90bb735248593aabcb50fcde388dfacbe7e7453cf4883881744", _FRAGMENT_VARIANT),
+        "hadith:muslim:234-2":
+            ("d4ad3408eda84d04b5a7eb52da8dda2837a579904a7501de1d29a8a76716789f", _FRAGMENT_VARIANT),
+        "hadith:muslim:240-4":
+            ("fc991458d61753767db6be92687879cb33730c933231ec5de443cb8ee8409ee9", _FRAME_ONLY),
+        "hadith:muslim:251-2":
+            ("3f64f3a8863dcb653d68cf10c6dc93bf59b05c2e39faf345a63f59483b3142a3", _POINTER),
+        "hadith:muslim:255-2":
+            ("c5a1efe4cd95b0f5e8b506141ffff7917eea1dda8a14cc308c18acd47a535d30", _DEFERRAL),
+        "hadith:muslim:261-2":
+            ("378fca70af2af0c33b001793f6c0cf0e2e759b2add3b2c1c99d04af71177cf14", _ISNAD_COMMENT),
+        "hadith:muslim:278-5":
+            ("8b3db1fe93f3bb2e6994b13154ad42dea959c18e969d984995db5e4c2f5a7fd8", _EDITORIAL_DISCUSSION),
+        "hadith:muslim:288-3":
+            ("638b201178a397314605368677830d9ba6f4bd9328b52b647b81e65f368187fc", _DEFERRAL),
+        "hadith:muslim:315-2":
+            ("37f36c9b82c03106a14332461650e3471cd93834ec69405fa93e1d5a70fc8dbb", _FRAGMENT_VARIANT),
+        "hadith:muslim:317-2":
+            ("559b8adff396740f06a1811b63c1bfe3c8641436122e30da36ef41e276693a32", _OMISSION_NOTE),
+        "hadith:muslim:338-2":
+            ("4609dc950a1d09dbdecac77002335b3d2448bc61b6d78ba68722cca18e90a96b", _FRAGMENT_VARIANT),
+        "hadith:muslim:348-2":
+            ("8cc7ad25cc32a02a2f2ceadadde1d74af3f79ca6f5ba93c12848af219cac5226", _FRAGMENT_VARIANT),
+        "hadith:muslim:359-2":
+            ("842dc0bb4417d8620178c5b4cb3e7f8e8bade07fa31e5d43e9cb8f761d3b5292", _OMISSION_NOTE),
+        "hadith:muslim:389-5":
+            ("79b46defaac52ad539d4461f1b3f9c9559119babf4de80bf27baf0882648f518", _FRAGMENT_VARIANT),
+        "hadith:muslim:391-3":
+            ("04efe8cc792332c158384119a4f3ff8026cd56f549fe9aa21558be9433d9cd1f", _FRAGMENT_VARIANT),
+        "hadith:muslim:392-6":
+            ("7de40ab5d852bfe2a9a6eda8f855a049818432939906aa1d42cbb86354dd0708", _POINTER),
+        "hadith:muslim:395-2":
+            ("ee8349a89a17533a69cb2bf5a27cb25c17999902e32e05b867b86d7453915ae7", _FRAME_ONLY),
+        "hadith:muslim:399-2":
+            ("20c74020607c0e8f6426352e382fcd72d3900041f6bb64344ff2eef3b73c3b55", _ISNAD_COMMENT),
+        "hadith:muslim:419-3":
+            ("451f9ee137a1076d6b8802ebe5343d7e4d6c3b2f7359f4ad08b4bb7cb8547c9d", _DEFERRAL),
+        "hadith:muslim:427-3":
+            ("f70763fd8c67322efd7780d4a2799a9b5c3181a9d44d0d8103baebc83595a697", _FRAGMENT_VARIANT),
+        "hadith:muslim:467-4":
+            ("b2b232821bda3cd35db09d2ed412ed8b3583663aa09fa1066bd6966d164af02b", _FRAGMENT_VARIANT),
+        "hadith:muslim:476-4":
+            ("63e7cb9dff55bfd1675563ae7ea05acb5f33909e803634d7f412eb12345035bb", _FRAGMENT_VARIANT),
+        "hadith:muslim:504-4":
+            ("40edc1386ca5a09a6e541bbc401608d4c0ccd8a18fa20d2edac8118d96fbf81e", _FRAGMENT_VARIANT),
+        "hadith:muslim:517-2":
+            ("886fc0cd856733d10c4a544f8c7abd0123bfa7248aa747c3903145a80563eef8", _FRAGMENT_VARIANT),
+        "hadith:muslim:518-2":
+            ("8830931961f433d4e09d2ca4c1052fc84a24454df24c03f7c95125eda79e3a39", _FRAME_ONLY),
+        "hadith:muslim:519-2":
+            ("5e0132c0a00c2e12470526be8a2ed1ccf5505c898f0e790b62223af8e8b3b818", _FRAGMENT_VARIANT),
+        "hadith:muslim:526-2":
+            ("83ea80f714f418608a18ac3a24dc6edd7558b31e9fb54e445ee3f4fdae2975d6", _DEFERRAL),
+        "hadith:muslim:540-4":
+            ("a75fa881b791971a3e65ab1099453d4caddeafd3f1359193914fca36cbab2a06", _DEFERRAL),
+        "hadith:muslim:541-2":
+            ("3760a53e2c4e303ffcad81ac3c478ee02d71efdf8b0dd180dfbba7d2dfeeaeea", _FRAGMENT_VARIANT),
+        "hadith:muslim:543-4":
+            ("33332ce318d76e47c939ccb9cc2c53c82ae4eb437be6cc33c6a8696119508fca", _OMISSION_NOTE),
+        "hadith:muslim:544-2":
+            ("2dbcfc76826e48cae69927247731e66845a56746f98cf0cbe9e6569551db0ea5", _DEFERRAL),
+        "hadith:muslim:573-2":
+            ("866619826471fc22a814f33ea29ef7ab5ac5d2b31708b5d64cedfd008bba7c81", _DEFERRAL),
+        "hadith:muslim:578":
+            ("35437beb0fac6466a24a0d0bd9645856f66045a8a72869c592997f20dc35c270", _POINTER),
+        "hadith:muslim:580-4":
+            ("3f1eab6f56b2cf481def9309e1d8703d7aabf21643aaa18e1d4f43d41e3cfce2", _ISNAD_COMMENT),
+        "hadith:muslim:581":
+            ("af5b7f5e267906effb6dcd6fd6cf2e88efedefdbc641dec984b3e5809f7f5518", _POINTER),
+        "hadith:muslim:592-2":
+            ("237a3e357590e1ce1c13ff34d9d14b8f526033d5b2bee99a4c4fe6fdcda9bc67", _FRAGMENT_VARIANT),
+        "hadith:muslim:592-3":
+            ("fc05be24f610360eeec047eafed3117e92483fc05658bf313a205f2b7198dd87", _FRAGMENT_VARIANT),
+        "hadith:muslim:593-2":
+            ("94a68237bc2a6e1cabbb554c355ce23de5345ef85b05a78d99b18358e3ffbde8", _ISNAD_COMMENT),
+        "hadith:muslim:594-3":
+            ("0117869514af37312adf811a6a26560baa73546b1439ee6f6e0d1a7752c3811d", _DEFERRAL),
+        "hadith:muslim:594-4":
+            ("400200952975b0de7cbf97877d278e460e030a7350469a513139d26226583c95", _POINTER),
+        "hadith:muslim:604-2":
+            ("53ff296bc4f76c1ec45263a00291091cf3909434cd0900b37ff0ad0e34adf5f7", _FRAGMENT_VARIANT),
+        "hadith:muslim:607-3":
+            ("0ca29705c1706085b9f669226fa91bc029bec73e4c4c41d6e5d2bbe1ed36ef87", _FRAGMENT_VARIANT),
+        "hadith:muslim:612-3":
+            ("d3358e3936b3276720d0c421e345f9a73be3af808aa1e65429c29eadb738e0ee", _ISNAD_COMMENT),
+        "hadith:muslim:621-2":
+            ("d65fa03337aec2d0cf9611fb567516b431d9571ba560ee007daf28d7b00f5be6", _DEFERRAL),
+        "hadith:muslim:627-4":
+            ("877ade2f50d8fb554189a86952fa5f2020192c37334f19a1998c3f546a95dc60", _FRAGMENT_VARIANT),
+        "hadith:muslim:649-3":
+            ("2ae95ae39e67f4c50d06c86ac4dc40f03bc06d4e3fd1d419e3b5e5351e6f22dc", _FRAGMENT_VARIANT),
+        "hadith:muslim:650-3":
+            ("fe577672afc9f05723695bc9cc51eaf2179e97e397b76f38e5c0e4cc399a3049", _FRAGMENT_VARIANT),
+        "hadith:muslim:650-4":
+            ("8f3d75129ee3b162016509f2bad36e306a77a7bd3d46f35c746b7031f566dab4", _FRAGMENT_VARIANT),
+        "hadith:muslim:693-3":
+            ("cf3f941eac175567db68e5046c80a139b8593c638ba50766cc3551c1f96a2923", _FRAME_ONLY),
+        "hadith:muslim:694-2":
+            ("50eb04ab0c1e9e36b1f525f9b44f9e38d4a93514d841965429979ad0545328a8", _FRAGMENT_VARIANT),
+        "hadith:muslim:710-4":
+            ("d9c0cdfd23d948a9605c96e2ed1e2bc88e91fa5041f84e49fa3d7b6a57137e82", _ISNAD_COMMENT),
+        "hadith:muslim:724-2":
+            ("48eb846b987989b3c215672a2d8fcb8233accbe1b6ae5eedb511ae6a76ee3204", _FRAGMENT_VARIANT),
+        "hadith:muslim:728-4":
+            ("0a779b5f370590b8af26619bdbe9b1d4d432efadb327fb689ff7951fbc01d953", _DEFERRAL),
+        "hadith:muslim:733-2":
+            ("7cefa402cd0e70f1cd06d4bc71dd9f88d3f3ee5433d367b9799f1d54bd0cea57", _FRAGMENT_VARIANT),
+        "hadith:muslim:738-3":
+            ("de45f9e941dae93c68bad2335c23acadc021e739f0ca82c6d3396a4854b65b77", _FRAGMENT_VARIANT),
+        "hadith:muslim:749-5":
+            ("2816ac34b26feb15b8be0d6cab9cdb696e21af219b2957fb5172d37540980b7b", _OMISSION_NOTE),
+        "hadith:muslim:769-2":
+            ("a4c0fdbda7e2ed30137feb135bdb2423852ac624354ee42ab2a7536b9f1a5427", _ISNAD_COMMENT),
+        "hadith:muslim:792-2":
+            ("06d4574a27e769b2b9806c08a1c0cd93a04a66aaf544d8bcd9e0bc077e13354d", _FRAGMENT_VARIANT),
+        "hadith:muslim:792-6":
+            ("4b38a8ed5e0e3cc0d4da61c88a1a243bc19eaf623575182717981286188e0a89", _FRAGMENT_VARIANT),
+        "hadith:muslim:797-2":
+            ("887c050cd14f5da677f34b2b7898729ef367050ed14221529630c4bd0d964ac7", _FRAGMENT_VARIANT),
+        "hadith:muslim:804-2":
+            ("6f220b8533416dbf653ebc22f98d83a25cea89432200bc12754ccd5e5d1ff29c", _FRAGMENT_VARIANT),
+        "hadith:muslim:809-2":
+            ("0880f473ea9fe8b4b80f206f0ef5cbde39da970d1a5f529c8bf52a1dbb70b05d", _FRAGMENT_VARIANT),
+        "hadith:muslim:814-3":
+            ("550b14bff7703f68fd4bc9ffc3660b73df8909ce950a9d7526e77b8f802aa0ec", _ISNAD_COMMENT),
+        "hadith:muslim:820-2":
+            ("12a233106546091680fac78d2b229c5a33fe34cec2e3ca17cede94d4deee9a88", _DEFERRAL),
+        "hadith:muslim:824-2":
+            ("dcd62f4d1bd3e6c1165d7cea485c9a5d43540cd63e02120b9f0436a102d7404f", _DEFERRAL),
+        "hadith:muslim:826-2":
+            ("e032f07a8dcb1c4f0bc1dbcb2b78db4766d32819dd801a33988da5e9f6443006", _FRAGMENT_VARIANT),
+        "hadith:muslim:830-2":
+            ("3216d81c05123bde69a3d23cc6f239cb7be7e5b79c8141bea3854e73159e073a", _DEFERRAL),
+        "hadith:muslim:838-2":
+            ("04862b2e8fc28f5f24caff90847146ca82e06098a36bf58673d62927ea1a2826", _FRAGMENT_VARIANT),
+        "hadith:muslim:863-2":
+            ("2e6440a2f482215ab0df6871bbf1b8b0c3619c2a91d2308517d134b13408d8f1", _FRAGMENT_VARIANT),
+        "hadith:muslim:872-2":
+            ("2bdaa698ec047b3e8e303689908d0869ec9bffeb27e64ab5b66e3f855c8fdd8c", _ISNAD_COMMENT),
+        "hadith:muslim:879-3":
+            ("a7f072383bfe50924d8ed0c47a0dbc042c9b3838d6bed66f73b98263e45bf8e3", _ISNAD_COMMENT),
+        "hadith:muslim:944-2":
+            ("1be9482ad2f04ada34f80dab9ae562285d2c75be356b97281b7ecf50b83e7d9d", _ISNAD_COMMENT),
+        "hadith:muslim:945-3":
+            ("b01801500ddfea70de91b2292b09174c31dce09e1945922892538bbbd251d581", _FRAGMENT_VARIANT),
+        "hadith:muslim:949-2":
+            ("cab65c0faad042c312d874d03434e76cd7c5ae12a1ac5bd41a67b5e50dd66404", _EDITORIAL_DISCUSSION),
+        "hadith:muslim:957":
+            ("24de8122d61dcbce4c79a0545dfc155ba447475a6b1cdceb84fcf54fe651dc22", _POINTER),
+        "hadith:muslim:961-2":
+            ("83b5e05362d3f1270520198d1b0cc8ffc25573039feae8e9550903e0e8a62ddf", _FRAGMENT_VARIANT),
+        "hadith:muslim:969-2":
+            ("258ab6766b3b47679773574d3a73899f1806f33d7c4a8f4a5cea32bfba4c6429", _FRAGMENT_VARIANT),
+        "hadith:muslim:979-8":
+            ("4d68764274471b9224cfdfacd1a982e031178439334b9ce22a82d2ac574e89f1", _FRAGMENT_VARIANT),
+        "hadith:muslim:987-6":
+            ("29c0b167eda8c642ba31c691e0b1dbd04e3435786379cb08519cd8ba24783928", _DEFERRAL),
+        "hadith:muslim:1007-2":
+            ("4f29640a9e76e1325deaeb24f3f9167380f39688f5126f1c2df9ece195c541eb", _FRAGMENT_VARIANT),
+        "hadith:muslim:1007-3":
+            ("3878f59ae7ae4b9a3665d120bbde53a97f70cacb90a28bbd1cf5c5c626296cbb", _FRAGMENT_VARIANT),
+        "hadith:muslim:1014-3":
+            ("d806b3c83e50218b7ea6b21c5663a817db699ca5af4473017cab1cca807e0cf3", _FRAGMENT_VARIANT),
+        "hadith:muslim:1024-2":
+            ("891dbc3974dc6308513370ed012f7f391c17b01eaecbbbf2ff58b40e6635a144", _FRAGMENT_VARIANT),
+        "hadith:muslim:1031-2":
+            ("9704c50a59ae17837bf6df03e69d2fe0d5bd0ab2867094bfce87a510e7bec303", _FRAGMENT_VARIANT),
+        "hadith:muslim:1042-2":
+            ("3feae95d784d91dccad44551fbd3304faa3076c50d0636d22d8b9678685809fe", _DEFERRAL),
+        "hadith:muslim:1045-3":
+            ("0feb865b99b9e603bfed34fffca312e0dd2fbadb122117e96618cce27226f30a", _FRAME_ONLY),
+        "hadith:muslim:1063-2":
+            ("dc4c528d05f820af8aede2f7659374072235ec0842082920e12d33624b1ede72", _DEFERRAL),
+        "hadith:muslim:1101-4":
+            ("833431b28b63a918ba8303abd29fbbafd51d04063d36a46d81bb0a8de7164e4a", _OMISSION_NOTE),
+        "hadith:muslim:1106-8":
+            ("b9dbd7a085fc7348eff2ebb96a8ada5592395942ac2a7c990c380772244fb070", _DEFERRAL),
+        "hadith:muslim:1111-2":
+            ("d1671cdd0e6617939cd8df81ecc651250a6ad500c55a5d34d0f0e1a0dc598966", _FRAGMENT_VARIANT),
+        "hadith:muslim:1112-2":
+            ("485cb7e1bdef56a1bf00792aa9855dbdbf13b73aef4dc1b05e6251564e5fd07c", _OMISSION_NOTE),
+        "hadith:muslim:1113-2":
+            ("c26ee0f264e06fce4ec1f829e58e9c63d99f8401e0fca8802cad3723f7ad7f0b", _EDITORIAL_DISCUSSION),
+        "hadith:muslim:1115-2":
+            ("f242afd1e9b14794b683a13754ab881356e893c85b1a6831ee880c8c2946836b", _FRAME_ONLY),
+        "hadith:muslim:1116-2":
+            ("11e458e569fdc218dfcd08b15b1a7c0cb79c211a8ca636a1df7a20c59f826aa6", _FRAGMENT_VARIANT),
+        "hadith:muslim:1123-3":
+            ("91586703ddb01da90a70509f969206c96667031abc7cc7c394a9b0776e27ca11", _ISNAD_VARIATION),
+        "hadith:muslim:1126-5":
+            ("306a59653a453134e8c1e781eadb71e2a17468ec3e911348ba656ebc0bedce9d", _DEFERRAL),
+        "hadith:muslim:1130-2":
+            ("162c4c82c5cf9a972565a4238e2f954901fa8e76845244ab80917d235562ac0d", _FRAME_ONLY),
+        "hadith:muslim:1133-2":
+            ("6bf389dad3ea630b2693eecf4b40719d74e75dda752f18665da9039f5a6b6593", _DEFERRAL),
+        "hadith:muslim:1141-2":
+            ("38c64b1ef5ce320afcd2d3b5fd87fa2b984225fbab678505156f09bc717a739a", _FRAGMENT_VARIANT),
+        "hadith:muslim:1142-2":
+            ("1021539bfcd8eae8b9bed6f64cd1e87d51f5e1d06b34b5a45e2f2b0e2af5df41", _FRAGMENT_VARIANT),
+        "hadith:muslim:1143-2":
+            ("6ff3f026e7935866af50b140128362b86eb9f56fa94552c46ee208307495c3a3", _FRAME_ONLY),
+        "hadith:muslim:1146-2":
+            ("4e29e1e83bd020bb288074c20dcd510af08f2b8b35cbe3a42b9f0cc61113a03f", _POINTER),
+        "hadith:muslim:1146-3":
+            ("ffa36fbeb6976631206698c11fb8be21ea244410ab94275e22e1d379a4aadac3", _POINTER),
+        "hadith:muslim:1149-2":
+            ("966da094cf8b5203d18c00dee2c1358e08b814b2189699e9d45f21e313fb5c30", _FRAGMENT_VARIANT),
+        "hadith:muslim:1149-3":
+            ("aafc01c7a8c59d0f82a52a8bc13e4d6b5b3890e7e966002ae00902729289f2a5", _FRAGMENT_VARIANT),
+        "hadith:muslim:1149-5":
+            ("38c1b3398bc751bf798484ae000db1814ee8d6dc392239f570d05af5b9822a34", _FRAGMENT_VARIANT),
+        "hadith:muslim:1156-4":
+            ("63b4d973b2c22003300e055f627c033ed8b69452253155c00d797dd976829541", _ISNAD_COMMENT),
+        "hadith:muslim:1157-2":
+            ("ea8d1f39d1c52179b89f4b28cde37de30e97fea77769f8d67836f95e6f673975", _FRAGMENT_VARIANT),
+        "hadith:muslim:1178-2":
+            ("a7466fa9f3c4a975fe43df2104be6500fe29e705eda4fd86e007702a82fa224f", _FRAME_ONLY),
+        "hadith:muslim:1206-3":
+            ("abdc759429c4a0d2924ad1699d4ad1a05eeee408f21618298da149c31d7d9baf", _FRAME_ONLY),
+        "hadith:muslim:1225-3":
+            ("114b5b5a638636ccd1eb298241d8c9a4d7483c244f109a4dc0ac840ac422b954", _FRAGMENT_VARIANT),
+        "hadith:muslim:1243-2":
+            ("49ec2e38840e8f0ae4a717c804965a30de26dd30cae42f46b16200628db1c30a", _DEFERRAL),
+        "hadith:muslim:1250-2":
+            ("41349fb94d75a3f7afc993be84e600591a6e87c45b1fd3bd49804ce0f4905a30", _FRAGMENT_VARIANT),
+        "hadith:muslim:1252-2":
+            ("b861e0bd215e4abb16698fe759851314a73d3df7e8a242a9d60cb4226682580b", _POINTER),
+        "hadith:muslim:1257-2":
+            ("9cdab023e270dda15a5a7cdcade0be51d39879fe7518aeeeb0acdbf141caedcb", _FRAGMENT_VARIANT),
+        "hadith:muslim:1262-2":
+            ("cb872a9f98d53780321b3befe50c3c5bfd44c4a22faeddb37aafaf79caab03ca", _POINTER),
+        "hadith:muslim:1279-2":
+            ("a2f574c471a8ca60bd495092c755b444817047b24adacdf14a917af33319bbb7", _FRAGMENT_VARIANT),
+        "hadith:muslim:1286-3":
+            ("35b63c8bcb8521cdbee49865502125cd0f657a910bc25f6e85d0dee3bc58c821", _FRAGMENT_VARIANT),
+        "hadith:muslim:1287-2":
+            ("2658cce53187f34c3fadbc8a3cf8829de4817b941c639b742b116744e6a26de5", _ISNAD_COMMENT),
+        "hadith:muslim:1288-2":
+            ("f5fd03c81dd2bc5c4dd450834d7e40c0dc878a31e743cdf0d18a7c27bad8cf28", _POINTER),
+        "hadith:muslim:1289-2":
+            ("1d4f61930fc0c4e0377d885525b6815e6c260f746309e0a5d24cc248a17062b0", _FRAGMENT_VARIANT),
+        "hadith:muslim:1296-2":
+            ("99e4193e78aae065d39b9668b30e7e14cb84b699dbdacd53c4b47e2abba113fa", _SEGMENT),
+        "hadith:muslim:1296-5":
+            ("4a0b45cd763a6cab2dba7d8c4150651e798d20cf22572500b5f4c2ad8f487009", _FRAGMENT_VARIANT),
+        "hadith:muslim:1306-7":
+            ("99811d776fdb41813de9a0fb34b7743b7ca0939b237a9ed0cf0e9e7a037c4fc4", _FRAME_ONLY),
+        "hadith:muslim:1311-2":
+            ("332f42e63e36b3c4b9c75e4dae132a3faeb95854e8ac3e74b295a357e2f6ac2f", _FRAME_ONLY),
+        "hadith:muslim:1322-2":
+            ("594f34a65807162d1136351dc634107ce183f88bb883bfe521f141f530b8d171", _DEFERRAL),
+        "hadith:muslim:1338-2":
+            ("5c3a9ea05b372155cda23c2e4b20a74fba48a8cf3e5453b3651e8c8d3fd2205d", _FRAGMENT_VARIANT),
+        "hadith:muslim:827-8":
+            ("0cb7dfc3fafdff651c23db869e0a0b3e3a16a26152f748a6a7c00f8822acd5bc", _FRAGMENT_VARIANT),
+        "hadith:muslim:1344-2":
+            ("eb56f2b5b2971b773d72e70bea30859efb46f39d05262ad3c0f89aabf2e48676", _OMISSION_NOTE),
+        "hadith:muslim:1350-2":
+            ("6078fa3976bbffca6f32e7e42f5acc987426eaf0fb04468624a288de3dd6f4b0", _DEFERRAL),
+        "hadith:muslim:1370-3":
+            ("12e91f9cbbde125cdda0c658cc4813b1a51c97c0ba797f9308fba4e9f374ef36", _OMISSION_NOTE),
+        "hadith:muslim:1378-3":
+            ("830c4e941daf6085a61defc228d98ae7eca4c37bde62e96e60f3e913fe22e58e", _DEFERRAL),
+        "hadith:muslim:1382-2":
+            ("eac1721fe118407aee0e844256ca271ae916ceda31b980a0d6866079de80b9d6", _FRAGMENT_VARIANT),
+        "hadith:muslim:1400-5":
+            ("c5b3b96c8ee038749bf4fd0db8479ec899a0b2cb7423e15e615332d35cf7eb2c", _OMISSION_NOTE),
+        "hadith:muslim:1404-2":
+            ("b749f50253449ef231a076bbe3ed36c67566a24d45c8633431387b1478970950", _POINTER),
+        "hadith:muslim:1406-5":
+            ("e13838c9cbdc1f2a5c9a506df76c2f699ead9c6fb4cd18ff7e5c1da2dac1097a", _FRAME_ONLY),
+        "hadith:muslim:1413-5":
+            ("2461072ce2ed26bda3b0479d310d333e37b681a8353705e5ffb04e516a7dda36", _FRAGMENT_VARIANT),
+        "hadith:muslim:1415-2":
+            ("5c1b34013b21147b0bb397ab18427f77f417b06dab8bf26f5d2d535b8104b0d4", _DEFERRAL),
+        "hadith:muslim:1427-7":
+            ("5449e7e87257c839bc6657184b09ab763314aef4eeca68d9b9f3ebce11c9a2ca", _FRAGMENT_VARIANT),
+        "hadith:muslim:1434-2":
+            ("8349db8d6a7081c17ff10a42b14573f1375fc4b764362cbbc99617e32dd2979b", _OMISSION_NOTE),
+        "hadith:muslim:1438-8":
+            ("543db351781195b0962848d3528b715a234073fe47c687247c312b686db5c9eb", _FRAME_ONLY),
+        "hadith:muslim:1439-3":
+            ("661ed4a8e14f6ac72bddbe86d89c7a530a32c3eec863daf6b96f432db68ce7ef", _FRAME_ONLY),
+        "hadith:muslim:1442-3":
+            ("dea862f05798c92be58c4bb32146c642dd175a4c31c8458243a8d11936d3b5d9", _FRAGMENT_VARIANT),
+        "hadith:muslim:1445-7":
+            ("e91f88e7987fcb2d3c92b2c707d89c060ce59b67239ed2d8d2d3995a0347df33", _FRAGMENT_VARIANT),
+        "hadith:muslim:1449-4":
+            ("f62f51497054dc3565f57bc484200818147e849aae7673845a93652b2243d35a", _ISNAD_VARIATION),
+        "hadith:muslim:1451-4":
+            ("f17d08455968a56c3ab93869e4a88768ad2c0fb34e7b7715c0623f8be0415088", _FRAGMENT_VARIANT),
+        "hadith:muslim:1455-2":
+            ("7f865783a24345d6168a8477ee1fd3913a8be854e05f9ba85bcf538d6740c1d5", _FRAGMENT_VARIANT),
+        "hadith:muslim:1458-2":
+            ("ee4f2571705661e4684a35fba5c69771658a7f549956ac4c0549f6c565915d98", _FRAME_ONLY),
+        "hadith:muslim:1471-4":
+            ("e1ce729ecddaef68dd5f618b00822689345fe456b8131d9ccb1ce4f6f84c52ed", _FRAGMENT_VARIANT),
+        "hadith:muslim:1471-11":
+            ("c3d8fa8fc09f46e251ce0d85513b5784a717b52e294e8e700380c1d3a32edcbb", _BARE_RULING),
+        "hadith:muslim:1471-21":
+            ("1aeedf3191a7081eceeb82ac0c2fa37bcb69317298681596aa95dd5c7e9b4ea2", _ISNAD_COMMENT),
+        "hadith:muslim:1485-2":
+            ("0fed84a252d3584c16517668b162f5751bf2d5526b43416ce5ab36e37b17f3d8", _OMISSION_NOTE),
+        "hadith:muslim:1487-2":
+            ("7362dde24a907514833da1059aa846c18d4da89009ca335dac5c4596f3b25327", _FRAME_ONLY),
+        "hadith:muslim:1488-3":
+            ("2fcc26888a95ce912104bc83c9ccb34fa9a8ea48ba915f88b0ec793452dea215", _ISNAD_COMMENT),
+        "hadith:muslim:938-4":
+            ("2f0cbdb66c0d3388f3fcd99116851333a7e87679fb5b77f418f17007bffed4f3", _FRAGMENT_VARIANT),
+        "hadith:muslim:1497-2":
+            ("396512b79110adea0898df3107fb218f01868687e5911331aaafee2f5178380f", _FRAGMENT_VARIANT),
+        "hadith:muslim:1499-2":
+            ("a7e2dfa98789eac024e2bbc89dd9f68e0db78f7ea79819e743a411c32fd4472d", _FRAGMENT_VARIANT),
+        "hadith:muslim:1508-3":
+            ("58bb526ad6d73692f824fbad72569054d8a3b99a027b39b9fc524e028310757b", _DEFERRAL),
+        "hadith:muslim:1510-2":
+            ("73ebdb742d861556a37fa275c59f69187f08393110dccdab4e8583a5a5415e03", _FRAGMENT_VARIANT),
+        "hadith:muslim:1539-8":
+            ("fd593287f7c168f1c61833668a335d0227bf082005ae28c727375aa9d82b81c4", _FRAGMENT_VARIANT),
+        "hadith:muslim:1540-3":
+            ("d3446d8f5f5c8e72bd88b692433e34d13f3fc36d27cc65b46801459107b49a47", _FRAGMENT_VARIANT),
+        "hadith:muslim:1547-2":
+            ("94666cd2776dc4998dda7581584099c63f5cfab6bcb594f410be22ae3e47243b", _POINTER),
+        "hadith:muslim:1547-7":
+            ("b192f9754118759372f7ed0f0dcaa2cb8b71d1407371bfef4c70b41d936f52ab", _FRAME_ONLY),
+        "hadith:muslim:1552-5":
+            ("cd362a2f8a554dbbec570b8b84dea833029df2218538470fc91eff0d2435c12f", _ISNAD_COMMENT),
+        "hadith:muslim:1559-2":
+            ("7aca333a3475ad5d8ab4aee5935d6291ec4eba8c2b0422e3fc8d5a0da8021af8", _FRAGMENT_VARIANT),
+        "hadith:muslim:1559-5":
+            ("846ae2c25f83aef915c37874641b2c22c994866f090a2c7dfa56c9b4c2e1e16b", _POINTER),
+        "hadith:muslim:1581-2":
+            ("8bafb9ba5824b7d3fa0cb80b0b4c3a4699622446af1f004fa9c70bfd8a85a895", _ISNAD_COMMENT),
+        "hadith:muslim:1604-4":
+            ("0367daa570147e9202dbaa85a62597dcd3cefe90b9be9c38cbaa161d4318fbec", _FRAGMENT_VARIANT),
+        "hadith:muslim:1616-5":
+            ("5615c79617c900e420062c5670547843289dfa0d5b77cc2d3598701975a26494", _FRAGMENT_VARIANT),
+        "hadith:muslim:1623-3":
+            ("6065c804b6cf7276423ab35f3ab46416a1b519ff14b12277e97453e1fb264dfb", _FRAGMENT_VARIANT),
+        "hadith:muslim:1625-8":
+            ("237ad5ec47a27587bfe8ee73000f0a44ef2000a1505b8deb004b840ca7443367", _FRAME_ONLY),
+        "hadith:muslim:1626-2":
+            ("200dee7f4607fbc3e848dac11159ad1e16d41f32bd1f9f5a2bf72762663690c7", _FRAGMENT_VARIANT),
+        "hadith:muslim:1627-2":
+            ("222d6d0e0773f8af952a10a9917d44468408fb38df1f97000bcfb0f201eef063", _FRAGMENT_VARIANT),
+        "hadith:muslim:1627-3":
+            ("3ad0fab4d1bc219c224c29f401a1426c36babb759aa3db1b0f85af91da23ff14", _FRAGMENT_VARIANT),
+        "hadith:muslim:1004-5":
+            ("3c4e89a8deedc94cb3d76f92b9e08920b8c2428b9d398145d9d7264b5b8b67dc", _POINTER),
+        "hadith:muslim:1644-2":
+            ("4c7669875a23b71fa9a8e18a56fca2cdb31f44eb85dc78b3169b3734d06b5bfb", _DEFERRAL),
+        "hadith:muslim:1656-6":
+            ("16e53a479f12b1529c7e4b563bdb9992faa53edea86e607c4e6a69a66dcb4d0e", _FRAGMENT_VARIANT),
+        "hadith:muslim:1657-3":
+            ("38cafa1969e7c30c92453afd56062b879ca6d12b0eee546fd7ad59f35eed0bcc", _FRAGMENT_VARIANT),
+        "hadith:muslim:1658-5":
+            ("f057600fb7e617bcf756eb4620967bdfd734ece9301cde86e9917b71794f5277", _ISNAD_COMMENT),
+        "hadith:muslim:1660-2":
+            ("eca9c7e909bddef3a7f4c3af898efaa882131e7c2805144105f554b5e9576208", _FRAME_ONLY),
+        "hadith:muslim:1677-2":
+            ("b5ff88e5ab39408b74dbd08b611483b5f0c83fa03af8438e3f929e0fba88d5f4", _FRAGMENT_VARIANT),
+        "hadith:muslim:1678-2":
+            ("0ed78438debef8b738ae8309db3e0073658c3d2ea0bab1dc4fbd3b2834789d04", _FRAGMENT_VARIANT),
+        "hadith:muslim:1687-2":
+            ("f46b77d6d6653491c4f23211c1ef21bd4dd49c6483185c73c31e4f872b424c5d", _FRAGMENT_VARIANT),
+        "hadith:muslim:1691-5":
+            ("0f22ec45995aeb33f68f96598a9bc837a286344ad82c84ed5385fe1d55d4ba7f", _ISNAD_COMMENT),
+        "hadith:muslim:1692-3":
+            ("970b43adf79a7a62b9b042c2295d14a42211472c5e4a26f26c6ebee4721de35d", _POINTER),
+        "hadith:muslim:1701-2":
+            ("d240a65ac77162b534f1366af5757bbba969bed3c90241db96c83b25c3beac81", _FRAGMENT_VARIANT),
+        "hadith:muslim:1704":
+            ("3ac4729a4629f39c7bd0e80d290e46629a3a41f15d4fc9f7bb683a20c867259d", _DEFERRAL),
+        "hadith:muslim:1706-2":
+            ("16c5e2ece70aa560a973d61ace6e1bf0817151f652f234bdea4d60e6c6e97da5", _FRAME_ONLY),
+        "hadith:muslim:593-7":
+            ("099f0d671c22f1236a34b6c680c1901043ff810690586a7a068d116906fe4089", _BARE_RULING),
+        "hadith:muslim:1716-2":
+            ("32361bbf81ecef23bba8bb7a12e4efc0b63c1a55786519ac853c915cef725dff", _ISNAD_COMMENT),
+        "hadith:muslim:1726-2":
+            ("55388d52d7e62174da339736b3844bfcd6a1f552f6e4ce2be998be8070f6a6bf", _FRAGMENT_VARIANT),
+        "hadith:muslim:1731":
+            ("eacbdcae2887200e5184d1cb7676c95c3a2328ac40bf467674c46ad684c40a6d", _ISNAD_COMMENT),
+        "hadith:muslim:1742-3":
+            ("d06a273988eb8e26da33d6b68a2fe0855bb7868c77c248971a18f8c6b7840d34", _FRAGMENT_VARIANT),
+        "hadith:muslim:1742-4":
+            ("c5d60303ee47fa8b9aad3e6909fa3a8b56d4864bc6013e3b025db4555c37ce77", _FRAGMENT_VARIANT),
+        "hadith:muslim:1775-3":
+            ("82cee034d0a16029ab4d7a048069e4f334772172d2092fff7c6634d0da10f285", _FRAME_ONLY),
+        "hadith:muslim:1776-4":
+            ("fc6f6250b8e0bad225b0ff70469b877ebbd12c6a2647ee8ff336c36ae6a61eb0", _EDITORIAL_DISCUSSION),
+        "hadith:muslim:1785-3":
+            ("d99d040e3324dbf345c44cff7f3fa92aadd6e65c1784f37b97246ff8051c9edd", _FRAGMENT_VARIANT),
+        "hadith:muslim:1815-2":
+            ("ab2e9a16d1fe8e0b1e4ad38376e36cf12fad9744f20a46f075d857e1299223c8", _FRAGMENT_VARIANT),
+        "hadith:muslim:1835-7":
+            ("8bc6cd26b483c716bf91334c0a64bc6d8ba5397626c7606222d37e4bbed38a8f", _DEFERRAL),
+        "hadith:muslim:1837-2":
+            ("26622738752d49f966dbb77f9ce3df16936c4e0653e76c8061fe72bf1310fd74", _FRAGMENT_VARIANT),
+        "hadith:muslim:1837-3":
+            ("e1504414b0ae3687ce900a0f80cecff6987f8ea01c33802cead0d907ad4e7629", _FRAGMENT_VARIANT),
+        "hadith:muslim:1838-3":
+            ("f30cd25b0d045bb38e5a473712498cbc17f03dcb98f81d667d410046706add0b", _FRAGMENT_VARIANT),
+        "hadith:muslim:1838-4":
+            ("11abb81782a8e948b802e6673f86ba5da7d87cb963c37474751eac76efaafc85", _FRAME_ONLY),
+        "hadith:muslim:1709-7":
+            ("f024ac9ea8e0b58b4f6800690ed597119db92ea61be2b502ba599bbb2b596a2a", _FRAME_ONLY),
+        "hadith:muslim:1844-3":
+            ("3dcafc3ceb25ec3ed371ae883c22e238b0ea4be206d73d977bad5d7e9bb1ae80", _FRAME_ONLY),
+        "hadith:muslim:1845-2":
+            ("70cdd078277f5e1d581f0a28603789cb2ded21045b9c5bee8b76c4d87bce8fce", _FRAME_ONLY),
+        "hadith:muslim:1848-4":
+            ("c8c5f87eb8ceb46927f719138e18b485ba2cbe6b2b4c45798f89ebfebf0cc626", _OMISSION_NOTE),
+        "hadith:muslim:1863-3":
+            ("77359e2b78b1af4390f5c562ed66647c25b20147ba744f46e89c039fd6c8624d", _OMISSION_NOTE),
+        "hadith:muslim:1869-4":
+            ("05cb70e6ab07cb6827c1dfc3178ec78c3b61a5b29a1233de405ee11797287eaf", _FRAGMENT_VARIANT),
+        "hadith:muslim:1879-2":
+            ("832ea2e16a2532b47bfd70c06f33a6e7eebd5b83ff0cc8ec714fc76cdc5933ce", _FRAME_ONLY),
+        "hadith:muslim:1885-2":
+            ("9939788d15cc00cb1e8b58082816335b2dae4342399099d09e02346116ae4f5e", _DEFERRAL),
+        "hadith:muslim:1888-3":
+            ("5cc3270646c3cab71418240c310bd7d84cf54f306afdee35a3bd50be3a1d7ca9", _FRAGMENT_VARIANT),
+        "hadith:muslim:1889-2":
+            ("72b663ab8dde807d26924d7239bfa7e062e86402337493c74c38f7bef2c94d58", _FRAGMENT_VARIANT),
+        "hadith:muslim:1889-3":
+            ("492d19a5c3c5fd820c2cd3a34f187c9e031d6107d95aa433e9826236f3e2fcd2", _FRAGMENT_VARIANT),
+        "hadith:muslim:1896-2":
+            ("192cbb391091587338a39d76f9486c612b813327f268aaf24fc431dac06b9ace", _FRAME_ONLY),
+        "hadith:muslim:1904-3":
+            ("50a4b2a7c29d7ccf6a043f4ebe88cfb0f097777571c68ea5ce89413fc56ec800", _DEFERRAL),
+        "hadith:muslim:1907-2":
+            ("3ad6ecae8ddc9895f96ff06815d4e51ce14a002446b9392d36fe58b462eb3df5", _OMISSION_NOTE),
+        "hadith:muslim:1911-2":
+            ("b828984c806104b6e908d641fa0cd1c73f2bb4eda5970fc8cfb262ea82aedb70", _FRAGMENT_VARIANT),
+        "hadith:muslim:715-27":
+            ("16a507585c57f51dff872bb5d0522149d144da6cf2e03bce0899e42650c82248", _FRAGMENT_VARIANT),
+        "hadith:muslim:1929-4":
+            ("5c564e27d75e5f78e3801ce00cc2e56e7bdcd9a6232364c09524ce9819470489", _DEFERRAL),
+        "hadith:muslim:1929-5":
+            ("8b5db10b1333ceba5f5c6b0a365d118af094196714a9e5b3b7e8f0f1520a977c", _DEFERRAL),
+        "hadith:muslim:1407-7":
+            ("12e78875dfe9b4bdd1fdd98087bb560b8cb3a1bac4f414c53f8f236af40145aa", _FRAGMENT_VARIANT),
+        "hadith:muslim:1952-2":
+            ("05c6c657bd36842dfc8b7ab71b28eed54a608b40e78f6ca7f24ab62949f5a7dd", _FRAGMENT_VARIANT),
+        "hadith:muslim:1953-2":
+            ("2ac75a1c888b273e4caa0749583bc25011079323f20aa6a098076a24b619d959", _FRAGMENT_VARIANT),
+        "hadith:muslim:1960-3":
+            ("8b46d8578995ced1eb6a4641a1845ff27243070cc6b264cf874a9162925034bb", _FRAGMENT_VARIANT),
+        "hadith:muslim:1961-7":
+            ("3872d8cd6cb0901db349bf70e5c0b271a9da3cdfc9520c45a64fda5b57326294", _FRAME_ONLY),
+        "hadith:muslim:1966-3":
+            ("4afbc3034bc512c31a7822850c7f1695be1e146b1e8527e5bba2432f3a3f8d4b", _BARE_RULING),
+        "hadith:muslim:1977-2":
+            ("5506f2e86025909345623fd8a8b5929ebb2b13c021ed438931b408bfae11a1d4", _DEFERRAL),
+        "hadith:muslim:1988-4":
+            ("6ed01b43ce953afcff10027d3c86baa303b2e8963d8e959b1e372914ad7b9157", _FRAGMENT_VARIANT),
+        "hadith:muslim:1995-6":
+            ("8e50dedf4ccf89b9c05f4397c97344995098315abec0efe3ee86cad2fe7debd5", _FRAGMENT_VARIANT),
+        "hadith:muslim:1996-3":
+            ("714927b8499dc296ed86d19f9bd59069e19139b64b2311a3df78be88d64f8883", _BARE_RULING),
+        "hadith:muslim:1997-11":
+            ("4d15c4f12a05e25c512044ea3725b452bac4db22becef547237800191a2eea32", _FRAGMENT_VARIANT),
+        "hadith:muslim:2017-3":
+            ("8ed176daed4fd50eb5125e965b9516e01f32e5a6afd0014b6f4b1aefcb2fe70a", _EDITORIAL_DISCUSSION),
+        "hadith:muslim:2018-2":
+            ("05bb20a8174017964e11ff79f16e5dcba6b114d6d610385dc250d8f32edc8297", _FRAGMENT_VARIANT),
+        "hadith:muslim:2030-2":
+            ("eae07b52d9615ee53a93d49d4f9525f3d2cfe5860381886a2bc2851cd9fae88b", _POINTER),
+        "hadith:muslim:2049-3":
+            ("83196e246e6e7d8189bc609524fcd57ba48c57e0ed7973f602602390d0813f11", _ISNAD_COMMENT),
+        "hadith:muslim:2051-2":
+            ("0357fbe8a04712ec79c38248d28c41abbd34c65cced98e283c9d4035edd85522", _FRAGMENT_VARIANT),
+        "hadith:muslim:2065-2":
+            ("e31712903e51a7cd6ec70c3b9eae459cb951c95f88b52064a909b904f101f272", _DEFERRAL),
+        "hadith:muslim:2066-2":
+            ("3de86fd49266cadb9b0fd0500682c4117376ce8a985861f1d510133c5356a346", _FRAGMENT_VARIANT),
+        "hadith:muslim:2066-5":
+            ("ae097cf27dc3437758395bfb1e0b48f88ebd0d7f7a4bb7b00553a2adbde91b7a", _FRAGMENT_VARIANT),
+        "hadith:muslim:2067-2":
+            ("917dfb7459ffb97cc2b250651e4e4ce3d59c494a70f0eeb548a40af04b978bcc", _OMISSION_NOTE),
+        "hadith:muslim:2067-5":
+            ("0cb6eda44768cb4e131048eb36cd73c2a2f5c61b309de0d8a5562c120dfc55cd", _ISNAD_COMMENT),
+        "hadith:muslim:2080-3":
+            ("bf6abc4d306ceee7c7eb98eab6ffa0f20510c59b27b70be278d4cf62588d83e4", _FRAGMENT_VARIANT),
+        "hadith:muslim:2082-3":
+            ("c0b74c13e840b5bf957b0b1eac1e93238b27679aac38aaf4a666f897ade744e3", _FRAGMENT_VARIANT),
+        "hadith:muslim:2085-2":
+            ("511e6ad56ba2839dfdf8a9b3aa0fdbfe6cd0ffb5c4d2dfcbf8b09d478d5d64ff", _FRAGMENT_VARIANT),
+        "hadith:muslim:2085-8":
+            ("6d393523ca0efc8ab8ff3326f229f518c578356f70c8425edd61e8571acd60e9", _DEFERRAL),
+        "hadith:muslim:2088-4":
+            ("c3ca17b8f0e97c161333581c437a88cb4a0507d0770961d26788d3a705550cdc", _DEFERRAL),
+        "hadith:muslim:2107-8":
+            ("10727f6bb24ae4a94ae02b6fd96e76a0e2162a22e254c00b7c5d0459ac908af0", _FRAGMENT_VARIANT),
+        "hadith:muslim:2125-2":
+            ("1d2cba541da4d08609b62a14b1463ce4bba97145e509aa2c1c340b097c24fca0", _FRAGMENT_VARIANT),
+        "hadith:muslim:2125-3":
+            ("24034ac58c7ddf91caf93a144dfcff225fb63cb2dcfaabc7567a83ba4a456d81", _OMISSION_NOTE),
+        "hadith:muslim:2155-3":
+            ("f19711055b5221b4e337b82b9c5e18c7a7ba8a0d30b2403829bca06b5b024bf9", _POINTER),
+        "hadith:muslim:2167-2":
+            ("408b074c51392901e83e1edd38cd56b06606bc6bd0bb488780bf3ecad5d404e5", _FRAGMENT_VARIANT),
+        "hadith:muslim:2172-3":
+            ("0555d86582969f02fa2012270e8db62365f3bad9fc9436438bd5201357b91d3c", _EDITORIAL_DISCUSSION),
+        "hadith:muslim:2215-2":
+            ("3b1c336368144b09061072e01e2dfceed48b9e4db68a7dac8b91892ad1ba2c6d", _FRAGMENT_VARIANT),
+        "hadith:muslim:2219-3":
+            ("7fcc2c1b53b408816463b01ef27c34d9213bcf4ba7d894409b3e920df9bd9d80", _ISNAD_VARIATION),
+        "hadith:muslim:2223-2":
+            ("09c2a7fe8268f483efa9feb72438c1feace58a634a472749afc90356abdd1e07", _OMISSION_NOTE),
+        "hadith:muslim:2225-3":
+            ("9b48a5550b3c8a44e2b6a80797922936447a751a30d4aa5dc20432f8f3a524f4", _DEFERRAL),
+        "hadith:muslim:2232-2":
+            ("7dffe6710cad4f05aacb5ff343299fbee6d2eb7d03dc15a411faf47cad0511e3", _FRAGMENT_VARIANT),
+        "hadith:muslim:2234-3":
+            ("0429084f0dcba92e846766677a3a2c3e426406cf5679a0a0a54aae5939ce1afa", _FRAME_ONLY),
+        "hadith:muslim:2243-2":
+            ("a7d1893d17828931a967c9bd45cfc71b5a8715914512b2b863ce262a33a22de8", _FRAGMENT_VARIANT),
+        "hadith:muslim:2263-3":
+            ("26124e1e6daa71c94a32d258b38ebd6c2313dee46fc45fd7d9ddc251d9f4d4b5", _DEFERRAL),
+        "hadith:muslim:843-5":
+            ("658c7ce082e314d5541474d32d563770442ba39b8517a0a6ed1e8ce8e65b33bd", _OMISSION_NOTE),
+        "hadith:muslim:2301-3":
+            ("b91ee02d86aa0f30e221dff53feab04ed0e7bff217de84f94c74d82b4967a9e0", _ISNAD_COMMENT),
+        "hadith:muslim:2303-3":
+            ("673815e1fcf55662b2fe0a0e903b171b321270d87a5be6a2966678843b4d6ba2", _FRAGMENT_VARIANT),
+        "hadith:muslim:2303-5":
+            ("d9fe9abe998b88935103412d8b0f19b4c14b04b525f2a79e22bbdef814ed71ee", _FRAGMENT_VARIANT),
+        "hadith:muslim:2307-3":
+            ("dc3744f318e5d84ae5cd1f1bc2d67ff75c8bbb773e9d71865e310f445b4f0340", _FRAGMENT_VARIANT),
+        "hadith:muslim:2354-3":
+            ("d941f934c4bc47fe44331f8c7718a0014be145d52a9bedc9d28252daaa0dee58", _ISNAD_COMMENT),
+        "hadith:muslim:2358-3":
+            ("70e06a865529cd98f7f06a50908bb800d52135ff27c847705b7cbf810ee5d14f", _FRAGMENT_VARIANT),
+        "hadith:muslim:2359-4":
+            ("48588d8cb47f06b86f71008c584504aac8063fdd9c1b1483b57e06aa8d86351d", _OMISSION_NOTE),
+        "hadith:muslim:2382-2":
+            ("97215223b55baa7aedab12c25011ea30c2a87e88f8fe885d1ce991e062b35f69", _FRAME_ONLY),
+        "hadith:muslim:2386-2":
+            ("00082766d79af86094303bb93f3baeba67cfbc6eabb2b700798c198be6d8afa2", _BARE_RULING),
+        "hadith:muslim:2393-2":
+            ("35d808de5f59c783e3d7e019428656a5b5179c53f8cba024bde0ef5dfbe0f8dc", _DEFERRAL),
+        "hadith:muslim:2418-2":
+            ("f3973e817d8211b8d78d8dbe75b7452f1f67232bdab0947caf491c053c17ebec", _POINTER),
+        "hadith:muslim:2464-3":
+            ("88c82268ee54ab828ec4a58c65036e38d1161ce85f0461ed84c4ef3d5e644d65", _EDITORIAL_DISCUSSION),
+        "hadith:muslim:2464-4":
+            ("18bffd4a0f85d9fb0fed88293a45a5458275916b848ed59ec7a4187407bc65f9", _EDITORIAL_DISCUSSION),
+        "hadith:muslim:2464-6":
+            ("03f5d01a33706a0c01057fdba6fda94d3a08c5e513b396c85d975078c734b2b4", _ISNAD_COMMENT),
+        "hadith:muslim:2480-2":
+            ("45d498c1a80ff4b251f36f4a4d43d5c25070333ad79cdab16240afb88f8e71bc", _DEFERRAL),
+        "hadith:muslim:2511-6":
+            ("9b9c3b6b902cd6d5cc429fb4dc098940a798e2929520a16348ed52d4eda7c370", _DEFERRAL),
+        "hadith:muslim:2518-2":
+            ("7287886bb224ee409fcb11cd88724320a0ee6cc9ad5cc1a077f6dde1dc13c601", _POINTER),
+        "hadith:muslim:2520-2":
+            ("f27c29f10b7dca8a18415287d2216ebf24ea38257572b9405329d31bafdfaf01", _ISNAD_COMMENT),
+        "hadith:muslim:2522-2":
+            ("9dd0c2813f581dfbcd7257bd24c111671012ad2280446009c8b9d81abd9e474f", _FRAGMENT_VARIANT),
+        "hadith:muslim:2527-2":
+            ("f2056e0f6c7f097d0ce72aae53939c2f66b1c466e3d4f4764326dabe382baff7", _FRAGMENT_VARIANT),
+        "hadith:muslim:2534-2":
+            ("1de11e19ed1119199f3344f7f8b49d86b4c114267b932b325a86ab1f9e275106", _ISNAD_COMMENT),
+        "hadith:muslim:2548-4":
+            ("5147b8be33f0d8e10f0af92d8666093bc450a14f59d5f0a67b6021130a63086e", _FRAGMENT_VARIANT),
+        "hadith:muslim:2549-2":
+            ("8f89c5656e2e85d5a8de17a2c5b34feb67bf3fe261568484f8191254d6cba31e", _FRAME_ONLY),
+        "hadith:muslim:2551-3":
+            ("c73b438484ed3e8b12aa3bb6c59a42509eddbf32d699d59ac0ceefe58912d682", _FRAME_ONLY),
+        "hadith:muslim:2559-6":
+            ("c22b6f46240adbd99ddea1084c818458877a972ec57356890b32f8708dedf6f2", _FRAGMENT_VARIANT),
+        "hadith:muslim:2560-2":
+            ("ff149621060b463ea78ba8fd6bf8508c1dedd8f458797a179ff4cf1fbddc87ae", _FRAGMENT_VARIANT),
+        "hadith:muslim:2565-2":
+            ("a995704bdc3ce5b0ee1c286682ef1154968fabfdcbfab0e5e4b0978a9cc2d14d", _FRAGMENT_VARIANT),
+        "hadith:muslim:2571-2":
+            ("e1a0b2e089da77838abde4966271dc57a647f200392d0a528fde5310187bb6d1", _FRAGMENT_VARIANT),
+        "hadith:muslim:2602-2":
+            ("b75c4ab448faf2159d2170051f54b5712135fb4cd99244155cc567ffbda0029e", _FRAGMENT_VARIANT),
+        "hadith:muslim:2601-3":
+            ("a10bd5c39944e5af2516c27351eff964c81807242b0c4a8bf622e31bff757709", _ISNAD_COMMENT),
+        "hadith:muslim:2607-4":
+            ("fc5965b8d836eec4753309aa55e42e3584c7e1e58a0d3a557a28a9d0509fb3f7", _FRAGMENT_VARIANT),
+        "hadith:muslim:2612-2":
+            ("a243dfcd2242e6a7c429f4e7ec2c6ee4e5a38ecc26d3c2a83e33740c6155444c", _DEFERRAL),
+        "hadith:muslim:2632-2":
+            ("31df3ccfa2dbe783073eeee428abd543fa1adb56ae11aaf2e542618756d1d8ce", _FRAGMENT_VARIANT),
+        "hadith:muslim:2634":
+            ("68183fe839010b2b6aa5eb98ea7e9804f50374758e40df9383c7ddc2bd6b9466", _FRAGMENT_VARIANT),
+        "hadith:muslim:2641":
+            ("bfebba464076f556f1937cc614e66e97d530ea259e2b47952bf98c2a909ee335", _FRAME_ONLY),
+        "hadith:muslim:2645-4":
+            ("28d9ce46c555a915fa2ad07ed995a12be9587bc4a63e9c6f88b4070876457a21", _DEFERRAL),
+        "hadith:muslim:2658-2":
+            ("91bb757ce8d5dc39c5be07019de6d41b9cc0b24296938851cc875b5e9b9ace23", _FRAGMENT_VARIANT),
+        "hadith:muslim:2659-2":
+            ("54390598389de563c897fa53e74e4ac3a7fecc76a745751f3c170753872d053d", _FRAGMENT_VARIANT),
+        "hadith:muslim:2663-2":
+            ("e784b803c9b7955d49befaafaec6087237e11150104007388ba762ee1467861c", _FRAGMENT_VARIANT),
+        "hadith:muslim:2663-4":
+            ("82dbd9e99fedfbb679dc54c75a9d5111f7e70904c96d8b0ed2d60d8259f7d2e2", _FRAGMENT_VARIANT),
+        "hadith:muslim:2673-2":
+            ("cb6966719c466c8c82a6074e967427048e30e2f75fcd973af89b712c8c05c238", _ISNAD_COMMENT),
+        "hadith:muslim:1017-7":
+            ("24b0a4db4e3d418ed6b2210994b6208685a998c71cdce9a8012bb6aca8ac0390", _DEFERRAL),
+        "hadith:muslim:2704-5":
+            ("d76242688c38651eac2ccfcdac6ea2bf0f8fc70435bd39d4731f9b7b3d812c93", _FRAME_ONLY),
+        "hadith:muslim:2705-2":
+            ("a3be0f1f122ac33d312bb4a715cc45180a7c22af77896e87a9644ca753cf6b17", _FRAGMENT_VARIANT),
+        "hadith:muslim:2710-5":
+            ("361d448ac7a76fb9c37c71475583a31707742d9853b1812dd92fe10bd41787a3", _BARE_RULING),
+        "hadith:muslim:2713-2":
+            ("bd390a24a2a677e524522bd2b54b2513481ab6ae9ff6cf72e4fd9f35b0ac70bb", _FRAGMENT_VARIANT),
+        "hadith:muslim:2716-3":
+            ("37f04876b1e7cf5c0247830857cceda001c87af3943d4812cb91347961ae10e8", _FRAGMENT_VARIANT),
+        "hadith:muslim:2721-2":
+            ("66fae4949f65d30f5603d18cfde3869b730a534aeda051aef959c89ee1476ee2", _FRAGMENT_VARIANT),
+        "hadith:muslim:2727-2":
+            ("f4b55f28bd3ddc510f08ac3a51ff7242c44635ab2d2d087f807abca0a7133e50", _FRAGMENT_VARIANT),
+        "hadith:muslim:2730-3":
+            ("ac242ad316641a7fb7ba8a5f8b06d753f9d0bf0374e5a6c5cfa677ff12f6e350", _POINTER),
+        "hadith:muslim:2744-2":
+            ("ca3531cf81ad1e36f60b41168e9418f1e17b13e7bbbba951fb6fca3424adf84f", _FRAGMENT_VARIANT),
+        "hadith:muslim:2756-2":
+            ("62b07f507a3addb4416315aa10b6f299ca95c9d59cd1ca52fdbe1e1111ccf797", _DEFERRAL),
+        "hadith:muslim:2809-2":
+            ("9e4b63b7390d67f0de6d5532eb220fa11e578fddaf22598be28c2dfcba9e470d", _FRAGMENT_VARIANT),
+        "hadith:muslim:2816-2":
+            ("3004927fcb710a9e0ff28cfc5957ca240827d1cb40960c64eb66dacbb9338f83", _FRAGMENT_VARIANT),
+        "hadith:muslim:2834-3":
+            ("f429b37f96e60685de791ec69f6a926d24152ca0617bf03757873b9b1017b53d", _SEGMENT),
+        "hadith:muslim:2845-3":
+            ("eeefb0bb6f0b92c641817308d9f10ea72af518de23791651211eda544bb674c1", _FRAGMENT_VARIANT),
+        "hadith:muslim:2853-2":
+            ("f29c788a99d3b89af258f9078731e6a0468414f453c93c4388a48e45e6cedb1e", _FRAGMENT_VARIANT),
+        "hadith:muslim:2865-3":
+            ("b0d8edcd3a02a134d4377eb5db7bd597c12b67c0b2e80f4b25c75eb9e803ab08", _ISNAD_COMMENT),
+        "hadith:muslim:2870-3":
+            ("89fb585f5ec54a72b36f4800511ab4f528a98c0ac6206854004b4070027dfdcc", _DEFERRAL),
+        "hadith:muslim:2890-2":
+            ("6bfbb253486bd3e64ab7a523bfbb8db3733f477c72cdef716de317cdf6822be1", _FRAME_ONLY),
+        "hadith:muslim:2901-4":
+            ("ea7128b0bb329e32a1af02e9b21b4545063ca6e4a618a8d21b6df4337e3e3996", _FRAME_ONLY),
+        "hadith:muslim:2915-2":
+            ("b3dcd14563d56b6d3d7f0fd11fe7c40cd42cab3e211cdd5ee38e755376ddd5f8", _FRAGMENT_VARIANT),
+        "hadith:muslim:2935":
+            ("1c042dc0b93dfc269556b33ee812ca535cf57c92ba3b005d87e061df8cd07b00", _FRAME_ONLY),
+        "hadith:muslim:2939-3":
+            ("e87cb79af646a070b87f0bd9a1be39f0aee594b0523bdcd4da384ecfcc5a7d42", _FRAGMENT_VARIANT),
+        "hadith:muslim:1055-4":
+            ("9565d9687621ece2afd25c5448a23ea84e92153469db554735d0d414d2993e1d", _FRAGMENT_VARIANT),
+        "hadith:muslim:2972-2":
+            ("1d4ecd184082016f8172a8ad322497659baf1cb6290daf5fa5864369cb2fee5a", _FRAGMENT_VARIANT),
+        "hadith:muslim:2987-2":
+            ("8de1b4eeda4ffdbac7ecabc26c9408b71bbc69a76886bbe769d4d577c22f8904", _ISNAD_COMMENT),
+        "hadith:muslim:2989-2":
+            ("37d55b6426ebe3e36659673f92aa0df66411a23af001a8fb455ca7ca1148877c", _DEFERRAL),
+        "hadith:muslim:3018-2":
+            ("9d67feb610ff809181ba60cbb5517def478b75632fc9767cb1e2284c3955967c", _FRAGMENT_VARIANT),
+        "hadith:muslim:3024-2":
+            ("e4c550b49750546d1755ce445d29fee1aacbb44b0463b2a9c0c5e8b915a76dae", _FRAGMENT_VARIANT),
+        "hadith:muslim:3032-3":
+            ("433d6f11bb3bb9273fc973c98a6d4a7b6eadc0d0dea5620d516c6d8bd37fea2e", _FRAGMENT_VARIANT),
+        "hadith:muslim:3033-2":
+            ("b74659a22f713c7d252c11c6ba1fee602fc739be6721f69f10b5efb9439d5bf1", _FRAME_ONLY),
+    },
+    "abudawud": {
+        "hadith:abudawud:37":
+            ("d5f93c34f1997bab080abef4eb088afc0b779281ff877c70a29678e35c56b77e", _ISNAD_COMMENT),
+        "hadith:abudawud:64":
+            ("01b898d3505c4262efd4db98b2ee5e744bcbc4f680a68fed572a2d59d13a6c5c", _DEFERRAL),
+        "hadith:abudawud:104":
+            ("5ef55773bfdc142855e4b70938e66cca13730a7989a25520565402fcfa99ea99", _FRAGMENT_VARIANT),
+        "hadith:abudawud:315":
+            ("91c254d9b960666275250888b30432248c1d1457f77f2e980e260daafa9b2543", _FRAGMENT_VARIANT),
+        "hadith:abudawud:328":
+            ("980183638bed59c8e4495ffb8ff28e9a97b9ebeea375134b0b2c01fdafbce56b", _FRAGMENT_VARIANT),
+        "hadith:abudawud:339":
+            ("558bc0142a6e3c19e468978f95d55c2bedeb3d1965ee985b7d22d9f054986093", _DEFERRAL),
+        "hadith:abudawud:346":
+            ("3fe527386e3c9aa74d5e34f7b944c55bf776b822411085ebebec578313acef58", _DEFERRAL),
+        "hadith:abudawud:491":
+            ("c8e672e8a730bbc574396d27ba87bb0bfa0090a55f65dd9c7fb80fae141f2f25", _FRAGMENT_VARIANT),
+        "hadith:abudawud:509":
+            ("b24cd92daa95742ed5b8dda7c0c41f684c2a6220a52bc9d6088038e1020430e9", _FRAGMENT_VARIANT),
+        "hadith:abudawud:690":
+            ("bf78ce9db6d9861b6cf1ef6e63df93904a93b89a1c1da64f4521830bd5a002cc", _ISNAD_COMMENT),
+        "hadith:abudawud:750":
+            ("86556d2e17bc18c1134393c12559820271de07ac746617d99a0d83099975f9da", _OMISSION_NOTE),
+        "hadith:abudawud:772":
+            ("75bb524258c826a3cf01c25757b07ac18747d4426d198e8a1d0a911d7144bea6", _FRAME_ONLY),
+        "hadith:abudawud:1031":
+            ("98f12b1c9bee6ff197f1352cced2d8e93b35a2e02a93e827d45d01a5798afc21", _FRAGMENT_VARIANT),
+        "hadith:abudawud:1058":
+            ("95dd46e49a2530adf145183451f009548ec53952c1097a98c34cc9a1c7f43c82", _POINTER),
+        "hadith:abudawud:1075":
+            ("0f5726e0cecaa40834ddde35b4eb88bdb46afd2f86722781a240bdab2c44e4fd", _FRAGMENT_VARIANT),
+        "hadith:abudawud:1150":
+            ("e2a38df11028f1c939589497e468074f28d32484fe89b50231de5ed094088040", _FRAGMENT_VARIANT),
+        "hadith:abudawud:1186":
+            ("e0ff08ebb503aed0e31a1b07cf79bd6115c1773725c16350fb0d9077e0c1e9ac", _FRAGMENT_VARIANT),
+        "hadith:abudawud:1268":
+            ("7350186b81897799e01910beef8ae1e23a8aba31f87e50ef00a8ac396e56790a", _FRAME_ONLY),
+        "hadith:abudawud:1299":
+            ("4aba4991cce5238c3cd9ac9f7780dd37d2c4d4f4e1e0fe21cb8e579f3dd0139b", _DEFERRAL),
+        "hadith:abudawud:1426":
+            ("77ebdc3ff7ffbefc640c89bf29206ecfd154df8b158bb726e079b31c082cf4da", _POINTER),
+        "hadith:abudawud:1661":
+            ("62dcd30dda6dfd7bfbabb8d539ba5aaa0b909102d2e43ef5c6cbd697febc5c4d", _FRAGMENT_VARIANT),
+        "hadith:abudawud:1700":
+            ("51f48478df8cf415294f304d8fece81f9488cdbc645ccd6cb2f6ca5e8b89a77b", _FRAGMENT_VARIANT),
+        "hadith:abudawud:1863":
+            ("cbef618d1ea9948c6142b850cffa843d2dea7b70ba5a18f119717a698eb50900", _DEFERRAL),
+        "hadith:abudawud:1891":
+            ("dbdd7e7f88cb1af47778ba17409cc7c020eb95a397a7a0ddc9d31f5f72cdfbdb", _POINTER),
+        "hadith:abudawud:1955":
+            ("6676697fa9b1d90932aac45128b970a97389869006fae3a4a6c4e38b62c7962b", _FRAME_ONLY),
+        "hadith:abudawud:2060":
+            ("96721c746907441e7a14857a90ca6556709e4c679ddab027cfe13e9aa360928c", _FRAGMENT_VARIANT),
+        "hadith:abudawud:2094":
+            ("57be25efc18dd318e5c66e02e67cfbf9aa7940c8aaaf6e1cadee076f709f7562", _FRAGMENT_VARIANT),
+        "hadith:abudawud:2113":
+            ("fdca638f94dc87a251931e022d21635844b593c672f0cc95825eb38b3f0107c4", _POINTER),
+        "hadith:abudawud:2204":
+            ("972a274beb0974c3aebc03f97676ff25038dd8d4701120a1d152cae3e1a52ce6", _ISNAD_COMMENT),
+        "hadith:abudawud:2411":
+            ("6ae1fb1a03c2b2c2a5680512ff4261e56d358cdd396ec98c6deea7fa9103b456", _DEFERRAL),
+        "hadith:abudawud:2423":
+            ("00ebd52fdbf18e4839b0078e666ab8a486862b32d3cd3937386d5a00b4a7415d", _ISNAD_COMMENT),
+        "hadith:abudawud:2424":
+            ("38c0d0a4880365a439e9f87d6967771ebecbdd54dc0e056935083fa66400a260", _EDITORIAL_DISCUSSION),
+        "hadith:abudawud:2518":
+            ("5b3d9fa442c6045c73a61d29d4e294f7041ae71cb82b97ae7dd6add8245defb7", _FRAME_ONLY),
+        "hadith:abudawud:2630":
+            ("e57c8341b0262b8b36beca60497c3fe6831e790e27fe2031bf653932cfe369b8", _FRAME_ONLY),
+        "hadith:abudawud:2674":
+            ("4a4c2136a99450b5be4e043b519b5eaba8aa1d8cc1af065fb57fb98858ba2090", _DEFERRAL),
+        "hadith:abudawud:2742":
+            ("d42c7770899f85ba32e9f60ad2f6d5b8eae087e59bf3a1a840db47941db99609", _ISNAD_COMMENT),
+        "hadith:abudawud:2761":
+            ("102c313d97a9c0078405f2a0666d8fcd3a1bfdff162f2c5e08b7d84fa7c14174", _SEGMENT),
+        "hadith:abudawud:3320":
+            ("e8e2cd962302e0d0c64052b316e331a3b5cab3712b8033f480b2cbfe83e15d10", _EDITORIAL_DISCUSSION),
+        "hadith:abudawud:3411":
+            ("d3dc20664a5383dbf66afd3b1bb0fcdbc7dd3613d08199a9b94f52c7251c8082", _BARE_RULING),
+        "hadith:abudawud:3453":
+            ("47db5708b5474fa06346c53f076b5b27d69554290f2fa49f626da5ed695a5692", _EDITORIAL_DISCUSSION),
+        "hadith:abudawud:3465":
+            ("6d6a4fc9a650a0936a9d9718b6c222ed8369ce8f5bbc3dd67e05f919f6c6de81", _FRAGMENT_VARIANT),
+        "hadith:abudawud:3491":
+            ("7ac75b83100108287ab99d8708264c56e017ea3ce437783150e54b895ab427b7", _FRAGMENT_VARIANT),
+        "hadith:abudawud:3587":
+            ("0b5fb110c43620ba7545f93d218e312a766b7abba8e75debe891657bcbfbd5e3", _ISNAD_COMMENT),
+        "hadith:abudawud:3593":
+            ("2df631abf31f74020d5f9c7116fc9ab74ac381aebbc16faaaa2fcf5a7f5bb441", _DEFERRAL),
+        "hadith:abudawud:3611":
+            ("9b2697082ec9349e4b4635d25f05cce2ddcdf08d53ee3721e22e4b90ce6d4e3f", _ISNAD_COMMENT),
+        "hadith:abudawud:3625":
+            ("6deada3af87209ffc25e4a3d5539c8382664baaa3aa386faa5b2b28532fc8e5a", _ISNAD_COMMENT),
+        "hadith:abudawud:3810":
+            ("fa2338f48c0b3014604f5ec90fc049cecc4462e85f8d1b2bad80c3b246552aef", _ISNAD_VARIATION),
+        "hadith:abudawud:3814":
+            ("a9c379fd528659c96e0cc7bc75f041f208479c2a0c2a941b492d52af30023d65", _DEFERRAL),
+        "hadith:abudawud:3941":
+            ("ef6edd6e21bf3f341740d485e73c703bb07dc8050e53900be1120ddac04017cc", _DEFERRAL),
+        "hadith:abudawud:3989":
+            ("db7f9033930bac3a7e9c4e04bae8696aac8ef40e91c4784fa532f7c91113e04b", _FRAGMENT_VARIANT),
+        "hadith:abudawud:4030":
+            ("3d0968104189f076f683e449cdfd0cfb3df3ab1e84bc0932dbe18a3a97bdf763", _FRAGMENT_VARIANT),
+        "hadith:abudawud:4154":
+            ("71e2f4973dfefd5f09bd039621405f80d1bec94d69f7b69acda2b6c66624be3d", _ISNAD_COMMENT),
+        "hadith:abudawud:4233":
+            ("284d544fe954998a34f09e98ebdb02544d9be29c9b191d3703067ae1d9b0cd0b", _DEFERRAL),
+        "hadith:abudawud:4266":
+            ("9706f524f21efa57ec555befcfce5b91f27f8db61b908ff3a1acb4e399086cca", _EDITORIAL_DISCUSSION),
+        "hadith:abudawud:4317":
+            ("c9892a6e8764adec2bc54ca91d79af0154ecb81fdc147bb5e27d9e351a22ae20", _FRAME_ONLY),
+        "hadith:abudawud:4371":
+            ("c180f8ec94de76a726e87995c1554bf5a04ca4fe4c568894c26dd5abaabe05e7", _POINTER),
+        "hadith:abudawud:4407":
+            ("418471f233b5f27faf893b3e46a37c0cc69a22dcecdd573479b437201ac5b010", _POINTER),
+        "hadith:abudawud:4416":
+            ("6645751432c113c0201b1cec7cfcc6c44355dba0c4346522c4bd731dad09c117", _FRAGMENT_VARIANT),
+        "hadith:abudawud:4544":
+            ("5e01a69a01e394569a8ec96657a92e843b51a4c7462813f28996e595993155c9", _FRAGMENT_VARIANT),
+        "hadith:abudawud:4704":
+            ("c8ba16086a7f3afc0939f1c962ee62095d9f0a1ab6aa3bee16f649d8b25ec801", _EDITORIAL_DISCUSSION),
+        "hadith:abudawud:4830":
+            ("eab1866a27f680d8b3097a410945c5b65c713476c2610d421c5fb0761ed8b67f", _FRAGMENT_VARIANT),
+        "hadith:abudawud:4867":
+            ("6019cb78acc88737cd3d8cbe029628e6b5af16a9b7eda16b3c5d3507222c3971", _POINTER),
+        "hadith:abudawud:5118":
+            ("9c3a3161519cb37218f192d272ed1a602e8cb612752609f56942b68c1c9d79bf", _FRAME_ONLY),
+        "hadith:abudawud:5255":
+            ("f6449d931ff989a3ede7ee176cae1d0983c508aaf822388691c0c7eab966270c", _POINTER),
+    },
+    "tirmidhi": {
+        "hadith:tirmidhi:263":
+            ("ac4a023bb7a9b30b3a5fd6b015aaa05e58e38a3605d3ce7e0294b8ae006d5381", _EDITORIAL_DISCUSSION),
+        "hadith:tirmidhi:278":
+            ("9980047d713dd8fa499a142aa7c32d97f08f7a50e32b00b0f10363ad847160df", _ISNAD_COMMENT),
+        "hadith:tirmidhi:305":
+            ("8a88a544ede92e30e0cfbfa9846cf46a021bd97981f7b38e893a4095c573225b", _POINTER),
+        "hadith:tirmidhi:382":
+            ("50d294dfdea6784de2f2bd65a41c20d01aa3f9244f9e7b4601f950d6a3ea7982", _FRAGMENT_VARIANT),
+        "hadith:tirmidhi:495":
+            ("0efecab0c11a41339089cb7b47f5b10ce6a8414118632f6ad56ab01bb7f902ad", _FRAME_ONLY),
+        "hadith:tirmidhi:567":
+            ("9d9d77d9ed387ab6e601b127acda2113cdaea58906eb13d454f375cc8719d761", _FRAME_ONLY),
+        "hadith:tirmidhi:596":
+            ("33b1fbe65c8c254dc82f70ca57381eb3e06ff87c0b3614c9518966745ffab237", _BARE_RULING),
+        "hadith:tirmidhi:624":
+            ("1b611bafdad1a67a7e487e2595a77996b747122c1d43f96319caebaf2a467dba", _ISNAD_COMMENT),
+        "hadith:tirmidhi:651":
+            ("8f55a00226cf518765183e1611c82ff6f21cbe6748ecd55715dcfd47ed238bc3", _EDITORIAL_DISCUSSION),
+        "hadith:tirmidhi:737":
+            ("09ed9cd91a38ddba3b2915e3dbddf7e7c5e89152a3b64d4e56606fbbe0ea44d5", _EDITORIAL_DISCUSSION),
+        "hadith:tirmidhi:805":
+            ("a43a2ed8a9ab1d0423599db83f45a6541fa1574cd5a9ec4f67c6ba55863d3591", _EDITORIAL_DISCUSSION),
+        "hadith:tirmidhi:887":
+            ("f1440e9ce05892b1514e262e86ffb940a5ebbe2671404986919b24844f0102e5", _POINTER),
+        "hadith:tirmidhi:979":
+            ("52dadfd8bc1057a9bca962df2116a94327c496696768d7f553e63ace72b2ccd3", _ISNAD_COMMENT),
+        "hadith:tirmidhi:1333":
+            ("02590c82f5414b742b9ee1cd8e51e1926da3167145b7199b10d59b92d8b0d604", _ISNAD_VARIATION),
+        "hadith:tirmidhi:2370":
+            ("aadd8de1d2731e9f6f9dbe83213f3677828d3e271c8ce31b831f72494608825d", _ISNAD_COMMENT),
+        "hadith:tirmidhi:2444":
+            ("4c75d3b663f9dd25a98f47de37ba517ed3db32aca039262af30bdf725b8ea00a", _SEGMENT),
+        "hadith:tirmidhi:3152":
+            ("56579572db237a4fadc54e4053d81499615fadcf9d8e7973623acf43a663aad5", _POINTER),
+    },
+    "nasai": {
+        "hadith:nasai:46":
+            ("af5b7f5e267906effb6dcd6fd6cf2e88efedefdbc641dec984b3e5809f7f5518", _POINTER),
+        "hadith:nasai:91":
+            ("c0a52af7a425dcb605fba57af537c30ec09e7fa543fa0906f64af30fb39209a6", _POINTER),
+        "hadith:nasai:226":
+            ("ee200c3afe8050892cecbe462ab145d8b6f076c6b210bc81b9fb15618d4b83d5", _POINTER),
+        "hadith:nasai:466":
+            ("6d0b3aa745a028252ac1ba7077f7a966764c2f9080259035e4c6905d6800cf12", _ISNAD_COMMENT),
+        "hadith:nasai:658":
+            ("f5fd03c81dd2bc5c4dd450834d7e40c0dc878a31e743cdf0d18a7c27bad8cf28", _POINTER),
+        "hadith:nasai:667":
+            ("8c11151e7584303fad7e47007b2d2dc89458cba2528d899b43ae032b5ef16bd6", _FRAME_ONLY),
+        "hadith:nasai:961":
+            ("35437beb0fac6466a24a0d0bd9645856f66045a8a72869c592997f20dc35c270", _POINTER),
+        "hadith:nasai:1165":
+            ("6c3ed5cb1023b277aae9eb7db4de11e0158cf106616253907c6e570767480ae2", _FRAME_ONLY),
+        "hadith:nasai:1406":
+            ("652fcfd33f9d49ba65359896250adbbbf2d75924c0268ad7a9850a6ec2c0a5d6", _POINTER),
+        "hadith:nasai:1531":
+            ("fba52a808464c7bfc663c01ba16592dadea45af62de9177a24bdd8d7c85fd1d3", _DEFERRAL),
+        "hadith:nasai:1687":
+            ("b047e37b665cdcb6528f3f513fbf75a43ed59c47cc1cd4131a8b79c101368d98", _POINTER),
+        "hadith:nasai:1755":
+            ("5ea43cce20116d1df6e627339141eecf9caf5be61ac391b44de7743a5da30d00", _DEFERRAL),
+        "hadith:nasai:1982":
+            ("7c2554e9ca5a8e67980022e8af76fce00618ecd1990ed39db3d4298e6074abcc", _POINTER),
+        "hadith:nasai:2208":
+            ("dbb4c671ae97a75a9b0a07794342430dcba7e222c64f61fe0620db5ef480d2b2", _SEGMENT),
+        "hadith:nasai:2209":
+            ("d33511e3cc00b17a95aa6e11aeeeed91047a37f6661f9378a17abae3ee824f01", _DEFERRAL),
+        "hadith:nasai:2227":
+            ("df2286add61b24d4d6296c081985840bbeb92cf0b22bf44f49e3889b6c8794a7", _ISNAD_VARIATION),
+        "hadith:nasai:2266":
+            ("9055f3a2d1e15bb949f47eef207796df94bd6c31423ffc5530c21c03007b6b52", _FRAME_ONLY),
+        "hadith:nasai:2273":
+            ("f2954899a10b1a3158f08fd93d3bfdb0ccd64ee721572626e7d6ae8f8f72282d", _DEFERRAL),
+        "hadith:nasai:2465":
+            ("dcb785743473224b02f29d9266645c2fb621005eb7810e2e431264365039c2f7", _BARE_RULING),
+        "hadith:nasai:2720":
+            ("80841e9fbd092505b3c3dabff353f97ba3c13402d132308d9e9e65ccd74c80b5", _DEFERRAL),
+        "hadith:nasai:2730":
+            ("1397b4c52e5b2d69a9a4cedfa81b4a4e02fbd1424f968dbaff9d5d137b0b9b14", _POINTER),
+        "hadith:nasai:2940":
+            ("7de40ab5d852bfe2a9a6eda8f855a049818432939906aa1d42cbb86354dd0708", _POINTER),
+        "hadith:nasai:3206":
+            ("029ca114f3269e9321dc6b405d84010347c94419d49656d8cde89b324ac6fb9c", _SEGMENT),
+        "hadith:nasai:3422":
+            ("199f2bcd197f9c357570d92f0c6f918ee5dfed316daef002085153dcdae5188e", _SEGMENT),
+        "hadith:nasai:3455":
+            ("b4c9475f52169dc727bf25940fb6d3f0f531aaaa5ec91e0c457aca800dcc9fc0", _SEGMENT),
+        "hadith:nasai:3918":
+            ("c33b63b6219a078617b6ec1be5c00efc96456b3db060184ff5df2cff112491de", _SEGMENT),
+        "hadith:nasai:3981":
+            ("1d4375b46421e0f8f4c1ee7c43f79d1c6709271aa1fdf689d8ecc3bb1255ac1a", _FRAME_ONLY),
+        "hadith:nasai:4221":
+            ("53bc857ed994ad3c77d48750d60ce663eb7888e38053d47e0759bef8eb58c0e7", _ISNAD_COMMENT),
+        "hadith:nasai:4598":
+            ("3e7986298ade00543ec3781c8b08d8299839aeb29d9a59cf4f9493ab6bc9b2bf", _FRAGMENT_VARIANT),
+        "hadith:nasai:4602":
+            ("11c7c2fe80003f89271104b41044738987841c79686de29d4923c31aa78b2138", _FRAME_ONLY),
+        "hadith:nasai:4667":
+            ("02faf00f1edf9b5e80624ef0eb1b3ca103f579d7a644d5277be329c0c008ba38", _FRAGMENT_VARIANT),
+        "hadith:nasai:4792":
+            ("5b9e50ed9679cecc1655e6d99839a76128107d5a9f065d51a1917208f00c798b", _FRAME_ONLY),
+        "hadith:nasai:5483":
+            ("ba710844bbb2189ee519621a08eee05389030fd2989021985a1c0430731f4a9d", _BARE_RULING),
+    },
+    "ibnmajah": {
+        "hadith:ibnmajah:155":
+            ("72c1d260184051498d17e1a9f8467cf06c624e6095d02cec001eb140b578f23b", _FRAGMENT_VARIANT),
+        "hadith:ibnmajah:511":
+            ("1ab690b3a703469f5446612a31cfef67ec1f51a53f34d75634320f235fc3c09f", _POINTER),
+        "hadith:ibnmajah:1299":
+            ("7de40ab5d852bfe2a9a6eda8f855a049818432939906aa1d42cbb86354dd0708", _POINTER),
+        "hadith:ibnmajah:2542":
+            ("59161a27ba8f29dc69414f5bce7a69de84ed670525fd36808b1301f8d51f3422", _POINTER),
+        "hadith:ibnmajah:2974":
+            ("9120906928f3dbb1a2e67ff8d417f424efaf6331fa5dbc40cf15f92cd89a6229", _POINTER),
+        "hadith:ibnmajah:3005":
+            ("7de40ab5d852bfe2a9a6eda8f855a049818432939906aa1d42cbb86354dd0708", _POINTER),
+        "hadith:ibnmajah:3032":
+            ("b6e6532775ac6ba221dca184cdf526e90da2de8d0d76c7a71b3eec5a0df8ce25", _POINTER),
+    },
+}
+
+for _coll, _entries in _A2_READ_SWEEP_POINTERS.items():
+    _clash = set(_entries) & set(UNSCORABLE.get(_coll, {}))
+    assert not _clash, f"read-sweep pins already on the unscorable list: {_clash}"
     UNSCORABLE.setdefault(_coll, {}).update(_entries)

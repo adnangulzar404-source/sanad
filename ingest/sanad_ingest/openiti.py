@@ -1929,6 +1929,24 @@ def content_mass(norm_aggressive: str) -> int:
     return len(content)
 
 
+
+# A2 read sweep (Task 16): the bounded population P that was read by hand. The
+# rulings over it (tests/ingest/data/pointer_sweep_rulings.tsv) are what keep
+# pointers out of the index; content_mass only defines P. This is the ONE
+# definition of P -- the gate in tests/ingest/test_real_corpus.py recomputes P
+# with it, so changing it means re-reading whatever enters P.
+POINTER_SWEEP_MAX_MASS = 7
+_POINTER_SWEEP_REF = _PP_REF_NOUN | _PP_CHAIN | _PP_PTR_PRON | frozenset((
+    "بهذا", "بذلك", "فذكر", "يذكر", "يذكرا", "يذكروا", "يقل",
+))
+
+
+def in_pointer_sweep_population(norm_aggressive: str) -> bool:
+    """True if a scorable record belongs to the read-sweep population P:
+    content_mass <= 7, or any reference/omission token in its token bag."""
+    return (content_mass(norm_aggressive) <= POINTER_SWEEP_MAX_MASS
+            or bool(set(norm_aggressive.split()) & _POINTER_SWEEP_REF))
+
 def _pp_residue(norm_aggressive: str) -> list[str]:
     """Remove every reference/pointer/chain/name/honorific/basmala token and
     return what is LEFT. An empty (or near-empty) residue means the whole

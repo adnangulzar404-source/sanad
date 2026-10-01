@@ -862,6 +862,13 @@ UNSCORABLE: dict[str, dict[str, tuple[str, str]]] = {
         # introduces is the second chain, which is in this record's addendum.
         "hadith:bukhari:237":
             ("990234ea283424988b4c8932d69ec68bd0d99f4d0d635dab14cb919338bce0f3", _TAHWIL),
+        # --- A2 round 3 (Task 16): position-independent whole-string
+        # sweep. find_pure_pointers() flags scorable records whose entire
+        # matn reduces to back-reference/chain-meta/deferral/omission
+        # scaffold with no quotable content, regardless of token position.
+        # Every id below was hand-read in context (isnad + addendum) and
+        # carries no Prophetic/narrative clause of its own.
+        'hadith:bukhari:3746': ("0528f05488144b164b16f0f7bf372b436d5c09c29c0f2512697c8a1a9533c4cd", _POINTER),
     },
     "muslim": {
         # See the module-level comment above _ATTRIBUTION_NOTE/_TRUNCATED_STUB
@@ -2093,6 +2100,54 @@ UNSCORABLE: dict[str, dict[str, tuple[str, str]]] = {
         'hadith:muslim:941-3': ("783d964c4a7b013fbd805d12668c8409f2912ac97b9ce7b97b48452bcb2a1aca", _EDITORIAL_DISCUSSION),
         'hadith:muslim:954-2': ("87d9347046dd9e2ed9a7dcde8c78840255283e98bf68f3040e26e88cb6410167", _EDITORIAL_DISCUSSION),
         'hadith:muslim:954-3': ("24e308c04735b5ef8dc5c13a17d7cd4ddc8adc486efbc5be6eca4ece550eaaf8", _EDITORIAL_DISCUSSION),
+        # --- A2 round 3 (Task 16): position-independent whole-string
+        # sweep. find_pure_pointers() flags scorable records whose entire
+        # matn reduces to back-reference/chain-meta/deferral/omission
+        # scaffold with no quotable content, regardless of token position.
+        # Every id below was hand-read in context (isnad + addendum) and
+        # carries no Prophetic/narrative clause of its own. The seven ending
+        # in a bare pointer after sami'tu/kana/naha/an rasul (524-3, 1515-5,
+        # 1622-2, 2191-5, 2919-3) share the exact shape of 137-2/970-2/1299-3/
+        # 1590-2 already above -- the whole-string sweep caught what the
+        # earlier first-token passes left scorable.
+        'hadith:muslim:137-2': ("a4ac37bcd6ce3f62a45f8835025f1218f5a182787e7484be404a660cfb291661", _POINTER),
+        'hadith:muslim:144-6': ("d14a284c0e70e066c02ff7a43a8d9c6b64bec789303d3f1133185f8b621824be", _DEFERRAL),
+        'hadith:muslim:316-2': ("90ac34e332ba7f22b6fcbce1d7a6d87c94c34223a9f7105ab228f39214aada83", _EDITORIAL_DISCUSSION),
+        'hadith:muslim:524-3': ("566f33daa057a14e77be125dcba5505f5ef17636e775a98fc57c5b4207f9bedb", _POINTER),
+        'hadith:muslim:635-2': ("191ccce4db67395d6391c9d38be13358323ff59b4d93bc68c4b7fcbac0daacaf", _EDITORIAL_DISCUSSION),
+        'hadith:muslim:727-3': ("967845751d8691a13e0f632957053ee2688ea364fd920dce31a67daef9156771", _POINTER),
+        'hadith:muslim:903-2': ("d0e4629d03a2196027fd9f91ecd21f5c2a459f3314c6a27fb5ca9bc903888059", _POINTER),
+        'hadith:muslim:963-3': ("24ce653eeca60248a55d04d883fda2113235d86e3e00ea48ee5cf89b8894f8fb", _POINTER),
+        'hadith:muslim:970-2': ("f881767369c6e52d892026711d97e06c65a0a2f9792c70d531ebc6e2f23eee63", _POINTER),
+        'hadith:muslim:997-5': ("a1fea0c1b6d0ba398bedfcffcfd230c542906e78e99df7a2731e5156f8edaf68", _POINTER),
+        'hadith:muslim:997-6': ("5dd852207bb52463eeebc1590704d13a1e75e77433d31e1cbb14bb7477f33b30", _POINTER),
+        'hadith:muslim:1092-5': ("c2b56be58b7ec4444b2ae4246e1f6831d258bdb2229f632cb0b5ac6b18b78c41", _POINTER),
+        'hadith:muslim:1299-3': ("56cc63740994bc22e21b65432027134268600c7e277c9bee0ee327dbf5142fcc", _POINTER),
+        'hadith:muslim:1317-3': ("b62c40b949e0bda6213575448410b76833d652a914fc037e8f38e866b4c5f50c", _EDITORIAL_DISCUSSION),
+        'hadith:muslim:1515-5': ("39e18a891419cdeb4ed17a62d5b9ef66b4404244bfd146ee000faa871cec13fb", _POINTER),
+        'hadith:muslim:1590-2': ("4625a8ebefda5a84954a58d67ad577a20aae1466db31110308a876dc1cee83d5", _POINTER),
+        'hadith:muslim:1622-2': ("360da5c251cfe4ae95fa5f34953aa9f9f5d0923272d77e7cb09d10cc67e08485", _POINTER),
+        'hadith:muslim:1649-5': ("b4c314f720edaf7ff4f79c4c8a6d3c4ff9372fdcb26e5b376e29320dd69e4373", _DEFERRAL),
+        'hadith:muslim:1897-2': ("7248357ff3701c53afc8a935c9814db5c517c1c51afa7cad20d514e0b799eae2", _POINTER),
+        'hadith:muslim:1905-2': ("cf96bd146e5d0cd876bbe7506064198c0f01836e81234343e88027b4300bc343", _DEFERRAL),
+        'hadith:muslim:1934-4': ("b3180c1f073a0508cdfed856f0d4d940ee3352cbb1488439cf8cc5a320ea8549", _POINTER),
+        'hadith:muslim:1955-2': ("fb71ebe16bf14dcb03c3b39516aa7f80a0f236a5ca5b160413195fc8cb9eef1d", _EDITORIAL_DISCUSSION),
+        'hadith:muslim:1977-9': ("5f718bd1e301ed0a116318b83f0e3415935e7bb86ed20af3c7daa6480676cdba", _POINTER),
+        'hadith:muslim:2036-2': ("356c0a783de02a04f8bea9361fca16525dc236c30596d8400bae01a7fed574e7", _EDITORIAL_DISCUSSION),
+        'hadith:muslim:2116-2': ("5a356de71a02304a1ede0f8c97560bf444d2b36591a3d65a26ceb091d78a3b9b", _POINTER),
+        'hadith:muslim:2120-3': ("90d39917db3b061af4ff5d5b41ca53c69f1e007ceae267b513adcccf0ce9fb7c", _EDITORIAL_DISCUSSION),
+        'hadith:muslim:2191-5': ("97046c8e3edad983341ebfc59b80d91a4c220eca2ab7c04240dea3b71d603045", _POINTER),
+        'hadith:muslim:2267-2': ("e51942bfd87da598aca24e7cfd87773957d004f2db31db105edce5026e362c3e", _DEFERRAL),
+        'hadith:muslim:2291': ("0f18c7fc381b378d3b15ffecd504788163a96b5e26860f729918c48dbed1bc42", _POINTER),
+        'hadith:muslim:2408-2': ("3a1dfd26488d6f86e5c5de5634ed1906e074416e885b9b13e6da639f0339435c", _DEFERRAL),
+        'hadith:muslim:2461-3': ("470a302b3b04c77f0498df800af5e35da9920a1e8108c3befd447b7910ea7fd1", _EDITORIAL_DISCUSSION),
+        'hadith:muslim:2645-2': ("d7154516451f0f81d5bedf849d255c14701ea05b917f313b620ff3216fe4edca", _DEFERRAL),
+        'hadith:muslim:2652-5': ("25892d0e6a0e1b264992566d1c9035b048a526f68a2ca033c41e8e9c0484bfc7", _POINTER),
+        'hadith:muslim:2817-2': ("e331a4ae881e65bbe834dcfa9d8013f16a6aa138536d31ae6cc39c4085c1d21a", _POINTER),
+        'hadith:muslim:2821-2': ("9a19f95d72b519a215d38d90306d6f7add5c16cd94d2849a22ac32a61e445fab", _EDITORIAL_DISCUSSION),
+        'hadith:muslim:2831-2': ("f98016d68839a0a60f6f6acf3570d25934c213109bbc8c464a195dcd4df24825", _POINTER),
+        'hadith:muslim:2880-2': ("c32691f4770524333d7e3a82c3e156c37dc13902bf3d8a3e6f36d08cad3a73ea", _EDITORIAL_DISCUSSION),
+        'hadith:muslim:2919-3': ("c1e4e0c700868aab6487d214cb06732f3849cad364d00debdd0c0b8c7dc0d9aa", _POINTER),
     },
     "abudawud": {
         # Methodology (Task 12): every matn of 30 characters or fewer was
@@ -2458,6 +2513,18 @@ UNSCORABLE: dict[str, dict[str, tuple[str, str]]] = {
         'hadith:abudawud:4453': ("70387aefa94fdb0b4c76c56f49060dd05119202e7e83019e487c23bac1cbca92", _EDITORIAL_DISCUSSION),
         'hadith:abudawud:5032': ("62d458cbb29ee914992f0684067b44bae31c8aee4862d53d88da19bdd87730bd", _POINTER),
         'hadith:abudawud:5175': ("8ce13b6c9fb62a1df9c251cde1f2f2e690cf0d96388863e6f767d034c8bec2f2", _POINTER),
+        # --- A2 round 3 (Task 16): position-independent whole-string
+        # sweep. find_pure_pointers() flags scorable records whose entire
+        # matn reduces to back-reference/chain-meta/deferral/omission
+        # scaffold with no quotable content, regardless of token position.
+        # Every id below was hand-read in context (isnad + addendum) and
+        # carries no Prophetic/narrative clause of its own.
+        'hadith:abudawud:1695': ("f336406aba711cb7652fcb29ef295ca2deea466d32401eb40b32372155ea0852", _POINTER),
+        'hadith:abudawud:4548': ("aabd01ea97ab4eb0d840ae39d993606e7ba18ec0ef254279319af67f528b8fee", _POINTER),
+        'hadith:abudawud:4555': ("bc4abff7dd321a6196a80d6ae54ba3ef5eac3908feac9e78262b9c0d9fee95ec", _DEFERRAL),
+        'hadith:abudawud:4589': ("aabd01ea97ab4eb0d840ae39d993606e7ba18ec0ef254279319af67f528b8fee", _POINTER),
+        'hadith:abudawud:5035': ("792d286677822c8d8a766ab89d4890e4adb24ed6c6b2ec65e56ce66f1f1c7e0f", _POINTER),
+        'hadith:abudawud:5244': ("dc6a7e4c78b582727cbd94782fd4bcb26afda5782b964f757ef1bdf63b40adf6", _EDITORIAL_DISCUSSION),
     },
     # Tirmidhi (Task 13, ruling R-A3-19). Every record whose matn, after every
     # cut above has already run, is 40 characters or fewer (429 records) was
@@ -2718,6 +2785,14 @@ UNSCORABLE: dict[str, dict[str, tuple[str, str]]] = {
         'hadith:tirmidhi:84': ("78f1c288a42d3a75236cd6d66bfe33c78cf37343b3b93c9171c91c9fb3bbfb2e", _EDITORIAL_DISCUSSION),
         'hadith:tirmidhi:888': ("ae63e794262afc492a95fbdad3d2fea4214303b1aa46d9d86350b930417153c4", _EDITORIAL_DISCUSSION),
         'hadith:tirmidhi:985': ("7614d1f07488ae1f82f05eae91b936a70a6dae93d2c6ac2564e63de703810e7c", _EDITORIAL_DISCUSSION),
+        # --- A2 round 3 (Task 16): position-independent whole-string
+        # sweep. find_pure_pointers() flags scorable records whose entire
+        # matn reduces to back-reference/chain-meta/deferral/omission
+        # scaffold with no quotable content, regardless of token position.
+        # Every id below was hand-read in context (isnad + addendum) and
+        # carries no Prophetic/narrative clause of its own.
+        'hadith:tirmidhi:890': ("b82185e8cd91ceac6d883994d99eeb88ce2b1cd08eeb2c6c3350c83c9b31f4c5", _EDITORIAL_DISCUSSION),
+        'hadith:tirmidhi:1299': ("4c90ab94bf05f0ebb4330697f0535ba2eaf1b4f19a72060891e51c87ec977725", _POINTER),
     },
     "nasai": {
         # _POINTER group (42 records) -- plain pointer
@@ -2860,6 +2935,15 @@ UNSCORABLE: dict[str, dict[str, tuple[str, str]]] = {
             ("1f15e9a2272fc4fbd2abb016fda7bf1dc8838a25731334d5e300c4dc07190b5a", _TRUNCATED_OPENING),
         "hadith:nasai:5100":  # "المتفلجات وساق الحديث"
             ("00dfb08ebae7ef777b409116f0088d0ed1be7c420040f51869cee3b692455d3c", _TRUNCATED_OPENING),
+        # --- A2 round 3 (Task 16): position-independent whole-string
+        # sweep. find_pure_pointers() flags scorable records whose entire
+        # matn reduces to back-reference/chain-meta/deferral/omission
+        # scaffold with no quotable content, regardless of token position.
+        # Every id below was hand-read in context (isnad + addendum) and
+        # carries no Prophetic/narrative clause of its own.
+        'hadith:nasai:3088': ("ea9a7c0b764886c0784dd24727c94b631a559c654a0087d54024569e960c805e", _POINTER),
+        'hadith:nasai:3903': ("8fee098cde1296cdffd008b90eab2b417e508349724e2cc741d6e8503d092828", _POINTER),
+        'hadith:nasai:5182': ("5667b3bca4736d32bf5642adf135d3a621784150dbdada694605582bf3fb2c66", _DEFERRAL),
     },
     # Ibn Majah (Task 15). Every matn of 3 tokens or fewer was read in
     # context (56 measured); the other 55 are genuine, complete, terse

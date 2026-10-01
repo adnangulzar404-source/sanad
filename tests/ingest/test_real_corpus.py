@@ -291,7 +291,7 @@ def test_the_full_printed_text_of_every_cut_record_verifies():
     rows = conn.execute(
         "SELECT id, text_ar, addenda_ar FROM records"
         " WHERE addenda_ar IS NOT NULL AND unscorable_reason IS NULL").fetchall()
-    assert len(rows) == 5710  # A2 fix-round: -8 (newly-unscorable records that carried an addendum)
+    assert len(rows) == 5703  # A2 fix-round: -8; A2 round 3: -7 (newly-unscorable records that carried an addendum)
     failures = []
     for row in rows:
         for quoted in (row["text_ar"], row["text_ar"] + " " + row["addenda_ar"]):
@@ -623,6 +623,12 @@ def test_no_scorable_hadith_representation_is_wholly_quranic():
     Task 16 pre-Part-B cleanup, C0 (A2 residue) moves it to 38,594 (-5 more
     Muslim primaries now UNSCORABLE; variants unchanged). The sweep is still
     zero: none of the 5 is itself wholly Qur'anic.
+
+    Task 16 A2 round 3 (position-independent whole-string sweep) moves it to
+    38,544 (-50 scorable hadith primaries now UNSCORABLE; variants unchanged).
+    The sweep is still zero: none of the 50 is itself wholly Qur'anic (997-6's
+    basmala sits inside a chain-meta pointer, not a standalone ayah), and none
+    that still reaches this sweep is either.
     """
     conn = db.connect(DB_PATH)
     blobs = _quran_blobs(conn)
@@ -633,7 +639,7 @@ def test_no_scorable_hadith_representation_is_wholly_quranic():
     reps += [(r["record_id"], r["variant"], r["norm_standard"]) for r in conn.execute(
         "SELECT v.record_id, v.variant, v.norm_standard FROM record_variants v"
         " JOIN records r ON r.id = v.record_id")]
-    assert len(reps) == 38594, "the sweep stopped covering what it was written for"
+    assert len(reps) == 38544, "the sweep stopped covering what it was written for"
     offenders = [(rid, variant) for rid, variant, norm in reps
                  if norm.strip() and any(f" {norm} " in b for b in blobs)]
     assert offenders == []
@@ -1119,7 +1125,7 @@ def test_exactly_one_hadith_representation_sits_inside_an_ayah():
         "SELECT v.record_id, v.variant, v.text_ar FROM record_variants v"
         " JOIN records r ON r.id = v.record_id WHERE r.kind = 'hadith'"
     ).fetchall()
-    assert len(reps) == 38594, len(reps)
+    assert len(reps) == 38544, len(reps)
 
     withheld, disclosed = [], []
     for rep in reps:
@@ -2895,6 +2901,66 @@ def test_prefix_collision_detector_nasai_residue_is_fully_read():
         f"al-Nasai's prefix-collision residue changed -- a new hit needs "
         f"reading before this pin is widened, or a fixed one needs "
         f"removing from it. Per-collection counts: {dict(per_collection)}")
+
+
+# The pure-pointer sweep's residue AFTER the A2-round-3 UNSCORABLE additions.
+# Every id here was hand-read BOTH ways and KEPT scorable because its matn
+# carries a quotable clause of its own, not just reference scaffold -- the
+# exact direction `find_pure_pointers`' docstring warns against over-marking:
+#   abudawud:2630  "ghazawna ma'a nabiyyi llah ..."  -- a stated event (a raid)
+#   bukhari:4639   "jawartu bi-Hira' ..."            -- the Hira retreat scene
+#   muslim:1103-4  "annahu naha 'an al-wisal ..."    -- ruling WITH its object
+#   muslim:1115-2  "ra'a rasulu llah rajulan ..."    -- a scene (saw a man)
+#   muslim:1709-7  "baya'na rasula llah ..."         -- the bay'a event
+#   muslim:1750-2  "naffala rasulu llah sariyyatan"  -- ruling WITH its object
+#   muslim:1929-4  "sa'altu ... 'an al-mi'rad ..."   -- question WITH its subject
+#   muslim:2027-5  "... wa-fi hadithihima fa-ataytuhu bi-dalw" -- ADDED wording
+#   muslim:2155-3  "... wa-fi hadithihim ka-annahu kariha dhalik" -- ADDED wording
+#   muslim:2392-3  "ra'aytu bna Abi Quhafata yanzi'u" -- a scene WITH an action
+#   muslim:540-4   "ba'athani rasulu llah fi haja ..." -- an errand event
+#   muslim:650-3   "fi riwayatihi sab'an wa-'ishrina daraja" -- a VARIANT reading
+#   nasai:2465     "amara rasulu llah bi-sadaqa ..."  -- ruling WITH its object
+_PURE_POINTER_KEEP_RESIDUE = sorted([
+    "hadith:abudawud:2630", "hadith:bukhari:4639", "hadith:muslim:1103-4",
+    "hadith:muslim:1115-2", "hadith:muslim:1709-7", "hadith:muslim:1750-2",
+    "hadith:muslim:1929-4", "hadith:muslim:2027-5", "hadith:muslim:2155-3",
+    "hadith:muslim:2392-3", "hadith:muslim:540-4", "hadith:muslim:650-3",
+    "hadith:nasai:2465",
+])
+
+
+def test_pure_pointer_sweep_converges_to_audited_keeps():
+    """R-A3-18 closure gate. `find_pure_pointers`, run corpus-wide over every
+    scorable hadith primary at its default `max_residue=2`, must come back
+    holding ONLY the hand-read KEEPs pinned in `_PURE_POINTER_KEEP_RESIDUE`.
+
+    This is the convergence proof the whole A2-round-3 fix turns on: the
+    sweep is position-independent (it does not anchor on the first token, the
+    axis the three prior closures each held fixed), so a NEW scorable record
+    whose entire matn is back-reference / chain-meta / deferral / omission
+    scaffold -- in ANY token order -- lands here, not silently in the scored
+    corpus. Zero such records remain: every one the sweep still flags carries
+    a quotable clause of its own and is correctly left scorable (see the per-
+    id disposition above). A regression that re-admits a pure pointer, or that
+    over-marks one of these KEEPs unscorable, breaks this pin.
+    """
+    from sanad_ingest.openiti import find_pure_pointers
+
+    conn = db.connect(str(MATERIALIZED_DB))
+    rows = conn.execute(
+        "SELECT id, norm_aggressive FROM records WHERE kind = 'hadith' "
+        "AND unscorable_reason IS NULL AND norm_aggressive IS NOT NULL"
+    ).fetchall()
+    norms = {r["id"]: r["norm_aggressive"] for r in rows if r["norm_aggressive"]}
+
+    hits = sorted(rid for rid, _n, _res in find_pure_pointers(norms))
+    assert hits == _PURE_POINTER_KEEP_RESIDUE, (
+        "the pure-pointer sweep's residue changed. A NEW id here is a scorable "
+        "record whose matn is pure reference scaffold -- read it in context "
+        "and either add it to audit_lists.UNSCORABLE (if it carries no "
+        "quotable clause) or extend _PURE_POINTER_KEEP_RESIDUE with its "
+        "justification (if it does). A MISSING id means a KEEP was wrongly "
+        "marked unscorable -- a real hadith just became unverifiable.")
 
 
 def test_no_unaudited_near_miss_for_the_ibnmajah_compiler_marker():

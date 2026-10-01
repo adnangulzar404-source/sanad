@@ -1723,6 +1723,220 @@ def find_prefix_collisions(
     return sorted(hits)
 
 
+# --- Whole-string pure-pointer detector (Task 16 A2 round 3, R-A3-18 class) ---
+#
+# The false-EXACT back-reference class escaped THREE closures, each on the axis
+# the previous fix held fixed: A2's duplicate-string grouping keyed on identical
+# WHOLE strings (missed unique singletons); the C0 round keyed on the LEADING
+# particle (missed the construction when it sat mid-string). This detector is
+# POSITION-INDEPENDENT by construction: it never looks at the first token, the
+# string length, or whether two records share a string. It asks a structural
+# question of the WHOLE token bag -- "once every reference/pointer/chain/name
+# token is removed, is there any NARRATION left?" -- and a back-reference that
+# moved to the middle, got a new leading particle, or is a one-off singleton
+# answers that question identically to one at the front.
+#
+# All sets are in NORM_AGGRESSIVE form (alef forms -> alef, alef-maqsura -> yeh,
+# teh-marbuta -> heh, diacritics and non-Arabic stripped, tatweel removed), so
+# the caller passes `norm_aggressive` (the column materialize already derives),
+# the same way `find_prefix_collisions` takes `norm_standard`. Matching on the
+# folded form means an orthographic variant of a pointer word cannot dodge the
+# sweep, which is the whole point of not re-introducing a brittle literal list.
+
+# A reference to ANOTHER narration: the record points at a hadith/riwaya given
+# elsewhere, or at a chain, rather than reporting anything itself.
+_PP_REF_NOUN = frozenset((
+    "حديث", "حديثه", "حديثها", "حديثهم", "حديثهما", "حديثي", "حديثهن", "حديثك",
+    "روايه", "روايته", "روايتهما", "روايتهم", "روايتها", "الحديث", "الحديثين",
+    "وحديث",
+))
+_PP_CHAIN = frozenset((
+    "اسناد", "الاسناد", "باسناد", "باسناده", "باسنادهما", "باسناديهما",
+    "الاسنادين", "بالاسنادين", "بالاسناد", "باسنادهم", "باسنادي", "باسنادهن",
+    "اسناده", "اسنادهما", "اسنادهم", "باسنادينا",
+))
+# Standalone pointer pronouns ("the like of it", "its meaning") -- always a
+# back-reference on their own, unlike bare "mithl"/"nahw" which can be matn
+# ("the likeness of the believer ...").
+_PP_PTR_PRON = frozenset((
+    "مثله", "بمثله", "نحوه", "بنحوه", "بمعناه", "معناه", "بمعناهما", "مثلها",
+    "نحوها", "بمثلها", "بنحوها", "مثلهما", "نحوهما", "بمثلهما", "معناهما",
+    "نحوهم", "بمثلهم", "ومعناه", "ونحوه", "ومثله",
+))
+# Comparison particles -- only an anchor when bound directly to a reference noun
+# ("mithl HADITH X"); on their own they are ordinary matn.
+_PP_PTR_CMP = frozenset((
+    "مثل", "بمثل", "نحو", "بنحو", "بمعني", "معني", "كمعني", "ومعني", "وبمعني",
+    "ونحو", "ومثل",
+))
+# Pure connective / demonstrative / chain-glue carrying no narration, plus the
+# bare isnad-frame nouns ("rasul Allah", "al-nabi") and transmission verbs
+# ("sami'a", "rafa'a") that frame WHO narrated rather than WHAT -- so a record
+# that is nothing but "'an al-nabi [saw] ... bi-mithl hadith X" or "sami'a
+# rasul Allah ... bi-mithlihi" reduces to a bare frame (empty residue), while a
+# record that also states an ACT or OBJECT keeps that word in the residue. A
+# genuine matn carries more than the frame, so these stay above the threshold.
+_PP_GLUE = frozenset((
+    "في", "هذا", "هذه", "بهذا", "بهذه", "ذلك", "كذلك", "جميعا", "كليهما",
+    "كلاهما", "كلتيهما", "معا", "سواء", "بينهما", "كلها", "كله", "ايضا",
+    "فيهما",
+    # isnad-frame nouns
+    "رسول", "رسوله", "النبي", "نبي", "الله",
+    # bare transmission / hearing / raising verbs (frame, not content)
+    "سمع", "سمعت", "رفع", "رفعه", "يرفع", "يرفعان", "رفعا",
+))
+# Tokens that INTRODUCE a narrator-name chain (the next token is a name).
+_PP_INTRO = frozenset((
+    "عن", "وعن", "بن", "وبن", "ابن", "وابن", "حديث", "حديثه", "حديثها",
+    "حديثهم", "حديثهما", "روايه", "روايته", "روايتهما", "وحديث",
+))
+# Name-chain connectors (joins the next token onto the running name chain).
+_PP_CONNECTOR = frozenset((
+    "و", "بن", "وبن", "ابن", "وابن", "عن", "وعن", "ابي", "وابي", "ابو",
+    "وابو", "ام", "وام", "بنت", "وبنت",
+))
+# Compound-name heads ("abd Allah", "abu Hurayra"): the following token is still
+# part of the SAME name, so absorption must not stop after the first token.
+_PP_NAME_HEAD = frozenset((
+    "عبد", "عبيد", "ابو", "ابي", "ام", "ابن", "بن", "ذو", "وعبد", "وعبيد",
+    "وابو", "وابي", "وابن", "وبن",
+))
+# Wording markers that STOP name absorption and count as residue, so a genuine
+# added clause stays in the residue rather than being swallowed as a "name".
+# This is deliberately BROAD (it includes deferral/frame/omission verbs like
+# "fa-dhakara"/"sami'a"/"laysa"), because its only job here is to end a name
+# chain -- it must NOT be used to pre-exclude a record from the sweep (a
+# deferral or omission record is exactly what the sweep is hunting). The
+# narrower `_PP_DELIVERS` below is what decides "this one genuinely quotes/adds
+# words of its own, keep it scorable".
+_PP_WDM = frozenset((
+    "قال", "قالا", "قالوا", "قالت", "قلت", "يقول", "تقول", "فقال", "وقال",
+    "وقالا", "وقالت", "فقالت", "فقالوا", "وقالوا",
+    "زاد", "زادوا", "وزاد", "يزيد", "وزادوا", "فزاد", "زادا",
+    "غير", "الا", "ليس", "وليس", "لم", "ولم", "وفيه", "فيه", "وفي", "وفيها",
+    "رايت", "كان", "جعل", "فجعل", "يعني", "انه", "اني", "انها",
+    "انهم", "يقل", "يذكر", "يذكرا", "يذكروا", "يشك", "قالها", "وانه", "فذكر",
+    "ذكر",
+))
+# Genuine wording-DELIVERY markers: the record quotes speech ("qala ..."),
+# adds words ("zada ..."), or states a difference ("ghayra anna ...", "illa
+# anna ..."). A record carrying one of these delivers matn of its own and is
+# NOT a pure pointer, so the sweep excludes it outright. Deliberately NARROW:
+# deferral verbs ("dhakara", "saqa"), hearing/frame verbs ("sami'a", "kana"),
+# glosses ("ya'ni") and omission notes ("laysa", "lam yadhkur") are NOT here --
+# those ARE the pure-pointer shapes. (Three records -- muslim:2821-2, 2880-2,
+# 2036-2 -- use "zada"/"qala" for a CHAIN addition or a dangling attribution,
+# not a matn word; the sweep cannot tell, so those are added to UNSCORABLE by
+# hand, documented there, not surfaced here.)
+_PP_DELIVERS = frozenset((
+    "قال", "قالا", "قالوا", "قالت", "قلت", "يقول", "تقول", "فقال", "وقال",
+    "وقالا", "وقالت", "فقالت", "فقالوا", "وقالوا", "قالها",
+    "زاد", "زادوا", "وزاد", "يزيد", "وزادوا", "فزاد", "زادا",
+    "غير", "الا",
+))
+# Section-break artifact: a basmala that leaked onto the end of a pointer record
+# when the next kitab opens (e.g. muslim:997-6). Canonical text, never altered,
+# but it is not narration -- stripped only for THIS audit's residue test.
+_PP_BASMALA = frozenset(("بسم", "الله", "الرحمن", "الرحيم"))
+# The honorific formula, in norm_aggressive form, treated as an isnad frame
+# rather than matn for the residue test (so "'an al-nabi [saw] bi-mithl hadith
+# X" reduces to a bare frame, not a four-token residue).
+_PP_HONORIFIC = re.compile(r"صلي الله عليه وسلم")
+
+
+def _pp_anchored(tokens: list[str]) -> bool:
+    """True if the token bag references another narration anywhere in it."""
+    s = set(tokens)
+    if s & _PP_REF_NOUN or s & _PP_CHAIN or s & _PP_PTR_PRON:
+        return True
+    # a bare comparison particle counts only when bound to a reference noun.
+    for i, t in enumerate(tokens[:-1]):
+        if t in _PP_PTR_CMP and tokens[i + 1] in _PP_REF_NOUN:
+            return True
+    return False
+
+
+def _pp_residue(norm_aggressive: str) -> list[str]:
+    """Remove every reference/pointer/chain/name/honorific/basmala token and
+    return what is LEFT. An empty (or near-empty) residue means the whole
+    record is scaffold -- a pure pointer. A wording-delivery marker (and the
+    words after it) stays in the residue, which is how a genuine "wa-zada Y"
+    addition keeps itself scorable.
+
+    Name absorption is BOUNDED (a short "<name> (bn|'an|...) <name>" chain,
+    honouring compound heads like "'abd Allah") and STOPS at a wording-delivery
+    marker, so it can never swallow a real added-matn clause the way an
+    unbounded "absorb until scaffold" rule would.
+    """
+    tokens = _PP_HONORIFIC.sub(" ", norm_aggressive).split()
+    if set(tokens) >= _PP_BASMALA:
+        tokens = [t for t in tokens if t not in _PP_BASMALA]
+    residue: list[str] = []
+    mode = "normal"
+    for t in tokens:
+        if t in _PP_WDM:
+            residue.append(t)
+            mode = "normal"
+            continue
+        if mode == "expect_name":
+            mode = "expect_name" if t in _PP_NAME_HEAD else "after_name"
+            continue
+        if mode == "after_name":
+            if t in _PP_CONNECTOR:
+                mode = "expect_name"
+                continue
+            mode = "normal"  # fall through to classify t below
+        if t in _PP_INTRO:
+            mode = "expect_name"
+            continue
+        if (t in _PP_REF_NOUN or t in _PP_CHAIN or t in _PP_PTR_PRON
+                or t in _PP_PTR_CMP or t in _PP_GLUE):
+            mode = "normal"
+            continue
+        residue.append(t)
+        mode = "normal"
+    return residue
+
+
+def find_pure_pointers(
+    norms: dict[str, str], *, max_residue: int = 2
+) -> list[tuple[str, int, tuple[str, ...]]]:
+    """Corpus-wide, position-independent sweep for scorable records whose matn
+    is pure back-reference / structural-pointer / chain-meta / deferral scaffold
+    with no narration of its own -- the R-A3-18 false-EXACT class (see the big
+    comment block above for why the prior three closures leaked).
+
+    `norms` maps record id -> `norm_aggressive` (the caller supplies it, keyed
+    across the whole corpus, exactly as `find_prefix_collisions` takes
+    `norm_standard`); the caller is expected to pass ONLY scorable hadith
+    primaries, since an already-`UNSCORABLE` record is not what this sweep is
+    hunting. Returns `(record_id, residue_size, residue_tokens)` for every
+    record that (a) references another narration anywhere in its token bag and
+    (b) carries no wording-delivery marker, with the non-scaffold residue no
+    larger than `max_residue`.
+
+    Like `find_prefix_collisions`, this is an AUDIT, not a filter: a non-empty
+    result is NOT automatically unscorable. Every hit must be read BOTH ways --
+    a residue of a genuine report clause ("naha 'an al-wisal", "min katama
+    ghallan fa-innahu mithluhu") is a KEEP, and over-marking one of those as
+    unscorable makes a real hadith unverifiable. The call site therefore pins
+    the audited KEEP residue (see `tests/ingest/test_real_corpus.py`), not an
+    emptiness assertion: the convergence proof is "the sweep comes back holding
+    ONLY the hand-read justified KEEPs", not "the sweep comes back empty".
+    """
+    hits: list[tuple[str, int, tuple[str, ...]]] = []
+    for record_id, norm in norms.items():
+        tokens = _PP_HONORIFIC.sub(" ", norm).split()
+        if not _pp_anchored(tokens):
+            continue
+        if set(tokens) & _PP_DELIVERS:
+            continue
+        residue = _pp_residue(norm)
+        if len(residue) <= max_residue:
+            hits.append((record_id, len(residue), tuple(residue)))
+    return sorted(hits)
+
+
 def _unscorable_reason(record_id: str, matn: str,
                        unscorable: dict[str, tuple[str, str]]) -> str | None:
     audited = unscorable.get(record_id)

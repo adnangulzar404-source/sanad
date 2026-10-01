@@ -883,13 +883,13 @@ def test_no_addendum_reaches_the_primary_representation(real_corpus):
     conn = db.connect(out)
     assert conn.execute(
         "SELECT count(*) FROM records WHERE addenda_ar IS NOT NULL"
-        " AND unscorable_reason IS NOT NULL").fetchone()[0] == 136  # A2 fix-round +8
+        " AND unscorable_reason IS NOT NULL").fetchone()[0] == 143  # A2 fix-round +8, A2 round 3 +7
     rows = conn.execute(
         "SELECT r.id, r.text_ar, r.addenda_ar, f.norm_standard,"
         "       f.norm_aggressive FROM records r"
         " JOIN records_fts f ON f.record_id = r.id AND f.variant = 'primary'"
         " WHERE r.addenda_ar IS NOT NULL").fetchall()
-    assert len(rows) == 5710  # A2 fix-round: -8 (newly-unscorable records that carried an addendum)
+    assert len(rows) == 5703  # A2 fix-round: -8; A2 round 3: -7 (newly-unscorable records that carried an addendum)
     for row in rows:
         assert row["addenda_ar"] not in row["text_ar"], row["id"]
         for form in ("standard", "aggressive"):
@@ -1014,8 +1014,9 @@ def test_an_empty_scored_text_aborts_the_build():
 # two ever disagree, one of them was edited without the audit being redone.
 _UNSCORABLE_IDS = frozenset(f"hadith:bukhari:{n}" for n in (
     "127", "237", "335", "394", "549", "557", "587", "1379", "1915", "2483",
-    "3457", "3750", "3777", "3801", "3957", "4540", "5454", "5837",
-))  # Task 16 A2 added 587 (the "مثله إلى قوله" partial-quote deferral)
+    "3457", "3750", "3777", "3801", "3957", "4540", "5454", "5837", "3746",
+))  # Task 16 A2 added 587 (the "مثله إلى قوله" partial-quote deferral);
+#    A2 round 3 added 3746 (the "fi Badr ya'ni hadith ..." topic-pointer)
 # Famous short matns, read in the source and ruled genuine: "war is deceit",
 # "the moon split", "a rich man's delay is oppression", "every kindness is
 # charity". They are the guard against a length heuristic creeping back in.
@@ -1084,10 +1085,10 @@ def test_editorial_pointers_are_kept_but_never_scored(real_corpus):
     flagged_nasai = {r for r in flagged if r.startswith("hadith:nasai:")}
     flagged_ibnmajah = {r for r in flagged if r.startswith("hadith:ibnmajah:")}
     assert flagged_bukhari == set(_UNSCORABLE_IDS)
-    assert len(flagged_muslim) == 887  # A2 fix-round +132, C0 residue +5
-    assert len(flagged_abudawud) == 145  # A2 fix-round +6
-    assert len(flagged_tirmidhi) == 93  # A2 fix-round +13
-    assert len(flagged_nasai) == 57
+    assert len(flagged_muslim) == 925  # A2 fix-round +132, C0 residue +5, A2 round 3 +38
+    assert len(flagged_abudawud) == 151  # A2 fix-round +6, A2 round 3 +6
+    assert len(flagged_tirmidhi) == 95  # A2 fix-round +13, A2 round 3 +2
+    assert len(flagged_nasai) == 60  # A2 round 3 +3
     assert flagged_ibnmajah == {"hadith:ibnmajah:413"}
     assert flagged == (flagged_bukhari | flagged_muslim | flagged_abudawud
                         | flagged_tirmidhi | flagged_nasai | flagged_ibnmajah)
@@ -1149,6 +1150,12 @@ def test_no_unscorable_primary_is_in_the_search_index(real_corpus):
     (muslim:1433-7 and tirmidhi 328/493/888/985/1389/1452/2824-2). The other
     143 have no addendum and so add no index row. Listed in ascending string
     order below.
+
+    Task 16 A2 round 3 raises this to 143: 7 of the 50 whole-string-sweep
+    records newly excluded already carried a prior round's cut addendum, which
+    stays as a scorable "full" representation (abudawud 4555/5035, muslim
+    2036-2/2821-2, nasai:3903, tirmidhi 890/1299). The other 43 have no
+    addendum and so add no index row.
     """
     out, _, _ = real_corpus
     rows = db.connect(out).execute(
@@ -1191,8 +1198,10 @@ def test_no_unscorable_primary_is_in_the_search_index(real_corpus):
          ("hadith:abudawud:4022", "full"),
          ("hadith:abudawud:4118", "full"),
          ("hadith:abudawud:4287", "full"),
+         ("hadith:abudawud:4555", "full"),
          ("hadith:abudawud:4571", "full"),
          ("hadith:abudawud:4897", "full"),
+         ("hadith:abudawud:5035", "full"),
          ("hadith:abudawud:533", "full"),
          ("hadith:abudawud:960", "full"),
          ("hadith:bukhari:237", "full"),
@@ -1204,6 +1213,8 @@ def test_no_unscorable_primary_is_in_the_search_index(real_corpus):
          ("hadith:muslim:1669-6", "full"),
          ("hadith:muslim:1855-3", "full"),
          ("hadith:muslim:1915-3", "full"),
+         ("hadith:muslim:2036-2", "full"),
+         ("hadith:muslim:2821-2", "full"),
          ("hadith:muslim:546-3", "full"),
          ("hadith:nasai:1786", "full"),
          ("hadith:nasai:207-2", "full"),
@@ -1212,6 +1223,7 @@ def test_no_unscorable_primary_is_in_the_search_index(real_corpus):
          ("hadith:nasai:2412", "full"),
          ("hadith:nasai:3492", "full"),
          ("hadith:nasai:353", "full"),
+         ("hadith:nasai:3903", "full"),
          ("hadith:nasai:4098", "full"),
          ("hadith:nasai:4360", "full"),
          ("hadith:nasai:4588", "full"),
@@ -1225,6 +1237,7 @@ def test_no_unscorable_primary_is_in_the_search_index(real_corpus):
          ("hadith:tirmidhi:111", "full"),
          ("hadith:tirmidhi:119", "full"),
          ("hadith:tirmidhi:127", "full"),
+         ("hadith:tirmidhi:1299", "full"),
          ("hadith:tirmidhi:1328", "full"),
          ("hadith:tirmidhi:1389", "full"),
          ("hadith:tirmidhi:1452", "full"),
@@ -1288,6 +1301,7 @@ def test_no_unscorable_primary_is_in_the_search_index(real_corpus):
          ("hadith:tirmidhi:836", "full"),
          ("hadith:tirmidhi:872", "full"),
          ("hadith:tirmidhi:888", "full"),
+         ("hadith:tirmidhi:890", "full"),
          ("hadith:tirmidhi:915", "full"),
          ("hadith:tirmidhi:926", "full"),
          ("hadith:tirmidhi:968", "full"),

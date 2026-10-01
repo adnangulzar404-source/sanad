@@ -804,6 +804,22 @@ _TRUNCATED_OPENING = ("truncated opening clause missing the sentence's "
                        "matn printed elsewhere in this collection -- with no "
                        "independent quotable meaning on its own")
 
+# A2 round 4 (Task 16). Two shapes that the position-independent residue sweep
+# (find_pure_pointers) structurally cannot reach, surfaced by an independent
+# editorial-omission/comparison sweep and hand-audited exhaustively (see
+# task-16-A2round4-audit.md): the sweep's `غير`/`الا`/`قال`/`زاد` delivery
+# guard -- there to protect genuine `وزاد Y` additions -- also hides apparatus
+# records that use `غير أنه لم يذكر` / `الا قوله X فانه لم يذكره` / a bare
+# `لم يذكر X` with no reference anchor. These deliver NO narration: they only
+# state what a DIFFERENT narration omits, or defer a bare ruling verb.
+_OMISSION_NOTE = ("omission note: records only what another narration LACKS "
+                   "(\"lam yadhkur X\" / \"laysa fi hadith X\" / \"illa "
+                   "qawlahu X fa-innahu lam yadhkurhu\"), delivering no "
+                   "self-contained narration of its own")
+_BARE_RULING = ("bare ruling verb (naha / amara) with no object, immediately "
+                 "deferring to another narration for the content -- the ruling "
+                 "itself is never stated here")
+
 UNSCORABLE: dict[str, dict[str, tuple[str, str]]] = {
     "bukhari": {
         # Pointer only -- "bi-dhalika", "bi-hadha", "mithlahu", "nahwahu",
@@ -2148,6 +2164,48 @@ UNSCORABLE: dict[str, dict[str, tuple[str, str]]] = {
         'hadith:muslim:2831-2': ("f98016d68839a0a60f6f6acf3570d25934c213109bbc8c464a195dcd4df24825", _POINTER),
         'hadith:muslim:2880-2': ("c32691f4770524333d7e3a82c3e156c37dc13902bf3d8a3e6f36d08cad3a73ea", _EDITORIAL_DISCUSSION),
         'hadith:muslim:2919-3': ("c1e4e0c700868aab6487d214cb06732f3849cad364d00debdd0c0b8c7dc0d9aa", _POINTER),
+        # --- A2 round 4 (Task 16): editorial omission/comparison sweep.
+        # Pure-apparatus records the residue sweep could not reach (its
+        # delivery guard hid them); every id hand-audited in
+        # task-16-A2round4-audit.md as delivering no narration of its own.
+        'hadith:muslim:1162-4': ("cf5e0614033eaca29e26420ee88917eae6e13dc99bc50340693d00004061c912", _EDITORIAL_DISCUSSION),
+        'hadith:muslim:1178-3': ("2ccc0203cd04696b5d45c2dd8d423e1209722fcf74a864264b33381d490f1578", _ISNAD_COMMENT),
+        'hadith:muslim:127-3': ("9217dafbe5ede8c3a8422311a9e87653456bf1d41a644ee66889fe02477a368b", _POINTER),
+        'hadith:muslim:1306-3': ("075dd8af83cff35bebdad70595f5b48a4b5252c04d6858928a550f014d9427b4", _POINTER),
+        'hadith:muslim:1315-2': ("36ff06876eecdc664778f2ef4dd827a81e31995387827d2a5f9e472eaf18966b", _POINTER),
+        'hadith:muslim:1317-5': ("3a5addf9fe0031a2800dfc7b2d1774d11fadf4c9157d46153d03b83fda9f8c11", _BARE_RULING),
+        'hadith:muslim:143-2': ("f9d436402de04d5a52fab48624400c4eccf7ca8d7649f666a3e355ba55576458", _POINTER),
+        'hadith:muslim:1530-2': ("a19873a47a7b49e201da91d74d132db05a7deb28b4876545573e7e85311ab030", _OMISSION_NOTE),
+        'hadith:muslim:1676-4': ("5a2702611ff60cab05a025576dc15290a6661090fd87088db9e5325fbd9202a9", _OMISSION_NOTE),
+        'hadith:muslim:168-3': ("37d5d80b361287faf3401731422e07663a82cc46b5f3edeacc4067978186287c", _OMISSION_NOTE),
+        'hadith:muslim:1733-2': ("01958a49319f3e30869dd94ea62296d0e7f007a8ab29078abe0ce2f5d7895d80", _OMISSION_NOTE),
+        'hadith:muslim:1736-2': ("ee058ccaf4bc37865be85d13d87b86c54235a88bd820af788225559b6a668f77", _ISNAD_COMMENT),
+        'hadith:muslim:1774-2': ("15a65340aa1d1d6ed9424e29ff304d5eaed85de0b4c49e109d6280b3826a96fd", _OMISSION_NOTE),
+        'hadith:muslim:1774-3': ("f22d238c2ff1ea0cac838fd6e82d76f211c696ee3c80f1376e7ba093329fc41d", _OMISSION_NOTE),
+        'hadith:muslim:1873-4': ("9f342a4619f626a9eab34de7f74f5fc44d8793d5ef2ded56492282bd3c3d48ec", _OMISSION_NOTE),
+        'hadith:muslim:1990-2': ("ba390747c455089a6c6cadabe8b64e224e7b6083af77b30d8ddd56a19001dae3", _OMISSION_NOTE),
+        'hadith:muslim:2092-2': ("6492b548f1ba17ac8e716fd193ee8a9ecdd7bd33215dd0247398df36516ee012", _OMISSION_NOTE),
+        'hadith:muslim:2137-2': ("d8efe40adc92a3354bb61133a6102b728a9b3d63e8801052d2bd7191f7bdf4d7", _ISNAD_COMMENT),
+        'hadith:muslim:2203-3': ("1788a2702cf38efe04b5b67b869932fe1a86493f33968865156c41a2806f756f", _POINTER),
+        'hadith:muslim:2263-4': ("390747560eabc215f2c7f63857053e6db384f491cd811997fde2f8408f284498", _EDITORIAL_DISCUSSION),
+        'hadith:muslim:2298-2': ("cb2f0a829423b5bd068c992ff4d15d45b42cafe0de1e7c60f291be9da2101e19", _OMISSION_NOTE),
+        'hadith:muslim:2327-2': ("58120880d802da2e42c05fbec4b763733efe0e43371704bada5143ba953e05eb", _POINTER),
+        'hadith:muslim:2533-3': ("490cf0e86c59c0885e786ab23d954a679bc71c24d466aafa53ba0a50a952fef2", _OMISSION_NOTE),
+        'hadith:muslim:2541-2': ("ba4de82bd9ffa50c8b39a168cc04545e32f4a1d4542238e9f4ff307d1e9a58b2", _OMISSION_NOTE),
+        'hadith:muslim:2639-5': ("c69c4beafbfdda27bb3aa5b621cedc835d650bd3c4cf70ac6c7f1f3c5627da0b", _OMISSION_NOTE),
+        'hadith:muslim:2653-2': ("f758ec7a87419b5027db8f02c51f45f0bc5332cc9d833c1c076bec74d2e89175", _OMISSION_NOTE),
+        'hadith:muslim:2706-2': ("cf187d94b6534be6e39cd69183736e762c0b7d2cd93d5b9ab643441b117fa5dc", _OMISSION_NOTE),
+        'hadith:muslim:2804-2': ("1f72cdc002805016eb9245c02030ef77ea23b7b16184c7a6501f80293460aa55", _OMISSION_NOTE),
+        'hadith:muslim:2805-2': ("9daf0dbff72095747e26a45aa06aaad1272ba05720f9f4769e502984d0d32f99", _OMISSION_NOTE),
+        'hadith:muslim:3000-3': ("da26dbae61f34fa6bbff74812042d56d9d41e7b742ac85127e727ba91f1b2058", _OMISSION_NOTE),
+        'hadith:muslim:410-2': ("f5a4fbed8c7e7f7d42d83b2d3b02b98978a4eb83cb42753603b799408c31a81f", _OMISSION_NOTE),
+        'hadith:muslim:537-4': ("fb80665c02e035e22a71108f0bfcaf73a786a5fd426e7b21dbf1e7121d02392a", _EDITORIAL_DISCUSSION),
+        'hadith:muslim:57-3': ("aa5f90ff058ac75d083139e27dc7e57b14a80585263969f78f1b397c48c71063", _OMISSION_NOTE),
+        'hadith:muslim:657-3': ("fc1af4f5b4ebf21bb794fa3ca3461e244e7bc2b57e2bbca9875f4af460a7fd53", _OMISSION_NOTE),
+        'hadith:muslim:679-3': ("6c8f4de91761577470b8c13e6b317fe76a50a8c494217fee7c951e63b0c44722", _OMISSION_NOTE),
+        'hadith:muslim:715-28': ("01bb41f85ab76fb0a2a01cb9e7a357b99b3055999ccc2e1f2ab0396e4871807e", _OMISSION_NOTE),
+        'hadith:muslim:792-4': ("5cd4f059939f0b89b26f3c3bbc3a7aa87396f496963c42f9567c252bd1f1e556", _OMISSION_NOTE),
+        'hadith:muslim:852-6': ("b0d47c70487a0e889e7a1449d99f63f37169d4954711b23643ea663b4f06c059", _OMISSION_NOTE),
     },
     "abudawud": {
         # Methodology (Task 12): every matn of 30 characters or fewer was
@@ -2525,6 +2583,15 @@ UNSCORABLE: dict[str, dict[str, tuple[str, str]]] = {
         'hadith:abudawud:4589': ("aabd01ea97ab4eb0d840ae39d993606e7ba18ec0ef254279319af67f528b8fee", _POINTER),
         'hadith:abudawud:5035': ("792d286677822c8d8a766ab89d4890e4adb24ed6c6b2ec65e56ce66f1f1c7e0f", _POINTER),
         'hadith:abudawud:5244': ("dc6a7e4c78b582727cbd94782fd4bcb26afda5782b964f757ef1bdf63b40adf6", _EDITORIAL_DISCUSSION),
+        # --- A2 round 4 (Task 16): editorial omission/comparison sweep.
+        # Pure-apparatus records the residue sweep could not reach (its
+        # delivery guard hid them); every id hand-audited in
+        # task-16-A2round4-audit.md as delivering no narration of its own.
+        'hadith:abudawud:2011': ("16bb85b8ca946bc693c660280e6d10ad3076da15f444f6a9b555dc21a57fb9e7", _OMISSION_NOTE),
+        'hadith:abudawud:3355': ("c8eac92c22a04707b6dc701b4ca1252ada6cd278631bdd6cfa1c62a3f172021c", _OMISSION_NOTE),
+        'hadith:abudawud:3379': ("02ecb1f3d297906ac0f26c3f847a11ac0af56e3ec59c6d72028220a221b32136", _BARE_RULING),
+        'hadith:abudawud:3945': ("6e46b91b2b12b8ae87efe6ffc6bbd58cd8fa779de32628aac0c4710efa1de151", _OMISSION_NOTE),
+        'hadith:abudawud:3959': ("2a8d8ad6f8eb36f0fb834a8d9804ac95e9b4b640c8552b689d109f1c70081e4d", _OMISSION_NOTE),
     },
     # Tirmidhi (Task 13, ruling R-A3-19). Every record whose matn, after every
     # cut above has already run, is 40 characters or fewer (429 records) was
@@ -2793,6 +2860,12 @@ UNSCORABLE: dict[str, dict[str, tuple[str, str]]] = {
         # carries no Prophetic/narrative clause of its own.
         'hadith:tirmidhi:890': ("b82185e8cd91ceac6d883994d99eeb88ce2b1cd08eeb2c6c3350c83c9b31f4c5", _EDITORIAL_DISCUSSION),
         'hadith:tirmidhi:1299': ("4c90ab94bf05f0ebb4330697f0535ba2eaf1b4f19a72060891e51c87ec977725", _POINTER),
+        # --- A2 round 4 (Task 16): editorial omission/comparison sweep.
+        # Pure-apparatus records the residue sweep could not reach (its
+        # delivery guard hid them); every id hand-audited in
+        # task-16-A2round4-audit.md as delivering no narration of its own.
+        'hadith:tirmidhi:1096': ("10df6cfce62b829eb74c36c4353c49861af484e936f621fe4842caf8304d8d9b", _EDITORIAL_DISCUSSION),
+        'hadith:tirmidhi:595': ("304b76b37f3f15eb5cae6a279f169be9a27291acd534c58278eb7de0d9aa6c4c", _BARE_RULING),
     },
     "nasai": {
         # _POINTER group (42 records) -- plain pointer
@@ -2944,6 +3017,11 @@ UNSCORABLE: dict[str, dict[str, tuple[str, str]]] = {
         'hadith:nasai:3088': ("ea9a7c0b764886c0784dd24727c94b631a559c654a0087d54024569e960c805e", _POINTER),
         'hadith:nasai:3903': ("8fee098cde1296cdffd008b90eab2b417e508349724e2cc741d6e8503d092828", _POINTER),
         'hadith:nasai:5182': ("5667b3bca4736d32bf5642adf135d3a621784150dbdada694605582bf3fb2c66", _DEFERRAL),
+        # --- A2 round 4 (Task 16): editorial omission/comparison sweep.
+        # Pure-apparatus records the residue sweep could not reach (its
+        # delivery guard hid them); every id hand-audited in
+        # task-16-A2round4-audit.md as delivering no narration of its own.
+        'hadith:nasai:4337': ("541a303a1147da166ae8256e8ec5c85c942c39ff450c9023f74dbe15c7aee44a", _OMISSION_NOTE),
     },
     # Ibn Majah (Task 15). Every matn of 3 tokens or fewer was read in
     # context (56 measured); the other 55 are genuine, complete, terse

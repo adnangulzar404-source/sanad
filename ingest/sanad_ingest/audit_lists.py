@@ -820,6 +820,23 @@ _BARE_RULING = ("bare ruling verb (naha / amara) with no object, immediately "
                  "deferring to another narration for the content -- the ruling "
                  "itself is never stated here")
 
+# A2 round 5 (Task 16). The vocabulary-free content-mass net (openiti.content_mass)
+# surfaced a class the round-4 sweep structurally could not: a pointer whose
+# entire matn is a speech FRAME ("'an al-nabi [saw]", "sami'tu rasula llah
+# yaqul fa-dhakara ...", "qala sami'tu NAME") with nothing delivered after it,
+# or an isnad/name VARIATION note ("ghayra annahu qala <NARRATOR-NAME>"). The
+# round-4 `find_pure_pointers` EXCLUDED these because they carry a qala/yaqul
+# token (its `_PP_DELIVERS` guard); content_mass keys on no marker, counts what
+# is LEFT after the frame + the name it introduces, and finds nothing.
+_FRAME_ONLY = ("speech frame with no matn after it (\"'an al-nabi [saw]\" / "
+               "\"sami'tu rasula llah ... yaqul\" / \"qala sami'tu NAME\"): the "
+               "frame names WHO spoke or defers to another narration and quotes "
+               "nothing, delivering no self-contained matn of its own")
+_ISNAD_VARIATION = ("isnad/name-variation note (\"ghayra annahu qala "
+                    "<NARRATOR-NAME>\" / \"qala <NAME> wa-lam yashukk\"): records "
+                    "only that a parallel chain named a narrator differently, a "
+                    "WHO not a WHAT, delivering no matn clause of its own")
+
 UNSCORABLE: dict[str, dict[str, tuple[str, str]]] = {
     "bukhari": {
         # Pointer only -- "bi-dhalika", "bi-hadha", "mithlahu", "nahwahu",
@@ -3037,3 +3054,92 @@ UNSCORABLE: dict[str, dict[str, tuple[str, str]]] = {
             ("da5b06f32a8be960e4896498557c3a5abf0318f6aa354cf9a2f1cdff8bc7dcbe", _POINTER),
     },
 }
+
+# --- A2 round 5 (Task 16): vocabulary-free content-mass net ------------------
+#
+# The pure-pointer class escaped SEVEN closures, each a narrowing filter whose
+# exclusion the next pointer walked through (round 4: the qala/yaqul/zada
+# `_PP_DELIVERS` guard hid every pointer wrapped in a speech frame). Round 5
+# keys on NO marker: `openiti.content_mass` strips scaffolding (honorific,
+# basmala, isnad/chain names, reference/deferral vocabulary, and a frame verb
+# plus the narrator name it introduces) and counts what is LEFT. Every scorable
+# hadith primary with content-mass <= 3 (the audit-scope boundary K, validated
+# by auditing the clean band above it) was read one record at a time in
+# task-16-A2round5-audit.md; the 28 below deliver no self-contained matn and are
+# pinned unscorable. The other 1,061 in the band deliver a clause/ruling/scene
+# and stay scorable (pinned in tests/ingest/test_real_corpus.py) -- including the
+# two one/two-word genuine matns the content-mass net surfaces but that DELIVER
+# (muslim:274-13 "da'hu" and muslim:581-2), which are keeps, not pointers. These
+# 28 each carry a qala/yaqul/sami'tu or ghayra-anna token, which is exactly why
+# the round-4 residue sweep could not see them. sha256 is of text_ar, computed
+# directly from the source build (never hand-typed); equal shas are equal matn
+# strings (e.g. the commonplace frame "'an al-nabi [saw]" recurs verbatim).
+_A2R5_CONTENT_MASS_POINTERS: dict[str, dict[str, tuple[str, str]]] = {
+    "abudawud": {
+        "hadith:abudawud:1176":
+            ("4e1f1945786b748b87fc6cdc5b3bf186ba75dfd67869ec5d246aff851ea2e0af", _FRAME_ONLY),
+        "hadith:abudawud:1354":
+            ("4b9af8e3f84d7a87399c616aad7dd7afb71b73e5cf9cf36ceed9ce8ba352773d", _DEFERRAL),
+        "hadith:abudawud:3609":
+            ("fcad70db5a26dc065b6cf39b8ba8adfa93874fdf6808039059c2c1056d2f034f", _DEFERRAL),
+        "hadith:abudawud:4045":
+            ("7b2b9d9a4d18d2c6304527d705c7358c5acf6ddd07e8e39fc348a699fe7d2b2c", _DEFERRAL),
+    },
+    "bukhari": {
+        "hadith:bukhari:1656":
+            ("9a01fb95bee94e0a81804633536470dd41d684dc26a12aeb5d8bdc757bc87370", _BARE_RULING),
+        "hadith:bukhari:3332":
+            ("8b9006dfb51995c80b593253756dcdc3fe896dd41787ee9508e35a03e6420e59", _CHAIN_LEAK),
+        "hadith:bukhari:4251":
+            ("4efc1ba41a2d7e71ca7778453f8e973a32c99597dca1ac07e1bd219febb553cc", _FRAME_ONLY),
+        "hadith:bukhari:4745":
+            ("4d8112edb3d1a5d2621569b2b5b5926492ee0966c9c8a2daf4685021242fc431", _FRAME_ONLY),
+    },
+    "ibnmajah": {
+        "hadith:ibnmajah:1130":
+            ("1e0310f569e3207f84456d8070170dcbcca5478f0d2471f384548aa87a4590f8", _POINTER),
+    },
+    "muslim": {
+        "hadith:muslim:57-4":
+            ("4efc1ba41a2d7e71ca7778453f8e973a32c99597dca1ac07e1bd219febb553cc", _FRAME_ONLY),
+        "hadith:muslim:109-2":
+            ("49a0af5584b320ff7cfbe1fb908abb8a416ed47b51269aa383c75a4bba06ba88", _FRAME_ONLY),
+        "hadith:muslim:144-5":
+            ("ee8590818b79d67dc5ed2250395202952dd81155cc73754338db3fb9cac04a2b", _DEFERRAL),
+        "hadith:muslim:198-3":
+            ("9998025c424b8a508c5e26f333a65cd7a2f5f408590771a70e5487f3183a6951", _POINTER),
+        "hadith:muslim:347-2":
+            ("cc2db9c6f6e82e141cda73433a5c656afb0870479eb8ab8032ed685978fd7a94", _POINTER),
+        "hadith:muslim:686-2":
+            ("861c8bb96e04ec0a9f471f35253d79b3a678a9f9cbc82d71f0da5bb81d2ebce2", _DEFERRAL),
+        "hadith:muslim:851-3":
+            ("d67b0a1b0d3c34292bc0c6aa5e8b9b85c262778b7b5c8a687a4f52aa820b134a", _ISNAD_VARIATION),
+        "hadith:muslim:882":
+            ("1e0310f569e3207f84456d8070170dcbcca5478f0d2471f384548aa87a4590f8", _POINTER),
+        "hadith:muslim:1183":
+            ("884cb430b48248ca20c348ab02bb46ab8ec55846d8424fb2f291734955625ddb", _FRAME_ONLY),
+        "hadith:muslim:1569":
+            ("01403388d0e8bf494489211179d59f030ddebb2b51b685a33d7733c619940cb0", _BARE_RULING),
+        "hadith:muslim:1584-3":
+            ("4efc1ba41a2d7e71ca7778453f8e973a32c99597dca1ac07e1bd219febb553cc", _FRAME_ONLY),
+        "hadith:muslim:1730-2":
+            ("7799b1db98722e2ebb1dbd0dfb45c2e466c70c74879a26d217297377cb249410", _ISNAD_VARIATION),
+        "hadith:muslim:1822-2":
+            ("c59125ec79f6c2bedfbd430d4a7f11abeceef8155761015e0008fb477dc50d75", _DEFERRAL),
+        "hadith:muslim:1873-3":
+            ("13b0eea493e8130fa5600b1fcb32b6312616193c8065947e67c68ab5b2773209", _ISNAD_VARIATION),
+        "hadith:muslim:2047-3":
+            ("4d8112edb3d1a5d2621569b2b5b5926492ee0966c9c8a2daf4685021242fc431", _FRAME_ONLY),
+        "hadith:muslim:2359-6":
+            ("742723ef528d4994842f59c9806a10d79a486d1438bac25b067e211e8ab218df", _FRAME_ONLY),
+        "hadith:muslim:2556-3":
+            ("6a442e7e61a8d501c9ca5ef64189dc31f56278bb93eb2eef4c29bdb5a93f8355", _FRAME_ONLY),
+        "hadith:muslim:2649-2":
+            ("b413fe035e021d7ce7192482de78cd85fd3a6df3d069316498e680ad8af87f27", _DEFERRAL),
+        "hadith:muslim:2987-3":
+            ("857c89e4dc9a4ec241eb4f2d686e334aee7f7c6a8e10665c10d712f717d12dac", _DEFERRAL),
+    },
+}
+
+for _coll, _entries in _A2R5_CONTENT_MASS_POINTERS.items():
+    UNSCORABLE.setdefault(_coll, {}).update(_entries)

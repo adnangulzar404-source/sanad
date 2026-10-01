@@ -1790,6 +1790,24 @@ _PP_INTRO = frozenset((
     "عن", "وعن", "بن", "وبن", "ابن", "وابن", "حديث", "حديثه", "حديثها",
     "حديثهم", "حديثهما", "روايه", "روايته", "روايتهما", "وحديث",
 ))
+# A2 round 5 (Task 16): the speech-FRAME verbs. For the vocabulary-free
+# content-mass measure (`content_mass` below), a frame verb introduces WHO
+# spoke, not WHAT, so "qala <narrator-name>" / "sami'tu <narrator>" with
+# nothing delivered after it is scaffold -- it must absorb a following name
+# exactly like `_PP_INTRO` does, so a pure pointer wrapped in a frame
+# ("bi-hadha l-isnad mithlahu wa-qala sami'tu rasula llah") reduces to EMPTY
+# content, whatever frame word it hid behind. This is deliberately the SAME
+# token family the round-4 sweep EXCLUDED as `_PP_DELIVERS`; the round-5 cure
+# is NOT to add a qala exception but to stop keying the detector on this word
+# at all -- content_mass counts what is LEFT, which for a genuine delivered
+# "qala: <words>" is the words (high mass) and for a frame-only pointer is
+# nothing (mass 0). It keys on no marker, so it catches a pointer regardless
+# of which frame it uses. NOT used by `find_pure_pointers`, whose residue
+# deliberately KEEPS these so a real "wa-zada Y" stays scorable.
+_PP_FRAME_INTRO = frozenset((
+    "قال", "قالا", "قالوا", "قالت", "قلت", "يقول", "تقول", "فقال", "وقال",
+    "وقالا", "وقالت", "فقالت", "فقالوا", "وقالوا", "قالها", "سمعت", "سمع",
+))
 # Name-chain connectors (joins the next token onto the running name chain).
 _PP_CONNECTOR = frozenset((
     "و", "بن", "وبن", "ابن", "وابن", "عن", "وعن", "ابي", "وابي", "ابو",
@@ -1856,6 +1874,61 @@ def _pp_anchored(tokens: list[str]) -> bool:
     return False
 
 
+def content_mass(norm_aggressive: str) -> int:
+    """A2 round 5 (Task 16): VOCABULARY-FREE content mass. The number of content
+    tokens left in `norm_aggressive` after stripping ONLY non-matn scaffolding:
+    honorific, basmala, leaked isnad/chain (`'an NAME`, `haddathana NAME`), the
+    reference/pointer/deferral vocabulary, AND a speech frame that delivers
+    nothing after it (`qala <narrator>`, `sami'tu <narrator> yaqul`). A pure
+    pointer -- which defers instead of delivering -- carries almost no content
+    whatever marker it hides behind, so it reduces to ~0; a genuine delivered
+    "qala: <words>" / "zada: <words>" keeps its words and scores high.
+
+    This is the PRIMARY net of round 5. It is the round-3/4 residue sweep with
+    the escape removed TWICE over: (a) it does NOT exclude a record for carrying
+    a delivery marker (the round-4 `_PP_DELIVERS` guard, which hid every pointer
+    wrapped in a qala/yaqul frame), and (b) it absorbs a name after a frame verb
+    (`_PP_FRAME_INTRO`), so "qala <narrator>" is scaffold, not content. It keys
+    on NO marker word and NO position, which is the whole point: the seven prior
+    closures each narrowed a filter and the next pointer walked through the
+    exclusion. Content mass has no exclusion to walk through.
+
+    Distinct from `find_pure_pointers`/`_pp_residue`, which KEEP frame verbs so a
+    genuine "wa-zada Y" stays scorable there; here that job is done by keeping
+    the WORDS after the frame, not the frame token.
+    """
+    tokens = _PP_HONORIFIC.sub(" ", norm_aggressive).split()
+    if set(tokens) >= _PP_BASMALA:
+        tokens = [t for t in tokens if t not in _PP_BASMALA]
+    content: list[str] = []
+    mode = "normal"
+    for t in tokens:
+        if t in _PP_FRAME_INTRO:
+            mode = "expect_name"
+            continue
+        if mode == "expect_name":
+            mode = "expect_name" if t in _PP_NAME_HEAD else "after_name"
+            continue
+        if mode == "after_name":
+            if t in _PP_CONNECTOR:
+                mode = "expect_name"
+                continue
+            mode = "normal"
+        if t in _PP_WDM:
+            mode = "normal"
+            continue
+        if t in _PP_INTRO:
+            mode = "expect_name"
+            continue
+        if (t in _PP_REF_NOUN or t in _PP_CHAIN or t in _PP_PTR_PRON
+                or t in _PP_PTR_CMP or t in _PP_GLUE):
+            mode = "normal"
+            continue
+        content.append(t)
+        mode = "normal"
+    return len(content)
+
+
 def _pp_residue(norm_aggressive: str) -> list[str]:
     """Remove every reference/pointer/chain/name/honorific/basmala token and
     return what is LEFT. An empty (or near-empty) residue means the whole
@@ -1899,7 +1972,7 @@ def _pp_residue(norm_aggressive: str) -> list[str]:
 
 
 def find_pure_pointers(
-    norms: dict[str, str], *, max_residue: int = 2
+    norms: dict[str, str], *, max_residue: int = 2, exclude_delivery: bool = True
 ) -> list[tuple[str, int, tuple[str, ...]]]:
     """Corpus-wide, position-independent sweep for scorable records whose matn
     is pure back-reference / structural-pointer / chain-meta / deferral scaffold
@@ -1923,13 +1996,21 @@ def find_pure_pointers(
     the audited KEEP residue (see `tests/ingest/test_real_corpus.py`), not an
     emptiness assertion: the convergence proof is "the sweep comes back holding
     ONLY the hand-read justified KEEPs", not "the sweep comes back empty".
+
+    `exclude_delivery` (A2 round 5): the round-3/4 default (True) drops any
+    record carrying a `_PP_DELIVERS` marker, to protect a genuine "wa-zada Y".
+    That guard was the round-4 escape -- a pointer wrapped in a qala/yaqul frame
+    walked through it. The round-5 secondary net (net B) calls this with
+    `exclude_delivery=False` to see the WHOLE reference-bearing population with
+    no delivery exclusion; the content-free members it then surfaces are the
+    same ones `content_mass` catches vocabulary-free, which is the cross-check.
     """
     hits: list[tuple[str, int, tuple[str, ...]]] = []
     for record_id, norm in norms.items():
         tokens = _PP_HONORIFIC.sub(" ", norm).split()
         if not _pp_anchored(tokens):
             continue
-        if set(tokens) & _PP_DELIVERS:
+        if exclude_delivery and set(tokens) & _PP_DELIVERS:
             continue
         residue = _pp_residue(norm)
         if len(residue) <= max_residue:

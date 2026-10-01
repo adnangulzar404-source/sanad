@@ -3903,6 +3903,13 @@ _A2_READ_SWEEP_POINTERS: dict[str, dict[str, tuple[str, str]]] = {
             ("433d6f11bb3bb9273fc973c98a6d4a7b6eadc0d0dea5620d516c6d8bd37fea2e", _FRAGMENT_VARIANT),
         "hadith:muslim:3033-2":
             ("b74659a22f713c7d252c11c6ba1fee602fc739be6721f69f10b5efb9439d5bf1", _FRAME_ONLY),
+        # re-review 2026-10-02: fragment variants whose deferral sits in the isnad tail
+        "hadith:muslim:1032-3":
+            ("c488d08fdcff696e147d313821de35b8dacb59d40a75ff65e1dfb99608fb4886", _FRAGMENT_VARIANT),
+        "hadith:muslim:1618-4":
+            ("5d8c84c04b606b1993327f2edabaa8cc3b02a596ee117438ccc5910e43cc6357", _FRAGMENT_VARIANT),
+        "hadith:muslim:2843-2":
+            ("27b69ecde696bf295bd23783d2fffcc305ee5570ad12741d273bcfd15f9ceb20", _FRAGMENT_VARIANT),
     },
     "abudawud": {
         "hadith:abudawud:37":
@@ -4033,6 +4040,11 @@ _A2_READ_SWEEP_POINTERS: dict[str, dict[str, tuple[str, str]]] = {
             ("9c3a3161519cb37218f192d272ed1a602e8cb612752609f56942b68c1c9d79bf", _FRAME_ONLY),
         "hadith:abudawud:5255":
             ("f6449d931ff989a3ede7ee176cae1d0983c508aaf822388691c0c7eab966270c", _POINTER),
+        # re-review 2026-10-02: single-word swap and transmission remark with deferral
+        "hadith:abudawud:3047":
+            ("bde00bc46ae91b01af1a93994d066c6ce17ec92ba7f3bfc902857656a77e3995", _FRAGMENT_VARIANT),
+        "hadith:abudawud:3271":
+            ("e62d396be49237d81b529aa3abe535feabaf12365b71b73038dc6d284f65bc2e", _FRAGMENT_VARIANT),
     },
     "tirmidhi": {
         "hadith:tirmidhi:263":

@@ -4,7 +4,7 @@
 
 **Goal:** Ingest Ṣaḥīḥ Muslim and the four Sunan into the corpus on the same terms as Bukhari, and split the build so the committed database stays under GitHub's 100 MB per-file limit.
 
-**Architecture:** The build gains a derivation boundary. `sanad-ingest build` writes a *source-only* SQLite file (the committed artifact); a new network-free `sanad-ingest materialize` step derives `norm_*`, `text_ar_sha256`, `reference_display`, `record_variants`, FTS, and indexes from the source columns, and runs at Docker/Vercel build time and in a pytest fixture. The `bukhari`-hardcoded points in the parser and builder become per-source config; citation parsing and the corpus-scope copy generalise to N collections. Each new source is vetted per-file, measured (never guessed), and given its own hand-audited exception lists.
+**Architecture:** The build gains a derivation boundary. `sanad-ingest build` writes a *source-only* SQLite file (the committed artifact); a new network-free `sanad-ingest materialize` step derives `norm_*`, `text_ar_sha256`, `record_variants`, FTS, and indexes from the source columns, and runs at Docker/Vercel build time and in a pytest fixture. `reference_display` is the one documented exception (Stage A3 ruling R-A3-6, revised into this doc 2026-10-01): it is written at BUILD time, not materialize time, because it depends on `HadithUnit.is_repeat` and a build-time occurrence counter that are not columns, so a source-only DB carries it as a genuine source column instead — see `sanad_ingest.materialize`'s module docstring and `sanad.corpus.schema`. The `bukhari`-hardcoded points in the parser and builder become per-source config; citation parsing and the corpus-scope copy generalise to N collections. Each new source is vetted per-file, measured (never guessed), and given its own hand-audited exception lists.
 
 **Tech Stack:** Python 3.10, FastAPI, SQLite (FTS5), httpx, pytest, ruff; React/Vite/vitest for the copy changes; Docker + Vercel for deploy.
 
@@ -20,7 +20,7 @@
 - **Ask model** is `claude-sonnet-4-6` (already set; do not reintroduce Opus).
 - **Eval gate:** zero false verifications and zero false misattributions, no exceptions.
 - **Every test must be capable of failing** — a test that never queries the corpus it asserts about is not a test.
-- **Materialised DB is built, never committed;** the committed DB is source-only. Runtime opens the materialised DB read-only.
+- **Materialised DB is built, never committed;** the committed DB is source-only, except `reference_display` (R-A3-6: written at build time, not derivable from other stored columns; see the Architecture note above). Runtime opens the materialised DB read-only.
 - Run all commands from the worktree; never `cd` to the original repo root. Commits end with `Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>`.
 
 ## Review Focus

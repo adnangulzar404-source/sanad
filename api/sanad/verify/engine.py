@@ -99,6 +99,21 @@ class Match:
     # also scripture at X" is a different relation from "these words tie with
     # record Y", and conflating them made the client tell them apart only by
     # the accident that the disclosure case has record=None.
+    #
+    # Known, accepted MISS (task-16 A5, Task 11 cross-tier finding, not
+    # fixed): `_WITHHOLDING_TIER`/`_DISCLOSURE_TIER` above are deliberately
+    # different tiers, so a hadith that only matches an ayah after the
+    # aggressive-tier alef-maksura/yeh or teh-marbuta/heh fold gets its
+    # verdict withheld (correct -- see R40) but `contained_in` stays empty,
+    # since the standard-tier containment check the disclosure asks does not
+    # see that fold. That leaves the reader with a bare NOT_FOUND and no
+    # explanation for it. This is the tier split working as designed, not a
+    # bug: reporting a disclosure that exists only because of a fold this
+    # module's own founding rule says may never be reported as verified
+    # would be the worse failure. No case in the shipped corpus is known to
+    # hit this (`_ayat_containing`'s docstring measures the one existing
+    # containment pair -- bukhari:3658/54:1 -- as a hit at BOTH tiers); it is
+    # a structural gap for a future record, not a live one.
     contained_in: list[str] = field(default_factory=list)
 
 

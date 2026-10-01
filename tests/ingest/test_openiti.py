@@ -32,7 +32,7 @@ def _split(matn: str, record_id: str) -> tuple[str, str | None]:
 
 @pytest.fixture(scope="module")
 def sample():
-    return parse_openiti(FIXTURE.read_text(encoding="utf-8"))
+    return parse_openiti(FIXTURE.read_text(encoding="utf-8"), collection="bukhari")
 
 
 def test_extracts_the_meta_header_verbatim(sample):
@@ -95,13 +95,13 @@ def test_bab_headings_are_not_records(sample):
 
 @pytest.mark.skipif(not FULL.exists(), reason="full download not present")
 def test_full_file_yields_the_measured_record_count():
-    parsed = parse_openiti(FULL.read_text(encoding="utf-8"))
+    parsed = parse_openiti(FULL.read_text(encoding="utf-8"), collection="bukhari")
     assert len(parsed.units) == 7129
 
 
 @pytest.mark.skipif(not FULL.exists(), reason="full download not present")
 def test_every_record_id_is_unique():
-    parsed = parse_openiti(FULL.read_text(encoding="utf-8"))
+    parsed = parse_openiti(FULL.read_text(encoding="utf-8"), collection="bukhari")
     ids = [u.record_id for u in parsed.units]
     assert len(set(ids)) == len(ids), "record ids must be unique"
 
@@ -109,7 +109,7 @@ def test_every_record_id_is_unique():
 @pytest.mark.skipif(not FULL.exists(), reason="full download not present")
 def test_repeat_marked_units_are_distinct_records():
     """619 م is a different narration from 619 -- 25 degrees vs 27."""
-    parsed = parse_openiti(FULL.read_text(encoding="utf-8"))
+    parsed = parse_openiti(FULL.read_text(encoding="utf-8"), collection="bukhari")
     six19 = [u for u in parsed.units if u.hadith_no == "619"]
     assert len(six19) == 2
     assert len({u.record_id for u in six19}) == 2
@@ -120,7 +120,7 @@ def test_repeat_marked_units_are_distinct_records():
 @pytest.mark.skipif(not FULL.exists(), reason="full download not present")
 def test_collision_without_a_repeat_marker_still_gets_distinct_ids():
     """3905 is printed twice, neither marked م -- an edition artifact."""
-    parsed = parse_openiti(FULL.read_text(encoding="utf-8"))
+    parsed = parse_openiti(FULL.read_text(encoding="utf-8"), collection="bukhari")
     both = [u for u in parsed.units if u.hadith_no == "3905"]
     assert len(both) == 2
     assert both[0].record_id != both[1].record_id
@@ -128,7 +128,7 @@ def test_collision_without_a_repeat_marker_still_gets_distinct_ids():
 
 @pytest.mark.skipif(not FULL.exists(), reason="full download not present")
 def test_content_hash_matches_the_pinned_value():
-    parsed = parse_openiti(FULL.read_text(encoding="utf-8"))
+    parsed = parse_openiti(FULL.read_text(encoding="utf-8"), collection="bukhari")
     assert parsed.content_sha256 == (
         "69e95684acfde24171d29dd7ba43ff2c8f9b54ade5e3ab0a73899c06671082b7"
     )
@@ -145,7 +145,7 @@ def test_noisy_flags_without_filtering():
     wrongly claimed zero, which meant this requirement had no coverage at
     all -- and (b) the flagged text is still present, unmodified, in the
     unit it was flagged from. Filtering it out would defeat the point."""
-    parsed = parse_openiti(FULL.read_text(encoding="utf-8"))
+    parsed = parse_openiti(FULL.read_text(encoding="utf-8"), collection="bukhari")
     assert parsed.noisy, "the pinned file is known to contain noise characters"
     by_id = {u.record_id: u for u in parsed.units}
     for record_id, offending in parsed.noisy:
@@ -204,7 +204,7 @@ def test_multiline_bab_heading_is_assembled_whole():
     that reads only the '### ||' line's own text truncates the heading
     mid-quotation."""
     raw = FULL.read_text(encoding="utf-8")
-    parsed = parse_openiti(raw)
+    parsed = parse_openiti(raw, collection="bukhari")
     nine = next(u for u in parsed.units if u.hadith_no == "9")
     assert nine.bab_ar == _expected_bab_ar(raw, "9")
 
@@ -215,7 +215,7 @@ def test_bab_heading_closed_on_the_immediate_next_line_keeps_its_word():
     intervening numbered '#' chunk at all. The word that closes it is real
     content (not markup) and must survive."""
     raw = FULL.read_text(encoding="utf-8")
-    parsed = parse_openiti(raw)
+    parsed = parse_openiti(raw, collection="bukhari")
     unit = next(u for u in parsed.units if u.hadith_no == "1432")
     assert unit.bab_ar == _expected_bab_ar(raw, "1432")
 
@@ -229,7 +229,7 @@ def test_bab_ar_and_kitab_ar_carry_no_leading_number():
     test_bab_ar_and_kitab_ar_strip_matched_wrapping_parens below).
     matn_ar/isnad_ar are unaffected -- this is cosmetic, for chapter_ar
     display only."""
-    parsed = parse_openiti(FULL.read_text(encoding="utf-8"))
+    parsed = parse_openiti(FULL.read_text(encoding="utf-8"), collection="bukhari")
     for u in parsed.units:
         assert not re.match(r"^\d", u.kitab_ar), u.kitab_ar
         if u.bab_ar:
@@ -262,7 +262,7 @@ def test_bab_ar_and_kitab_ar_strip_matched_wrapping_parens():
     )
     expected_kitab2 = re.sub(r"^###\s*\|(?!\|)\s*\(\s*2\s+", "", kitab2_line).rstrip(") ").strip()
 
-    parsed = parse_openiti(raw)
+    parsed = parse_openiti(raw, collection="bukhari")
     two = next(u for u in parsed.units if u.kitab_no == 2)
     assert two.kitab_ar == expected_kitab2
     nine = next(u for u in parsed.units if u.hadith_no == "9")
@@ -281,7 +281,7 @@ def test_bab_ar_paren_imbalance_is_a_bounded_known_source_defect():
     This test pins that the defect is exactly this bounded, known set, so
     a real regression (more truncation) is caught, while an unfixable
     source typo is not mistaken for one."""
-    parsed = parse_openiti(FULL.read_text(encoding="utf-8"))
+    parsed = parse_openiti(FULL.read_text(encoding="utf-8"), collection="bukhari")
     unbalanced = {u.bab_ar for u in parsed.units
                   if u.bab_ar and u.bab_ar.count("(") != u.bab_ar.count(")")}
     assert len(unbalanced) == 12
@@ -341,7 +341,7 @@ def _raw_matn(raw: str, hadith_no: str) -> str:
 
 @pytest.fixture(scope="module")
 def full():
-    return parse_openiti(FULL.read_text(encoding="utf-8"))
+    return parse_openiti(FULL.read_text(encoding="utf-8"), collection="bukhari")
 
 
 @pytest.mark.skipif(not FULL.exists(), reason="full download not present")
@@ -433,7 +433,7 @@ def test_exactly_the_measured_records_are_cut(full):
     up here as a changed digest, which is the only cheap way to notice it.
     Regenerate after a deliberate rule change with:
       python -c "import hashlib; from sanad_ingest.openiti import parse_openiti; \
-        u=parse_openiti(open('/tmp/bukhari.txt',encoding='utf-8').read()).units; \
+        u=parse_openiti(open('/tmp/bukhari.txt',encoding='utf-8').read(), collection='bukhari').units; \
         print(hashlib.sha256(','.join(sorted(x.record_id for x in u \
         if x.addenda_ar is not None)).encode()).hexdigest())"
     """
@@ -672,7 +672,7 @@ def test_a_unit_with_no_boundary_mark_is_never_split():
     chain = (f"{baa * 9} {baa * 9} {_QAL} {baa * 6} "
              f"{_HADDATHANA} {baa * 6} {_AN} {baa * 6}")
     unit = f"{_HEADER}\n### | {baa * 5}\n# 1 {chain} {baa * 9} {baa * 9}\n"
-    (one,) = parse_openiti(unit).units
+    (one,) = parse_openiti(unit, collection="bukhari").units
     assert one.isnad_ar is None
     assert one.addenda_ar is None
     assert one.matn_ar == f"{chain} {baa * 9} {baa * 9}"
@@ -793,7 +793,7 @@ def _one_unit(number: str, matn: str) -> str:
 
 
 def test_an_audited_editorial_pointer_is_marked_unscorable():
-    unit = parse_openiti(_one_unit("1379", _BI_HADHA)).units[0]
+    unit = parse_openiti(_one_unit("1379", _BI_HADHA), collection="bukhari").units[0]
     assert unit.unscorable_reason is not None
     # Marked, never rewritten: the edition's word is still the stored text.
     assert unit.matn_ar == _BI_HADHA
@@ -807,7 +807,7 @@ def test_the_mark_belongs_to_the_audited_record_not_to_the_words():
     is the only reason a four-letter matn like "bi-hadha" can be excluded
     without putting every short hadith at risk.
     """
-    unit = parse_openiti(_one_unit("2866", _BI_HADHA)).units[0]
+    unit = parse_openiti(_one_unit("2866", _BI_HADHA), collection="bukhari").units[0]
     assert unit.unscorable_reason is None
 
 
@@ -821,7 +821,7 @@ def test_the_audited_list_is_checked_against_the_text_it_audited():
     """
     baa = chr(0x0628)
     with pytest.raises(ValueError, match="1379"):
-        parse_openiti(_one_unit("1379", baa * 4))
+        parse_openiti(_one_unit("1379", baa * 4), collection="bukhari")
 
 
 # --- fix round 5: short primaries are cut, and verify on their own ---------
@@ -962,9 +962,10 @@ def _muslim_unit(number: str, matn: str) -> str:
 
 def test_collection_param_prefixes_the_record_id():
     """A source other than Bukhari must not come out stamped "hadith:bukhari:"
-    -- that is the whole defect this task removes. `parse_openiti(raw)` with
-    no `collection` keyword still means Bukhari, so the build call site in
-    `build.py` is untouched; every other collection has to say so."""
+    -- that is the whole defect this task removes. `collection` is a required
+    keyword (task-16 A5: the old "bukhari" default was dead for the build
+    call site, which always passes it explicitly, and silently invited this
+    exact bug at every OTHER call site that forgot to)."""
     baa = chr(0x0628)
     unit = _muslim_unit("1", f"{baa * 20} {baa * 20}")
     parsed = parse_openiti(unit, collection="muslim")

@@ -27,7 +27,7 @@ from sanad_ingest.materialize import (
     materialize,
 )
 
-COMMITTED = "data/sanad-quran.db"  # still full at this point in the plan
+COMMITTED = "data/sanad-quran.db"  # source-only since Stage A3 Task 4 (see module docstring)
 
 
 def _strip_to_source(full_path, src_path):
@@ -36,13 +36,14 @@ def _strip_to_source(full_path, src_path):
     `reference_display` is left populated -- it is NOT a derived column (see
     the module docstring above): a source-only DB still carries it.
 
-    `data/sanad-quran.db`'s own `records` table still carries the OLD, pre-
-    Stage-A3 `NOT NULL` constraints on the derived columns -- it is a file on
-    disk, so the relaxed `SOURCE_SCHEMA_SQL` this task shipped cannot retro-
-    actively loosen a table that already exists. A real Task-4 pipeline would
-    build the source-only DB fresh from `SOURCE_SCHEMA_SQL`, so this helper
-    rebuilds `records` under that schema before nulling the derived columns,
-    rather than trying to null a column the copied file still forbids that on.
+    As of Task 4, `data/sanad-quran.db`'s own `records` table is already
+    built under the relaxed `SOURCE_SCHEMA_SQL` (the derived columns --
+    `norm_light`/`norm_standard`/`norm_aggressive`/`text_ar_sha256` -- are
+    nullable, not `NOT NULL`), so the rebuild below is a no-op against that
+    file today. It is kept anyway rather than assumed: it makes this helper
+    correct against ANY input file, including a pre-Task-4-shaped one still
+    carrying the old `NOT NULL` constraints on those columns, without this
+    test needing to know which shape `full_path` is in.
     """
     import shutil
     shutil.copy(full_path, src_path)

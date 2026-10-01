@@ -84,9 +84,29 @@ GRADING_TERMS = ("sahih", "saheeh", "صحيح",  # صحيح
 # tolerant regex below ("sahih <name>", "sahih al <name>", "sahih of [the]
 # <name>") — not three fixed exact strings, which false-blocked "Sahih
 # Bukhari" (no "al-"), "the Sahih of Bukhari", and "Sahih al-Bukhaari" (alt
-# spelling). COLLECTION_TITLES keeps its name from the original interface but
-# now holds collection-name tokens rather than full exact phrases.
-COLLECTION_TITLES = ("bukhari", "bukhaari", "muslim")
+# spelling).
+#
+# Renamed COLLECTION_TITLES -> COLLECTION_ALIASES (task-16 A5, Task 10 nit):
+# the old name collided, by name only (no import collision — this module
+# never imports `corpus.collections`), with `corpus.collections.COLLECTION_TITLES`,
+# a dict of ALL SIX collections' English display titles. A grep/import for
+# "COLLECTION_TITLES" would find both and could easily be pointed at the
+# wrong one.
+#
+# SECURITY-RELEVANT, investigated and deliberately NOT widened: the corpus now
+# ships six collections (`corpus.collections.COLLECTION_TITLES`), but this
+# tuple still lists only bukhari/muslim variants. That is correct, not stale.
+# This tuple exists to recognise "Sahih <name>" as a BOOK TITLE rather than a
+# grading claim, and "Sahih" is only the real title of two of the six:
+# Sahih al-Bukhari and Sahih Muslim. The other four are titled "Sunan"/"Jami"
+# (`corpus.collections.COLLECTION_TITLES`: "Sunan Abi Dawud", "Jami
+# at-Tirmidhi", "Sunan an-Nasai", "Sunan Ibn Majah" — no "Sahih" in any of
+# them). Adding them here would let a genuine grading claim ("this Ibn Majah
+# hadith is sahih") piggyback on a citation-shaped exemption for a title that
+# does not exist, reopening the exact hole fix round 1 closed for Bukhari/
+# Muslim. If a reader writes "Sahih Abu Dawud 123", the grading guard SHOULD
+# fire — the miss costs a false block (safe), not a false pass.
+COLLECTION_ALIASES = ("bukhari", "bukhaari", "muslim")
 
 # Fix round 2, ruling g: the round-1 exemption above matched a bare
 # collection name with nothing after it, which let a REAL grading claim
@@ -106,12 +126,12 @@ _TITLE_BOUNDARY = (
     r"|[.,;:)" + _QUOTE_CHARS + r"]"                  # end-of-clause punctuation / closing quote
     r"|\s*$"                                          # end of string (optional trailing space)
     r"|\s+(?:and|or)\s+(?:al\s+|of\s+(?:the\s+)?)?(?:"
-    + "|".join(COLLECTION_TITLES) + r")\b"            # connector into another title
+    + "|".join(COLLECTION_ALIASES) + r")\b"            # connector into another title
     r")"
 )
 _COLLECTION_TITLE_RE = re.compile(
     r"\bsahih\b(?:\s+(?:al\s+|of\s+(?:the\s+)?))?\s*(?:"
-    + "|".join(COLLECTION_TITLES) + r")\b" + _TITLE_BOUNDARY)
+    + "|".join(COLLECTION_ALIASES) + r")\b" + _TITLE_BOUNDARY)
 
 # Fix round 1, ruling c (resolves I3): the original NAME_PARTICLES adjacency
 # exemption is dropped entirely, and the constant removed — it protected no

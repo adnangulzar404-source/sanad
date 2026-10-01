@@ -13,6 +13,25 @@ outcome, not a failed task: it tells every downstream per-source ingest task
 (11+) and the Task 10 scope wording that Stage A3 currently has no new
 hadith text to ingest via this route, and why.
 
+**Revision, 2026-10-01 (task-16 A5):** all five DEFERs below were
+subsequently resolved to **SHIP** under ruling R-A3-1, and all five have
+since shipped (Sahih Muslim, Sunan Abi Dawud, Jami' at-Tirmidhi, Sunan
+an-Nasa'i, Sunan Ibn Majah — see `docs/SOURCES.md`). The bar the deferrals
+below apply is the strict one this spike used (a placeholder edition
+number/place/year in a file's own `#META#` header, or the enumeration
+failure documented in the network-access section, both treated as
+disqualifying); R-A3-1 relaxed it, ruling that the licensing basis for a
+pre-modern hadith collection rests on the AUTHOR'S DEATH DATE (public domain
+by age), not on any fact about a later printing's metadata completeness --
+so an incomplete `#META#` header is a provenance gap to disclose, not a
+reason to defer ingestion. The enumeration failures below were separately
+resolved once the exact JK-prefixed raw URL for each file was found (the
+network limitations recorded here did not change; the files were located by
+other means). The original DEFER reasoning is left exactly as written below
+-- it was the correct reading of the bar THIS spike was run against, and the
+research record is not edited to look as if it had anticipated a ruling that
+came after it.
+
 ## Network access actually available in this environment
 
 Established by direct test, not assumed:

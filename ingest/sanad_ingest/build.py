@@ -48,11 +48,13 @@ def _parse(locked: LockedSource, raw: str) -> _Parsed:
     parse_tanzil_xml directly from build_corpus; that duplication is
     exactly how the translation pass ended up ignoring format entirely.
 
-    openiti-markdown is special-cased to pass `collection` through: without
-    it, `parse_openiti` falls back to its own "bukhari" default and every
-    non-Bukhari hadith source would mint `hadith:bukhari:N` ids regardless of
-    which collection it actually is (Stage A3 ruling R-A3-12). The Tanzil
-    parsers take no `collection` kwarg, so they are left untouched.
+    openiti-markdown is special-cased to pass `collection` through: `collection`
+    is a required keyword on `parse_openiti` (it used to default to "bukhari",
+    silently minting `hadith:bukhari:N` ids for every non-Bukhari hadith
+    source regardless of which collection it actually was -- Stage A3 ruling
+    R-A3-12; the default is gone precisely so a caller that forgets this
+    fails loudly instead). The Tanzil parsers take no `collection` kwarg, so
+    they are left untouched.
     """
     parser = parser_for(locked.format)
     if locked.format == "openiti-markdown":

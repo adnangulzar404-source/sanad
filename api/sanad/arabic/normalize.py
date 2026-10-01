@@ -48,6 +48,23 @@ _LOSSY_FOLDS = str.maketrans({
 })
 
 # Arabic block (U+0600-U+06FF), plus space. Everything else goes at tier 3.
+#
+# Known, accepted MISS (task-16 A5, Task 11 cross-tier finding, not fixed
+# here): some editions print a literal "<"/">" around a variant-reading word
+# inside a hadith matn (measured: 11 records across bukhari/muslim/abudawud/
+# tirmidhi, e.g. hadith:muslim:2380-5's stored text_ar is
+# "< ... >"). Those brackets are canonical text_ar and are never altered, but
+# they only drop out of the comparison at THIS tier, so a reader who quotes
+# the matn correctly and plainly (no brackets, as the words are normally
+# read) matches only at the aggressive tier and gets NEAR_MATCH rather than
+# EXACT -- a downgrade, not a false verdict; it never claims a misquote is
+# exact and never claims an exact quote is wrong. Moving this stripping to a
+# lower tier was considered and rejected: `_NON_ARABIC` is this module's one
+# tier-3-only rule precisely because folding away non-Arabic characters at a
+# lower tier can manufacture an agreement that is not in the letters (this
+# module's founding rule, stated above), and fixing 11 records' bracket
+# noise is not worth reopening that boundary for the whole corpus without
+# the same per-record audit every other tier-boundary change here has had.
 _NON_ARABIC = re.compile(r"[^\u0600-\u06FF ]")
 
 _WS = re.compile(r"\s+")

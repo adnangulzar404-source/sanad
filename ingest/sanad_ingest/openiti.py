@@ -1171,8 +1171,16 @@ _NASAI_FORMULA = re.compile(
 # joined display text used for the sweeps above. No action needed and none
 # is taken. A remark naming neither tracked voice and landing in the SCORED
 # primary would be the same "known ceiling" R-A3-23 already accepted for Abu
-# Dawud's bare "قلت" self-reference -- not chased here for the same reason,
-# and measurement found none to exist.
+# Dawud's bare "قلت" self-reference -- not chased here for the same reason.
+# (Softened, task-16 A5: this was originally written as "and measurement
+# found none to exist," which overclaims. The Task 15 review found ONE shape
+# that IS exactly this -- a third-party gloss, e.g. "قال علي الطنافسي يعني
+# ..." (hadith:ibnmajah:2427) -- naming neither tracked voice and sitting in
+# scored text. It is not unique to Ibn Majah: the same "قال X يعني" gloss
+# shape sits in scored text_ar across all six collections, measured causing
+# no false verdict in any of them. It is a shared, pre-existing ceiling of
+# this splitter, not something particular to the two voices tracked here,
+# and not chased for the same reason the bare "قلت" ceiling above is not.)
 _IBNMAJAH_QATTAN_TIGHT, _IBNMAJAH_QATTAN_NEAR, _IBNMAJAH_QATTAN_HEARD = \
     _compiler_commentary_markers("أبو الحسن")
 _IBNMAJAH_COMPILER_TIGHT, _IBNMAJAH_COMPILER_NEAR, _IBNMAJAH_COMPILER_HEARD = \
@@ -1842,7 +1850,7 @@ def _heading_kind(cleaned_content: str) -> str | None:
 def parse_openiti(
     raw: str,
     *,
-    collection: str = "bukhari",
+    collection: str,
     max_addendum: int = audit_lists.MAX_ADDENDUM,
     attribution_window: int = audit_lists.ATTRIBUTION_WINDOW,
     never_cut: dict[str, tuple[str, str]] | None = None,

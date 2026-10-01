@@ -291,7 +291,7 @@ def test_the_full_printed_text_of_every_cut_record_verifies():
     rows = conn.execute(
         "SELECT id, text_ar, addenda_ar FROM records"
         " WHERE addenda_ar IS NOT NULL AND unscorable_reason IS NULL").fetchall()
-    assert len(rows) == 5701  # A2 fix-round: -8; A2 round 3: -7; A2 round 4: -2 (tirmidhi:595, 1096 -- newly-unscorable records that carried an addendum)
+    assert len(rows) == 5699  # A2 fix-round: -8; A2 round 3: -7; A2 round 4: -2 (tirmidhi:595, 1096); A2 round 5: -2 (abudawud:1176, muslim:2359-6 -- newly-unscorable records that carried an addendum)
     failures = []
     for row in rows:
         for quoted in (row["text_ar"], row["text_ar"] + " " + row["addenda_ar"]):
@@ -484,7 +484,11 @@ def test_the_index_holds_one_row_per_scorable_representation():
     # A2 round 4 (editorial omission/comparison sweep): scorable -46, indexed
     # -46 (46 pure-apparatus primaries now UNSCORABLE, none carrying an
     # addendum, so variants unchanged): (38888, 5846, 44734).
-    assert (scorable, variants, indexed) == (38888, 5846, 44734)
+    # A2 round 5 (vocabulary-free content-mass net): scorable -28, indexed -28
+    # (28 content-mass pointers now UNSCORABLE). variants unchanged: the two
+    # that carry an addendum (abudawud:1176, muslim:2359-6) keep their "full"
+    # variant row, and only the 28 primary FTS rows leave: (38860, 5846, 44706).
+    assert (scorable, variants, indexed) == (38860, 5846, 44706)
 
 
 # --- C1: nothing scorable as a hadith is wholly a Qur'anic quotation --------
@@ -647,11 +651,17 @@ def test_no_scorable_hadith_representation_is_wholly_quranic():
     reps += [(r["record_id"], r["variant"], r["norm_standard"]) for r in conn.execute(
         "SELECT v.record_id, v.variant, v.norm_standard FROM record_variants v"
         " JOIN records r ON r.id = v.record_id")]
-    # Task 16 A2 round 4 (editorial omission/comparison sweep) moves it to
+    # Task 16 A2 round 4 (editorial omission/comparison sweep) moved it to
     # 38,498 (-46 scorable hadith primaries now UNSCORABLE across Muslim (38),
-    # Abu Dawud (5), Tirmidhi (2), Nasai (1); variants unchanged). The sweep
-    # is still zero: none of the 46 pure-apparatus records is wholly Qur'anic.
-    assert len(reps) == 38498, "the sweep stopped covering what it was written for"
+    # Abu Dawud (5), Tirmidhi (2), Nasai (1); variants unchanged). A2 round 5
+    # (vocabulary-free content-mass net) moves it to 38,470 (-28 more scorable
+    # primaries now UNSCORABLE across Muslim (19), Abu Dawud (4), Bukhari (4),
+    # Ibn Majah (1); variants unchanged -- the two pointers that carry an
+    # addendum, abudawud:1176 and muslim:2359-6, keep their "full" variant row
+    # in record_variants, which this count includes regardless of whether the
+    # primary is scorable, so only the 28 primary reps drop). The sweep is still
+    # zero: none of the 74 pure-apparatus records is wholly Qur'anic.
+    assert len(reps) == 38470, "the sweep stopped covering what it was written for"
     offenders = [(rid, variant) for rid, variant, norm in reps
                  if norm.strip() and any(f" {norm} " in b for b in blobs)]
     assert offenders == []
@@ -856,10 +866,15 @@ def test_every_other_excluded_record_is_excluded_whole():
         " WHERE r.unscorable_reason IS NOT NULL GROUP BY r.id").fetchall()
     # A2 round 3 added 50 excluded records but did not update this count (its
     # docstring stops at C0's 1,201); round 4 adds 46 more. Re-measured against
-    # a fresh build: 1,201 -> 1,251 (round 3) -> 1,297 (round 4).
-    assert len(rows) == 1297
+    # a fresh build: 1,201 -> 1,251 (round 3) -> 1,297 (round 4). A2 round 5
+    # (content-mass net) adds 28 more: 1,297 -> 1,325.
+    assert len(rows) == 1325
     assert {r["id"]: r["n"] for r in rows if r["n"]} == {
         "hadith:bukhari:237": 1,
+        # A2 round 5: two content-mass pointers carry an A1 addendum, so they
+        # are excluded as a primary but keep their "full" variant row (n=1).
+        "hadith:abudawud:1176": 1,
+        "hadith:muslim:2359-6": 1,
         "hadith:muslim:1159-7": 1,
         "hadith:muslim:1238-2": 1,
         "hadith:muslim:1433-7": 1,  # A2 fix-round: isnad-scaffold head with an A1 addendum
@@ -1156,7 +1171,10 @@ def test_exactly_one_hadith_representation_sits_inside_an_ayah():
     ).fetchall()
     # A2 round 4: -46 scorable primaries now UNSCORABLE (see the wholly-Qur'anic
     # sweep's Task 16 A2 round 4 note); variants unchanged.
-    assert len(reps) == 38498, len(reps)
+    # A2 round 5: -28 more scorable primaries now UNSCORABLE (content-mass net);
+    # variants unchanged (the two addenda-carrying pointers keep their "full"
+    # variant row): 38,498 -> 38,470.
+    assert len(reps) == 38470, len(reps)
 
     withheld, disclosed = [], []
     for rep in reps:
@@ -1253,7 +1271,10 @@ def test_muslim_record_count_and_scorability():
     # comparison sweep). This pin also absorbs round 3's -38 Muslim, which the
     # round-3 commit updated only in the two reps pins, not here (re-measured
     # against a fresh build): scorable 6573 -> 6535 (round 3) -> 6497 (round 4).
-    assert (total, scorable, unscorable, cut) == (7460, 6497, 963, 147)
+    # A2 round 5 (vocabulary-free content-mass net): -19 more Muslim primaries
+    # (19 of the 28 content-mass pointers are Muslim; 274-13 "da'hu" and 581-2
+    # are genuine short matns, kept): 6497 -> 6478, 963 -> 982.
+    assert (total, scorable, unscorable, cut) == (7460, 6478, 982, 147)
 
 
 def test_abudawud_record_count_and_scorability():
@@ -1328,7 +1349,9 @@ def test_abudawud_record_count_and_scorability():
         " AND addenda_ar IS NOT NULL").fetchone()[0]
     # A2 round 4: -5 Abu Dawud primaries now UNSCORABLE. Also absorbs round 3's
     # -6 (updated only in the reps pins at the time): 5129 -> 5123 -> 5118.
-    assert (total, scorable, unscorable, cut) == (5274, 5118, 156, 873)
+    # A2 round 5 (content-mass net): -4 more (abudawud:1176, 1354, 3609, 4045):
+    # 5118 -> 5114, 156 -> 160.
+    assert (total, scorable, unscorable, cut) == (5274, 5114, 160, 873)
 
 
 # Three spot-checked Abu Dawud matns, read BYTE-EXACT from the materialized
@@ -2831,7 +2854,7 @@ _NASAI_PREFIX_COLLISION_RESIDUE = [
     "hadith:nasai:4480", "hadith:nasai:4482", "hadith:nasai:4493",
     "hadith:nasai:4495", "hadith:nasai:4519", "hadith:nasai:4521",
     "hadith:nasai:4524", "hadith:nasai:4535", "hadith:nasai:4537",
-    "hadith:nasai:4568", "hadith:nasai:4598", "hadith:nasai:4634",
+    "hadith:nasai:4568", "hadith:nasai:4634",
     "hadith:nasai:4668", "hadith:nasai:4673", "hadith:nasai:4691",
     "hadith:nasai:4736", "hadith:nasai:48", "hadith:nasai:4908",
     "hadith:nasai:4917", "hadith:nasai:4918", "hadith:nasai:4919",
@@ -2848,7 +2871,6 @@ _NASAI_PREFIX_COLLISION_RESIDUE = [
     "hadith:nasai:5678", "hadith:nasai:5699", "hadith:nasai:5701",
     "hadith:nasai:605", "hadith:nasai:619", "hadith:nasai:687",
     "hadith:nasai:7", "hadith:nasai:736", "hadith:nasai:911",
-    "hadith:nasai:951", "hadith:nasai:986", "hadith:nasai:987",
     "hadith:nasai:996",
 ]
 
@@ -2920,6 +2942,16 @@ def test_prefix_collision_detector_nasai_residue_is_fully_read():
     only at sample density (roughly 55 of 63), not exhaustively the way this
     round's six named shapes were audited for Nasai, so gating it now would
     freeze an under-read list rather than a fully-read one.
+
+    Task 16 A2 round 5 (content-mass net) narrows this list from 142 to 138,
+    with NO additions: four Nasai residues (951, 986, 987, 4598) lose their
+    completion partner because it was pinned UNSCORABLE this round. All four
+    completed against the same partner, bukhari:4745 ("sami'tu al-nabi [saw]"),
+    a pure speech-frame pointer with no matn (see
+    audit_lists._A2R5_CONTENT_MASS_POINTERS); once it leaves the scorable set
+    the four heads no longer match any complete record. The four Nasai records
+    themselves stay scorable -- they carry content past the shared frame -- they
+    simply no longer trip this corpus-wide detector.
     """
     from sanad_ingest.openiti import find_prefix_collisions
 
@@ -3390,6 +3422,437 @@ def test_no_scorable_record_is_a_pure_omission_pointer():
         "add it to _OMISSION_SWEEP_KEEPS with its delivered clause named.")
 
 
+# --- A2 round 5 (Task 16): the VOCABULARY-FREE content-mass partition --------
+#
+# The pure-pointer false-EXACT class escaped SEVEN closures. Each closure was a
+# NARROWING FILTER with an exclusion the next pointer walked through; round 4's
+# `find_pure_pointers` excluded any record carrying a qala/yaqul/zada/ghayr/illa
+# `_PP_DELIVERS` marker (to protect a genuine "wa-zada Y"), so a content-free
+# pointer wrapped in a speech FRAME -- "bi-hadha l-isnad mithlahu wa-qala
+# sami'tu rasula llah", "sami'tu rasula llah yaqul fa-dhakara nahwa hadith
+# Hatim" -- walked straight through it. Five such escapes were confirmed
+# scorable (muslim:2556-3, 1822-2, 2987-3, 686-2, 144-5).
+#
+# `openiti.content_mass` keys on NO marker and NO position: it strips only
+# non-matn scaffolding (honorific, basmala, isnad/chain names, the reference/
+# deferral vocabulary, and a frame verb plus the narrator name it introduces)
+# and counts what is LEFT. A pure pointer defers instead of delivering, so it
+# reduces to ~0 content whatever frame it hid behind; a genuine "qala: <words>"
+# keeps its words. There is no exclusion to walk through. K=3 is the AUDIT-SCOPE
+# boundary (not a verdict knob): every scorable primary with content_mass <= K
+# was read in task-16-A2round5-audit.md and split into 28 POINTER (now
+# UNSCORABLE) and the KEEPs below (two one/two-word genuine matns the net
+# surfaces, muslim:274-13 "da'hu" and 581-2, are keeps: they DELIVER a clause).
+# K was validated by auditing the band just
+# above it -- cm 4..7 holds no content-free / topic-deferral / bare-ruling
+# pointer (the one "qala 'an"-shaped record there, nasai:5696, delivers the
+# ruling "ijtanib kulla shay'in yanishsh"). Raising K only adds audited keeps;
+# it can never let a pointer through while every record <= K is audited.
+_CONTENT_MASS_K = 3
+
+_A2R5_CONTENT_MASS_POINTERS = [
+    "hadith:abudawud:1176", "hadith:abudawud:1354", "hadith:abudawud:3609",
+    "hadith:abudawud:4045", "hadith:bukhari:1656", "hadith:bukhari:3332",
+    "hadith:bukhari:4251", "hadith:bukhari:4745", "hadith:ibnmajah:1130",
+    "hadith:muslim:109-2", "hadith:muslim:1183", "hadith:muslim:144-5", "hadith:muslim:1569",
+    "hadith:muslim:1584-3", "hadith:muslim:1730-2", "hadith:muslim:1822-2",
+    "hadith:muslim:1873-3", "hadith:muslim:198-3", "hadith:muslim:2047-3",
+    "hadith:muslim:2359-6", "hadith:muslim:2556-3", "hadith:muslim:2649-2",
+    "hadith:muslim:2987-3", "hadith:muslim:347-2",
+    "hadith:muslim:57-4", "hadith:muslim:686-2", "hadith:muslim:851-3",
+    "hadith:muslim:882",
+]
+
+_CONTENT_MASS_KEEPS = [
+    "hadith:abudawud:1058", "hadith:abudawud:1106", "hadith:abudawud:1150",
+    "hadith:abudawud:1186", "hadith:abudawud:1245", "hadith:abudawud:1344",
+    "hadith:abudawud:1345", "hadith:abudawud:1436", "hadith:abudawud:144",
+    "hadith:abudawud:1468", "hadith:abudawud:1502", "hadith:abudawud:1511",
+    "hadith:abudawud:1585", "hadith:abudawud:1711", "hadith:abudawud:1729",
+    "hadith:abudawud:1747", "hadith:abudawud:1777", "hadith:abudawud:178",
+    "hadith:abudawud:1842", "hadith:abudawud:1891", "hadith:abudawud:1955",
+    "hadith:abudawud:1968", "hadith:abudawud:2018", "hadith:abudawud:2060",
+    "hadith:abudawud:2070", "hadith:abudawud:2085", "hadith:abudawud:2095",
+    "hadith:abudawud:2113", "hadith:abudawud:2148", "hadith:abudawud:2154",
+    "hadith:abudawud:2183", "hadith:abudawud:2205", "hadith:abudawud:2211",
+    "hadith:abudawud:2230", "hadith:abudawud:2317", "hadith:abudawud:2329",
+    "hadith:abudawud:2367", "hadith:abudawud:2370", "hadith:abudawud:2371",
+    "hadith:abudawud:2378", "hadith:abudawud:2383", "hadith:abudawud:2487",
+    "hadith:abudawud:2518", "hadith:abudawud:2545", "hadith:abudawud:2557",
+    "hadith:abudawud:2562", "hadith:abudawud:2582", "hadith:abudawud:2593",
+    "hadith:abudawud:2630", "hadith:abudawud:2636", "hadith:abudawud:2739",
+    "hadith:abudawud:2761", "hadith:abudawud:2808", "hadith:abudawud:2820",
+    "hadith:abudawud:2834", "hadith:abudawud:2836", "hadith:abudawud:2840",
+    "hadith:abudawud:2919", "hadith:abudawud:2935", "hadith:abudawud:3047",
+    "hadith:abudawud:3053", "hadith:abudawud:3085", "hadith:abudawud:3086",
+    "hadith:abudawud:3127", "hadith:abudawud:3128", "hadith:abudawud:3143",
+    "hadith:abudawud:3158", "hadith:abudawud:3216", "hadith:abudawud:3239",
+    "hadith:abudawud:3269", "hadith:abudawud:3271", "hadith:abudawud:328",
+    "hadith:abudawud:3425", "hadith:abudawud:3429", "hadith:abudawud:3438",
+    "hadith:abudawud:3455", "hadith:abudawud:3458", "hadith:abudawud:3480",
+    "hadith:abudawud:3483", "hadith:abudawud:3491", "hadith:abudawud:3508",
+    "hadith:abudawud:3516", "hadith:abudawud:3548", "hadith:abudawud:3580",
+    "hadith:abudawud:3656", "hadith:abudawud:3686", "hadith:abudawud:3701",
+    "hadith:abudawud:3720", "hadith:abudawud:3769", "hadith:abudawud:3785",
+    "hadith:abudawud:3786", "hadith:abudawud:3820", "hadith:abudawud:3821",
+    "hadith:abudawud:3828", "hadith:abudawud:3867", "hadith:abudawud:3870",
+    "hadith:abudawud:3879", "hadith:abudawud:3913", "hadith:abudawud:3933",
+    "hadith:abudawud:3976", "hadith:abudawud:3982", "hadith:abudawud:3991",
+    "hadith:abudawud:4030", "hadith:abudawud:4050", "hadith:abudawud:4081",
+    "hadith:abudawud:4132", "hadith:abudawud:4148", "hadith:abudawud:4150",
+    "hadith:abudawud:4159", "hadith:abudawud:4171", "hadith:abudawud:4226",
+    "hadith:abudawud:4266", "hadith:abudawud:4314", "hadith:abudawud:4317",
+    "hadith:abudawud:4318", "hadith:abudawud:4332", "hadith:abudawud:4392",
+    "hadith:abudawud:4416", "hadith:abudawud:4423", "hadith:abudawud:4424",
+    "hadith:abudawud:4433", "hadith:abudawud:4557", "hadith:abudawud:4558",
+    "hadith:abudawud:4560", "hadith:abudawud:4561", "hadith:abudawud:4562",
+    "hadith:abudawud:4563", "hadith:abudawud:4566", "hadith:abudawud:4580",
+    "hadith:abudawud:4592", "hadith:abudawud:4594", "hadith:abudawud:4603",
+    "hadith:abudawud:4619", "hadith:abudawud:4633", "hadith:abudawud:4717",
+    "hadith:abudawud:4742", "hadith:abudawud:4820", "hadith:abudawud:4947",
+    "hadith:abudawud:4964", "hadith:abudawud:4973", "hadith:abudawud:4976",
+    "hadith:abudawud:5002", "hadith:abudawud:5037", "hadith:abudawud:5122",
+    "hadith:abudawud:5128", "hadith:abudawud:5132", "hadith:abudawud:540",
+    "hadith:abudawud:651", "hadith:abudawud:653", "hadith:abudawud:706", "hadith:abudawud:811",
+    "hadith:abudawud:943", "hadith:abudawud:947", "hadith:bukhari:102", "hadith:bukhari:1081",
+    "hadith:bukhari:1161", "hadith:bukhari:1171", "hadith:bukhari:1325", "hadith:bukhari:1466",
+    "hadith:bukhari:156", "hadith:bukhari:1614", "hadith:bukhari:1639", "hadith:bukhari:1643",
+    "hadith:bukhari:1653", "hadith:bukhari:1657", "hadith:bukhari:1837", "hadith:bukhari:1840",
+    "hadith:bukhari:2035", "hadith:bukhari:2039", "hadith:bukhari:2040", "hadith:bukhari:2075",
+    "hadith:bukhari:2117", "hadith:bukhari:2129", "hadith:bukhari:2158", "hadith:bukhari:2163",
+    "hadith:bukhari:2164", "hadith:bukhari:2270", "hadith:bukhari:2342", "hadith:bukhari:238",
+    "hadith:bukhari:2398", "hadith:bukhari:2678", "hadith:bukhari:2696", "hadith:bukhari:2720",
+    "hadith:bukhari:2865", "hadith:bukhari:2866", "hadith:bukhari:2885", "hadith:bukhari:2954",
+    "hadith:bukhari:3179", "hadith:bukhari:3327", "hadith:bukhari:333", "hadith:bukhari:3350",
+    "hadith:bukhari:346", "hadith:bukhari:3658", "hadith:bukhari:374", "hadith:bukhari:3855",
+    "hadith:bukhari:3883", "hadith:bukhari:3938", "hadith:bukhari:4229", "hadith:bukhari:4411",
+    "hadith:bukhari:4419", "hadith:bukhari:4446", "hadith:bukhari:4472", "hadith:bukhari:448",
+    "hadith:bukhari:4585", "hadith:bukhari:4587", "hadith:bukhari:4639", "hadith:bukhari:466",
+    "hadith:bukhari:4662", "hadith:bukhari:4674", "hadith:bukhari:4758", "hadith:bukhari:4766",
+    "hadith:bukhari:4824", "hadith:bukhari:5033", "hadith:bukhari:5083", "hadith:bukhari:5090",
+    "hadith:bukhari:5115", "hadith:bukhari:5124", "hadith:bukhari:5132", "hadith:bukhari:5134",
+    "hadith:bukhari:5197", "hadith:bukhari:5198", "hadith:bukhari:5205", "hadith:bukhari:5232",
+    "hadith:bukhari:5272", "hadith:bukhari:5274", "hadith:bukhari:5277", "hadith:bukhari:5291",
+    "hadith:bukhari:5306", "hadith:bukhari:5308", "hadith:bukhari:5358", "hadith:bukhari:5369",
+    "hadith:bukhari:537", "hadith:bukhari:5370", "hadith:bukhari:5373", "hadith:bukhari:5408",
+    "hadith:bukhari:5480", "hadith:bukhari:5500", "hadith:bukhari:5520", "hadith:bukhari:5526",
+    "hadith:bukhari:5564", "hadith:bukhari:5577", "hadith:bukhari:5592", "hadith:bukhari:5600",
+    "hadith:bukhari:5627", "hadith:bukhari:5675", "hadith:bukhari:5687", "hadith:bukhari:5801",
+    "hadith:bukhari:5908", "hadith:bukhari:6068", "hadith:bukhari:6272", "hadith:bukhari:6278",
+    "hadith:bukhari:6369", "hadith:bukhari:6375", "hadith:bukhari:6427", "hadith:bukhari:6500",
+    "hadith:bukhari:6562", "hadith:bukhari:674", "hadith:bukhari:6842", "hadith:bukhari:6850",
+    "hadith:bukhari:6863", "hadith:bukhari:6906", "hadith:bukhari:6907", "hadith:bukhari:730",
+    "hadith:bukhari:731", "hadith:bukhari:75", "hadith:bukhari:765", "hadith:bukhari:848",
+    "hadith:bukhari:886", "hadith:bukhari:959", "hadith:ibnmajah:1028", "hadith:ibnmajah:1029",
+    "hadith:ibnmajah:1038", "hadith:ibnmajah:1184", "hadith:ibnmajah:1242",
+    "hadith:ibnmajah:1286", "hadith:ibnmajah:1299", "hadith:ibnmajah:1324",
+    "hadith:ibnmajah:1342", "hadith:ibnmajah:1353", "hadith:ibnmajah:1461",
+    "hadith:ibnmajah:1473", "hadith:ibnmajah:1495", "hadith:ibnmajah:1504",
+    "hadith:ibnmajah:1506", "hadith:ibnmajah:1507", "hadith:ibnmajah:1560",
+    "hadith:ibnmajah:1562", "hadith:ibnmajah:1574", "hadith:ibnmajah:1575",
+    "hadith:ibnmajah:1576", "hadith:ibnmajah:1579", "hadith:ibnmajah:1580",
+    "hadith:ibnmajah:1592", "hadith:ibnmajah:1613", "hadith:ibnmajah:1648",
+    "hadith:ibnmajah:1661", "hadith:ibnmajah:1678", "hadith:ibnmajah:1679",
+    "hadith:ibnmajah:1680", "hadith:ibnmajah:1683", "hadith:ibnmajah:173",
+    "hadith:ibnmajah:1743", "hadith:ibnmajah:1802", "hadith:ibnmajah:1808",
+    "hadith:ibnmajah:1832", "hadith:ibnmajah:1833", "hadith:ibnmajah:1847",
+    "hadith:ibnmajah:1881", "hadith:ibnmajah:1884", "hadith:ibnmajah:1885",
+    "hadith:ibnmajah:1978", "hadith:ibnmajah:1979", "hadith:ibnmajah:2042",
+    "hadith:ibnmajah:2078", "hadith:ibnmajah:2115", "hadith:ibnmajah:2150",
+    "hadith:ibnmajah:2154", "hadith:ibnmajah:2161", "hadith:ibnmajah:2165",
+    "hadith:ibnmajah:2168", "hadith:ibnmajah:2169", "hadith:ibnmajah:2173",
+    "hadith:ibnmajah:2174", "hadith:ibnmajah:2179", "hadith:ibnmajah:2180",
+    "hadith:ibnmajah:2185", "hadith:ibnmajah:2192", "hadith:ibnmajah:2193",
+    "hadith:ibnmajah:2194", "hadith:ibnmajah:2195", "hadith:ibnmajah:2218",
+    "hadith:ibnmajah:2222", "hadith:ibnmajah:2266", "hadith:ibnmajah:2267",
+    "hadith:ibnmajah:2268", "hadith:ibnmajah:2296", "hadith:ibnmajah:234",
+    "hadith:ibnmajah:235", "hadith:ibnmajah:2370", "hadith:ibnmajah:2381",
+    "hadith:ibnmajah:2390", "hadith:ibnmajah:2441", "hadith:ibnmajah:2477",
+    "hadith:ibnmajah:2495", "hadith:ibnmajah:2500", "hadith:ibnmajah:2509",
+    "hadith:ibnmajah:2510", "hadith:ibnmajah:2512", "hadith:ibnmajah:2514",
+    "hadith:ibnmajah:2516", "hadith:ibnmajah:2592", "hadith:ibnmajah:2645",
+    "hadith:ibnmajah:2650", "hadith:ibnmajah:2654", "hadith:ibnmajah:2667",
+    "hadith:ibnmajah:2668", "hadith:ibnmajah:2676", "hadith:ibnmajah:2735",
+    "hadith:ibnmajah:2747", "hadith:ibnmajah:2748", "hadith:ibnmajah:2769",
+    "hadith:ibnmajah:2773", "hadith:ibnmajah:2833", "hadith:ibnmajah:2834",
+    "hadith:ibnmajah:2964", "hadith:ibnmajah:2965", "hadith:ibnmajah:2966",
+    "hadith:ibnmajah:2969", "hadith:ibnmajah:2974", "hadith:ibnmajah:2996",
+    "hadith:ibnmajah:3005", "hadith:ibnmajah:3032", "hadith:ibnmajah:3047",
+    "hadith:ibnmajah:3101", "hadith:ibnmajah:3161", "hadith:ibnmajah:3162",
+    "hadith:ibnmajah:3186", "hadith:ibnmajah:3189", "hadith:ibnmajah:3202",
+    "hadith:ibnmajah:3210", "hadith:ibnmajah:3230", "hadith:ibnmajah:3242",
+    "hadith:ibnmajah:3250", "hadith:ibnmajah:3262", "hadith:ibnmajah:3265",
+    "hadith:ibnmajah:3302", "hadith:ibnmajah:3308", "hadith:ibnmajah:3315",
+    "hadith:ibnmajah:3316", "hadith:ibnmajah:3317", "hadith:ibnmajah:3323",
+    "hadith:ibnmajah:3325", "hadith:ibnmajah:3326", "hadith:ibnmajah:3332",
+    "hadith:ibnmajah:3387", "hadith:ibnmajah:3388", "hadith:ibnmajah:3391",
+    "hadith:ibnmajah:3404", "hadith:ibnmajah:3420", "hadith:ibnmajah:3424",
+    "hadith:ibnmajah:3428", "hadith:ibnmajah:3430", "hadith:ibnmajah:3459",
+    "hadith:ibnmajah:3501", "hadith:ibnmajah:3506", "hadith:ibnmajah:3507",
+    "hadith:ibnmajah:3528", "hadith:ibnmajah:3533", "hadith:ibnmajah:3579",
+    "hadith:ibnmajah:3582", "hadith:ibnmajah:3589", "hadith:ibnmajah:3615",
+    "hadith:ibnmajah:3628", "hadith:ibnmajah:3630", "hadith:ibnmajah:3638",
+    "hadith:ibnmajah:3642", "hadith:ibnmajah:3643", "hadith:ibnmajah:3647",
+    "hadith:ibnmajah:3654", "hadith:ibnmajah:3655", "hadith:ibnmajah:3656",
+    "hadith:ibnmajah:3704", "hadith:ibnmajah:3731", "hadith:ibnmajah:3738",
+    "hadith:ibnmajah:3745", "hadith:ibnmajah:3746", "hadith:ibnmajah:3777",
+    "hadith:ibnmajah:3852", "hadith:ibnmajah:4052", "hadith:ibnmajah:4057",
+    "hadith:ibnmajah:411", "hadith:ibnmajah:417", "hadith:ibnmajah:4252",
+    "hadith:ibnmajah:426", "hadith:ibnmajah:429", "hadith:ibnmajah:433", "hadith:ibnmajah:443",
+    "hadith:ibnmajah:445", "hadith:ibnmajah:463", "hadith:ibnmajah:464", "hadith:ibnmajah:472",
+    "hadith:ibnmajah:473", "hadith:ibnmajah:476", "hadith:ibnmajah:607", "hadith:ibnmajah:651",
+    "hadith:ibnmajah:681", "hadith:ibnmajah:74", "hadith:ibnmajah:75", "hadith:ibnmajah:854",
+    "hadith:ibnmajah:915", "hadith:ibnmajah:929", "hadith:ibnmajah:931", "hadith:ibnmajah:957",
+    "hadith:ibnmajah:985", "hadith:muslim:1004-2", "hadith:muslim:1005",
+    "hadith:muslim:1018-2", "hadith:muslim:1024-2", "hadith:muslim:1032-3",
+    "hadith:muslim:1055-4", "hadith:muslim:1059-3", "hadith:muslim:1068-2",
+    "hadith:muslim:1075-4", "hadith:muslim:1078-2", "hadith:muslim:1080-10",
+    "hadith:muslim:1103-4", "hadith:muslim:1106-11", "hadith:muslim:1107",
+    "hadith:muslim:1115-2", "hadith:muslim:1121-3", "hadith:muslim:1130-2",
+    "hadith:muslim:1141-2", "hadith:muslim:1142-2", "hadith:muslim:1146-2",
+    "hadith:muslim:1151-3", "hadith:muslim:1151-7", "hadith:muslim:1176-2",
+    "hadith:muslim:1178-2", "hadith:muslim:1184-3", "hadith:muslim:1189-4",
+    "hadith:muslim:1211-12", "hadith:muslim:1211-15", "hadith:muslim:1215-2",
+    "hadith:muslim:1225-3", "hadith:muslim:1226-10", "hadith:muslim:1226-8",
+    "hadith:muslim:1250-2", "hadith:muslim:1252-2", "hadith:muslim:1257-2",
+    "hadith:muslim:1262-2", "hadith:muslim:1271", "hadith:muslim:1286-3",
+    "hadith:muslim:1288-2", "hadith:muslim:1288-3", "hadith:muslim:1289-2",
+    "hadith:muslim:1296-5", "hadith:muslim:1301-4", "hadith:muslim:1319-2",
+    "hadith:muslim:1328", "hadith:muslim:133", "hadith:muslim:1332", "hadith:muslim:1344-2",
+    "hadith:muslim:1399-7", "hadith:muslim:1406-8", "hadith:muslim:1407-7",
+    "hadith:muslim:1415-2", "hadith:muslim:1415-3", "hadith:muslim:1415-4",
+    "hadith:muslim:1417", "hadith:muslim:1427-3", "hadith:muslim:1427-4",
+    "hadith:muslim:1439-3", "hadith:muslim:1442-3", "hadith:muslim:1445-7",
+    "hadith:muslim:1455-2", "hadith:muslim:1459-4", "hadith:muslim:1471-11",
+    "hadith:muslim:1471-17", "hadith:muslim:1480-20", "hadith:muslim:1499-2",
+    "hadith:muslim:1504-10", "hadith:muslim:1506", "hadith:muslim:1510-2",
+    "hadith:muslim:1511", "hadith:muslim:1513", "hadith:muslim:1514", "hadith:muslim:1516",
+    "hadith:muslim:1518", "hadith:muslim:1536-11", "hadith:muslim:1536-17",
+    "hadith:muslim:1536-22", "hadith:muslim:1536-23", "hadith:muslim:1539-8",
+    "hadith:muslim:1545", "hadith:muslim:1547-2", "hadith:muslim:1547-6",
+    "hadith:muslim:1547-7", "hadith:muslim:1550-2", "hadith:muslim:1565",
+    "hadith:muslim:1581-2", "hadith:muslim:1584-6", "hadith:muslim:1596-2",
+    "hadith:muslim:1596-4", "hadith:muslim:1604-4", "hadith:muslim:1605-2",
+    "hadith:muslim:1625-13", "hadith:muslim:1625-14", "hadith:muslim:1625-8",
+    "hadith:muslim:1626", "hadith:muslim:1626-2", "hadith:muslim:1656-6",
+    "hadith:muslim:1658-5", "hadith:muslim:1660-2", "hadith:muslim:1669-3",
+    "hadith:muslim:1671-5", "hadith:muslim:1691-5", "hadith:muslim:17-7",
+    "hadith:muslim:1701-2", "hadith:muslim:1706-2", "hadith:muslim:1709-7",
+    "hadith:muslim:1724", "hadith:muslim:1731", "hadith:muslim:1739", "hadith:muslim:1740",
+    "hadith:muslim:1742-4", "hadith:muslim:1750-2", "hadith:muslim:176",
+    "hadith:muslim:1792-2", "hadith:muslim:1796-2", "hadith:muslim:1815-2",
+    "hadith:muslim:1838-3", "hadith:muslim:1838-4", "hadith:muslim:1844-3",
+    "hadith:muslim:1848-2", "hadith:muslim:1848-4", "hadith:muslim:1852-2",
+    "hadith:muslim:1874", "hadith:muslim:1879-2", "hadith:muslim:1888-3",
+    "hadith:muslim:1889-3", "hadith:muslim:1896-2", "hadith:muslim:1911-2",
+    "hadith:muslim:1929-4", "hadith:muslim:1929-5", "hadith:muslim:1938-3",
+    "hadith:muslim:1941-2", "hadith:muslim:1953-2", "hadith:muslim:1966-4",
+    "hadith:muslim:1977-2", "hadith:muslim:1995-2", "hadith:muslim:1995-6",
+    "hadith:muslim:1997-11", "hadith:muslim:1997-8", "hadith:muslim:1998-2",
+    "hadith:muslim:200-3", "hadith:muslim:2023", "hadith:muslim:2024", "hadith:muslim:2025",
+    "hadith:muslim:2025-2", "hadith:muslim:2027-5", "hadith:muslim:2043", "hadith:muslim:2044",
+    "hadith:muslim:2051-2", "hadith:muslim:2080-3", "hadith:muslim:2082-3",
+    "hadith:muslim:2085-2", "hadith:muslim:2089", "hadith:muslim:2101", "hadith:muslim:2114",
+    "hadith:muslim:2116", "hadith:muslim:2123-3", "hadith:muslim:2144-5", "hadith:muslim:2151",
+    "hadith:muslim:2155-3", "hadith:muslim:2165-2", "hadith:muslim:2187",
+    "hadith:muslim:2219-3", "hadith:muslim:2223-2", "hadith:muslim:2232-2",
+    "hadith:muslim:2233-6", "hadith:muslim:2243-2", "hadith:muslim:2255-2",
+    "hadith:muslim:2269-3", "hadith:muslim:2307-3", "hadith:muslim:2310-2",
+    "hadith:muslim:2341-7", "hadith:muslim:2347-2", "hadith:muslim:2350", "hadith:muslim:2379",
+    "hadith:muslim:2380-5", "hadith:muslim:2382-2", "hadith:muslim:2392-3",
+    "hadith:muslim:2400-2", "hadith:muslim:2410-3", "hadith:muslim:2422",
+    "hadith:muslim:2464-4", "hadith:muslim:2480-2", "hadith:muslim:2488-2",
+    "hadith:muslim:2520-2", "hadith:muslim:2522-2", "hadith:muslim:2548-3",
+    "hadith:muslim:2549-2", "hadith:muslim:2559-3", "hadith:muslim:2559-6",
+    "hadith:muslim:2591-2", "hadith:muslim:261-2", "hadith:muslim:2612-2",
+    "hadith:muslim:2641", "hadith:muslim:2670", "hadith:muslim:2704-5", "hadith:muslim:2709-2",
+    "hadith:muslim:2721-2", "hadith:muslim:2737-3", "hadith:muslim:2738-2",
+    "hadith:muslim:2751-2", "hadith:muslim:2756-2", "hadith:muslim:2774-2",
+    "hadith:muslim:2784-2", "hadith:muslim:2801-2", "hadith:muslim:2810-4",
+    "hadith:muslim:2811-4", "hadith:muslim:2843-2", "hadith:muslim:2853-2",
+    "hadith:muslim:2869", "hadith:muslim:287-2", "hadith:muslim:2894-2",
+    "hadith:muslim:2923-2", "hadith:muslim:2935", "hadith:muslim:2939-3",
+    "hadith:muslim:2984-2", "hadith:muslim:2987-2", "hadith:muslim:3024-2",
+    "hadith:muslim:313-2", "hadith:muslim:332-4", "hadith:muslim:373", "hadith:muslim:392-6",
+    "hadith:muslim:406-3", "hadith:muslim:419-3", "hadith:muslim:453-4", "hadith:muslim:463",
+    "hadith:muslim:467-4", "hadith:muslim:47-3", "hadith:muslim:504-3", "hadith:muslim:517-2",
+    "hadith:muslim:518-2", "hadith:muslim:540-4", "hadith:muslim:541-2", "hadith:muslim:546-2",
+    "hadith:muslim:548-2", "hadith:muslim:555", "hadith:muslim:572-3", "hadith:muslim:572-4",
+    "hadith:muslim:572-7", "hadith:muslim:572-9", "hadith:muslim:578", "hadith:muslim:580-4",
+    "hadith:muslim:581", "hadith:muslim:592-2", "hadith:muslim:592-3", "hadith:muslim:612-3",
+    "hadith:muslim:621-2", "hadith:muslim:627-4", "hadith:muslim:632-2", "hadith:muslim:649-3",
+    "hadith:muslim:650-3", "hadith:muslim:650-4", "hadith:muslim:674-5", "hadith:muslim:678-2",
+    "hadith:muslim:694-2", "hadith:muslim:700-8", "hadith:muslim:708-2", "hadith:muslim:724-2",
+    "hadith:muslim:750", "hadith:muslim:754-2", "hadith:muslim:792-6", "hadith:muslim:804-2",
+    "hadith:muslim:81-2", "hadith:muslim:823", "hadith:muslim:830-2", "hadith:muslim:838-2",
+    "hadith:muslim:863-2", "hadith:muslim:872-2", "hadith:muslim:879-3", "hadith:muslim:892-2",
+    "hadith:muslim:907-2", "hadith:muslim:939-2", "hadith:muslim:944-2", "hadith:muslim:945-3",
+    "hadith:muslim:946-2", "hadith:muslim:957", "hadith:muslim:967", "hadith:muslim:969-2",
+    "hadith:muslim:970-3", "hadith:muslim:979-8", "hadith:nasai:1014", "hadith:nasai:1015",
+    "hadith:nasai:105", "hadith:nasai:1086", "hadith:nasai:121", "hadith:nasai:1316",
+    "hadith:nasai:1355", "hadith:nasai:142", "hadith:nasai:1516", "hadith:nasai:1531",
+    "hadith:nasai:1661", "hadith:nasai:1683", "hadith:nasai:1684", "hadith:nasai:1687",
+    "hadith:nasai:1706", "hadith:nasai:1755", "hadith:nasai:179", "hadith:nasai:1824",
+    "hadith:nasai:1829", "hadith:nasai:1905", "hadith:nasai:1982", "hadith:nasai:199",
+    "hadith:nasai:1999", "hadith:nasai:2005", "hadith:nasai:2029", "hadith:nasai:2030",
+    "hadith:nasai:2139", "hadith:nasai:2143", "hadith:nasai:2176", "hadith:nasai:2181",
+    "hadith:nasai:2224", "hadith:nasai:2225", "hadith:nasai:2226", "hadith:nasai:2227",
+    "hadith:nasai:2228", "hadith:nasai:2229", "hadith:nasai:226", "hadith:nasai:2273",
+    "hadith:nasai:2292", "hadith:nasai:2355", "hadith:nasai:2356", "hadith:nasai:2362",
+    "hadith:nasai:2364", "hadith:nasai:2465", "hadith:nasai:2610", "hadith:nasai:2611",
+    "hadith:nasai:2616", "hadith:nasai:2683", "hadith:nasai:2707", "hadith:nasai:2708",
+    "hadith:nasai:2715", "hadith:nasai:2716", "hadith:nasai:2728", "hadith:nasai:2730",
+    "hadith:nasai:2772", "hadith:nasai:2786", "hadith:nasai:2838", "hadith:nasai:2885",
+    "hadith:nasai:2886", "hadith:nasai:2940", "hadith:nasai:2977", "hadith:nasai:3015",
+    "hadith:nasai:3045", "hadith:nasai:3206", "hadith:nasai:3213", "hadith:nasai:3214",
+    "hadith:nasai:3334", "hadith:nasai:3452", "hadith:nasai:35", "hadith:nasai:3571",
+    "hadith:nasai:3706", "hadith:nasai:3711", "hadith:nasai:3715", "hadith:nasai:3716",
+    "hadith:nasai:3717", "hadith:nasai:3718", "hadith:nasai:3720", "hadith:nasai:3721",
+    "hadith:nasai:3724", "hadith:nasai:3725", "hadith:nasai:3726", "hadith:nasai:3727",
+    "hadith:nasai:3729", "hadith:nasai:3738", "hadith:nasai:3754", "hadith:nasai:3833",
+    "hadith:nasai:3870", "hadith:nasai:3878", "hadith:nasai:3884", "hadith:nasai:3885",
+    "hadith:nasai:3886", "hadith:nasai:3887", "hadith:nasai:3888", "hadith:nasai:3891",
+    "hadith:nasai:3893", "hadith:nasai:3905", "hadith:nasai:3914", "hadith:nasai:3916",
+    "hadith:nasai:3917", "hadith:nasai:4071", "hadith:nasai:4213", "hadith:nasai:4216",
+    "hadith:nasai:4244", "hadith:nasai:4245", "hadith:nasai:4246", "hadith:nasai:4247",
+    "hadith:nasai:4253", "hadith:nasai:43", "hadith:nasai:4343", "hadith:nasai:4386",
+    "hadith:nasai:4438", "hadith:nasai:4442", "hadith:nasai:4498", "hadith:nasai:4505",
+    "hadith:nasai:4509", "hadith:nasai:4511", "hadith:nasai:4512", "hadith:nasai:4518",
+    "hadith:nasai:4529", "hadith:nasai:4531", "hadith:nasai:4535", "hadith:nasai:4536",
+    "hadith:nasai:4572", "hadith:nasai:4580", "hadith:nasai:4591", "hadith:nasai:46",
+    "hadith:nasai:4626", "hadith:nasai:4627", "hadith:nasai:4632", "hadith:nasai:4654",
+    "hadith:nasai:4657", "hadith:nasai:4658", "hadith:nasai:4659", "hadith:nasai:466",
+    "hadith:nasai:4660", "hadith:nasai:4671", "hadith:nasai:4674", "hadith:nasai:4693",
+    "hadith:nasai:4702", "hadith:nasai:4705", "hadith:nasai:4777", "hadith:nasai:4842",
+    "hadith:nasai:4843", "hadith:nasai:4844", "hadith:nasai:4847", "hadith:nasai:4849",
+    "hadith:nasai:4911", "hadith:nasai:4914", "hadith:nasai:4924", "hadith:nasai:4934",
+    "hadith:nasai:4950", "hadith:nasai:4962", "hadith:nasai:4973", "hadith:nasai:4974",
+    "hadith:nasai:4976", "hadith:nasai:5050", "hadith:nasai:5051", "hadith:nasai:5055",
+    "hadith:nasai:5056", "hadith:nasai:5057", "hadith:nasai:5068", "hadith:nasai:5092",
+    "hadith:nasai:5097", "hadith:nasai:5111", "hadith:nasai:5112", "hadith:nasai:5115",
+    "hadith:nasai:5153", "hadith:nasai:5160", "hadith:nasai:5165", "hadith:nasai:5166",
+    "hadith:nasai:5186", "hadith:nasai:5204", "hadith:nasai:5228", "hadith:nasai:5229",
+    "hadith:nasai:5230", "hadith:nasai:5231", "hadith:nasai:5243", "hadith:nasai:5249",
+    "hadith:nasai:5269", "hadith:nasai:5273", "hadith:nasai:5274", "hadith:nasai:5276",
+    "hadith:nasai:5283", "hadith:nasai:5286", "hadith:nasai:533", "hadith:nasai:5343",
+    "hadith:nasai:5368", "hadith:nasai:548", "hadith:nasai:5483", "hadith:nasai:5544",
+    "hadith:nasai:5545", "hadith:nasai:5574", "hadith:nasai:5575", "hadith:nasai:5576",
+    "hadith:nasai:5584", "hadith:nasai:5587", "hadith:nasai:5588", "hadith:nasai:5595",
+    "hadith:nasai:5597", "hadith:nasai:5599", "hadith:nasai:5602", "hadith:nasai:5612",
+    "hadith:nasai:5615", "hadith:nasai:5616", "hadith:nasai:5617", "hadith:nasai:5618",
+    "hadith:nasai:5624", "hadith:nasai:5625", "hadith:nasai:5626", "hadith:nasai:5627",
+    "hadith:nasai:5628", "hadith:nasai:5631", "hadith:nasai:5634", "hadith:nasai:5639",
+    "hadith:nasai:5642", "hadith:nasai:5679", "hadith:nasai:5728", "hadith:nasai:5733",
+    "hadith:nasai:5745", "hadith:nasai:658", "hadith:nasai:676", "hadith:nasai:83",
+    "hadith:nasai:91", "hadith:nasai:961", "hadith:nasai:986", "hadith:nasai:987",
+    "hadith:tirmidhi:1044", "hadith:tirmidhi:1082", "hadith:tirmidhi:1101",
+    "hadith:tirmidhi:1124", "hadith:tirmidhi:1186", "hadith:tirmidhi:1220",
+    "hadith:tirmidhi:1224", "hadith:tirmidhi:1231", "hadith:tirmidhi:1248",
+    "hadith:tirmidhi:1271", "hadith:tirmidhi:1273", "hadith:tirmidhi:1279",
+    "hadith:tirmidhi:1280", "hadith:tirmidhi:1304", "hadith:tirmidhi:1310",
+    "hadith:tirmidhi:133", "hadith:tirmidhi:1337", "hadith:tirmidhi:1390",
+    "hadith:tirmidhi:1392", "hadith:tirmidhi:1466", "hadith:tirmidhi:1675",
+    "hadith:tirmidhi:1677", "hadith:tirmidhi:1695", "hadith:tirmidhi:1708",
+    "hadith:tirmidhi:1710", "hadith:tirmidhi:1725", "hadith:tirmidhi:1733",
+    "hadith:tirmidhi:1738", "hadith:tirmidhi:1742", "hadith:tirmidhi:1756",
+    "hadith:tirmidhi:1760", "hadith:tirmidhi:1771", "hadith:tirmidhi:1772",
+    "hadith:tirmidhi:1778", "hadith:tirmidhi:1808", "hadith:tirmidhi:1824",
+    "hadith:tirmidhi:1831", "hadith:tirmidhi:1839", "hadith:tirmidhi:1840",
+    "hadith:tirmidhi:1842", "hadith:tirmidhi:1844", "hadith:tirmidhi:1864",
+    "hadith:tirmidhi:1881", "hadith:tirmidhi:1883", "hadith:tirmidhi:1890",
+    "hadith:tirmidhi:1904", "hadith:tirmidhi:200", "hadith:tirmidhi:2045",
+    "hadith:tirmidhi:2109", "hadith:tirmidhi:2126", "hadith:tirmidhi:2166",
+    "hadith:tirmidhi:2220", "hadith:tirmidhi:2274", "hadith:tirmidhi:2430",
+    "hadith:tirmidhi:2501", "hadith:tirmidhi:2579", "hadith:tirmidhi:2735",
+    "hadith:tirmidhi:2771", "hadith:tirmidhi:2796", "hadith:tirmidhi:2797",
+    "hadith:tirmidhi:2812", "hadith:tirmidhi:2815", "hadith:tirmidhi:2822",
+    "hadith:tirmidhi:2823", "hadith:tirmidhi:2827", "hadith:tirmidhi:2831",
+    "hadith:tirmidhi:2947", "hadith:tirmidhi:31", "hadith:tirmidhi:3239",
+    "hadith:tirmidhi:331", "hadith:tirmidhi:3338", "hadith:tirmidhi:3371",
+    "hadith:tirmidhi:3384", "hadith:tirmidhi:3411", "hadith:tirmidhi:3486",
+    "hadith:tirmidhi:3642", "hadith:tirmidhi:3650", "hadith:tirmidhi:3741",
+    "hadith:tirmidhi:3765", "hadith:tirmidhi:3777", "hadith:tirmidhi:378",
+    "hadith:tirmidhi:3824", "hadith:tirmidhi:3828", "hadith:tirmidhi:3944",
+    "hadith:tirmidhi:3949", "hadith:tirmidhi:400", "hadith:tirmidhi:467",
+    "hadith:tirmidhi:470", "hadith:tirmidhi:588", "hadith:tirmidhi:63", "hadith:tirmidhi:646",
+    "hadith:tirmidhi:668", "hadith:tirmidhi:774", "hadith:tirmidhi:820", "hadith:tirmidhi:821",
+    "hadith:tirmidhi:851", "hadith:tirmidhi:887", "hadith:tirmidhi:987", "hadith:tirmidhi:991",
+    # A2 round 5: genuine short matns the content-mass net surfaces (cm<=3) but
+    # that DELIVER a self-contained clause -- da'hu "leave him" (the Prophet's
+    # reply at Tabuk, Task 11's canonical meaning-not-length keep) and 581-2.
+    "hadith:muslim:274-13", "hadith:muslim:581-2",
+]
+
+
+def test_no_scorable_record_is_a_low_content_pointer():
+    """R-A3-18 closure gate, round 5 -- the VOCABULARY-FREE backstop.
+
+    Every scorable hadith primary with `content_mass <= K` must be an audited
+    KEEP (`_CONTENT_MASS_KEEPS`), and every id in `_A2R5_CONTENT_MASS_POINTERS`
+    must be unscorable. A NEW low-content scorable record -- a pointer behind
+    ANY frame word, in any token order -- lands here with no exclusion to hide
+    behind, and, not being in the keep list, turns this RED. A MISSING id means
+    an audited keep was wrongly marked unscorable (a real hadith made
+    unverifiable). This gate names no marker: it is the cure for the marker-axis
+    escape pattern that defeated the prior seven closures.
+    """
+    from sanad_ingest.openiti import content_mass
+    from sanad_ingest.audit_lists import UNSCORABLE
+
+    conn = db.connect(str(MATERIALIZED_DB))
+    rows = conn.execute(
+        "SELECT id, norm_aggressive FROM records WHERE kind = 'hadith' "
+        "AND unscorable_reason IS NULL AND norm_aggressive IS NOT NULL"
+    ).fetchall()
+    hits = sorted(r["id"] for r in rows if r["norm_aggressive"]
+                  and content_mass(r["norm_aggressive"]) <= _CONTENT_MASS_K)
+    assert hits == sorted(_CONTENT_MASS_KEEPS), (
+        "the vocabulary-free content-mass partition changed. A NEW id is a "
+        "scorable record whose matn carries <= K content tokens after "
+        "scaffolding is stripped -- read it in context, pin it unscorable in "
+        "audit_lists._A2R5_CONTENT_MASS_POINTERS and task-16-A2round5-audit.md "
+        "if it delivers no self-contained matn, or add it to "
+        "_CONTENT_MASS_KEEPS with its delivered clause named. A MISSING id "
+        "means an audited keep was wrongly marked unscorable.")
+
+    unscorable = {k for coll in UNSCORABLE.values() for k in coll}
+    readmitted = [p for p in _A2R5_CONTENT_MASS_POINTERS if p not in unscorable]
+    assert readmitted == [], (
+        f"audited content-mass pointers no longer pinned unscorable: {readmitted}")
+
+
+def test_net_b_reference_superset_surfaces_no_unaudited_pointer():
+    """R-A3-18 cross-check gate, round 5 -- the reference-superset (net B).
+
+    `find_pure_pointers(exclude_delivery=False)` is the round-4 residue sweep
+    with its delivery guard REMOVED: the whole reference/deferral/chain-bearing
+    population, with no "it contains qala, skip it" exclusion -- the exact
+    defect of round 4. Every low-content member it surfaces (content_mass <= K)
+    must already be audited: pinned unscorable, or an audited content-mass KEEP.
+    A NEW one means a reference-bearing pointer slipped past both nets.
+    """
+    from sanad_ingest.openiti import content_mass, find_pure_pointers
+    from sanad_ingest.audit_lists import UNSCORABLE
+
+    conn = db.connect(str(MATERIALIZED_DB))
+    rows = conn.execute(
+        "SELECT id, norm_aggressive FROM records WHERE kind = 'hadith' "
+        "AND unscorable_reason IS NULL AND norm_aggressive IS NOT NULL"
+    ).fetchall()
+    norms = {r["id"]: r["norm_aggressive"] for r in rows if r["norm_aggressive"]}
+    nb = find_pure_pointers(norms, max_residue=10**9, exclude_delivery=False)
+    unscorable = {k for coll in UNSCORABLE.values() for k in coll}
+    keeps = set(_CONTENT_MASS_KEEPS)
+    unaudited = sorted(
+        rid for rid, _s, _r in nb
+        if content_mass(norms[rid]) <= _CONTENT_MASS_K
+        and rid not in keeps and rid not in unscorable)
+    assert unaudited == [], (
+        "the de-excluded reference-superset surfaced an un-audited low-content "
+        f"pointer: {unaudited}. Read it and pin it unscorable or as a keep.")
+
+
+
 def test_no_unaudited_near_miss_for_the_ibnmajah_compiler_marker():
     """R-A3-20's own detector, run for Ibn Majah's TWO verb+kunya markers at
     once: "قال"/"سئل"/"سمعت" against both the nominative and accusative forms
@@ -3520,7 +3983,9 @@ def test_ibnmajah_record_count_and_scorability():
     cut = conn.execute(
         "SELECT count(*) FROM records WHERE kind='hadith' AND collection='ibnmajah'"
         " AND addenda_ar IS NOT NULL").fetchone()[0]
-    assert (total, scorable, unscorable, cut) == (4341, 4340, 1, 166)
+    # A2 round 5 (content-mass net): +1 unscorable (ibnmajah:1130, an editorial
+    # back-reference "kana rasulu llah [saw] yasna'u dhalika"): 4340 -> 4339.
+    assert (total, scorable, unscorable, cut) == (4341, 4339, 2, 166)
 
 _IBNMAJAH_1_MATN = "".join(chr(c) for c in (
     0x0645, 0x0627, 0x0020, 0x0623, 0x0645, 0x0631, 0x062a, 0x0643, 0x0645, 

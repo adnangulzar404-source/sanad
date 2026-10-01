@@ -883,13 +883,13 @@ def test_no_addendum_reaches_the_primary_representation(real_corpus):
     conn = db.connect(out)
     assert conn.execute(
         "SELECT count(*) FROM records WHERE addenda_ar IS NOT NULL"
-        " AND unscorable_reason IS NOT NULL").fetchone()[0] == 145  # A2 fix-round +8, A2 round 3 +7, A2 round 4 +2 (tirmidhi 595/1096)
+        " AND unscorable_reason IS NOT NULL").fetchone()[0] == 147  # A2 fix-round +8, A2 round 3 +7, A2 round 4 +2 (tirmidhi 595/1096), A2 round 5 +2 (abudawud:1176, muslim:2359-6)
     rows = conn.execute(
         "SELECT r.id, r.text_ar, r.addenda_ar, f.norm_standard,"
         "       f.norm_aggressive FROM records r"
         " JOIN records_fts f ON f.record_id = r.id AND f.variant = 'primary'"
         " WHERE r.addenda_ar IS NOT NULL").fetchall()
-    assert len(rows) == 5701  # A2 fix-round: -8; A2 round 3: -7; A2 round 4: -2 (tirmidhi 595/1096 cross to unscorable)
+    assert len(rows) == 5699  # A2 fix-round: -8; A2 round 3: -7; A2 round 4: -2 (tirmidhi 595/1096 cross to unscorable); A2 round 5: -2 (abudawud:1176, muslim:2359-6 cross to unscorable)
     for row in rows:
         assert row["addenda_ar"] not in row["text_ar"], row["id"]
         for form in ("standard", "aggressive"):
@@ -1015,8 +1015,11 @@ def test_an_empty_scored_text_aborts_the_build():
 _UNSCORABLE_IDS = frozenset(f"hadith:bukhari:{n}" for n in (
     "127", "237", "335", "394", "549", "557", "587", "1379", "1915", "2483",
     "3457", "3750", "3777", "3801", "3957", "4540", "5454", "5837", "3746",
+    "1656", "3332", "4251", "4745",
 ))  # Task 16 A2 added 587 (the "مثله إلى قوله" partial-quote deferral);
-#    A2 round 3 added 3746 (the "fi Badr ya'ni hadith ..." topic-pointer)
+#    A2 round 3 added 3746 (the "fi Badr ya'ni hadith ..." topic-pointer);
+#    A2 round 5 added 1656 (bare "rakhkhasa", no object), 3332 (bare genealogy),
+#    4251/4745 (the commonplace frames "'an al-nabi [saw]"/"sami'tu al-nabi")
 # Famous short matns, read in the source and ruled genuine: "war is deceit",
 # "the moon split", "a rich man's delay is oppression", "every kindness is
 # charity". They are the guard against a length heuristic creeping back in.
@@ -1085,11 +1088,11 @@ def test_editorial_pointers_are_kept_but_never_scored(real_corpus):
     flagged_nasai = {r for r in flagged if r.startswith("hadith:nasai:")}
     flagged_ibnmajah = {r for r in flagged if r.startswith("hadith:ibnmajah:")}
     assert flagged_bukhari == set(_UNSCORABLE_IDS)
-    assert len(flagged_muslim) == 963  # A2 fix-round +132, C0 residue +5, A2 round 3 +38, A2 round 4 +38
-    assert len(flagged_abudawud) == 156  # A2 fix-round +6, A2 round 3 +6, A2 round 4 +5
+    assert len(flagged_muslim) == 982  # A2 fix-round +132, C0 residue +5, A2 round 3 +38, A2 round 4 +38, A2 round 5 +19
+    assert len(flagged_abudawud) == 160  # A2 fix-round +6, A2 round 3 +6, A2 round 4 +5, A2 round 5 +4
     assert len(flagged_tirmidhi) == 97  # A2 fix-round +13, A2 round 3 +2, A2 round 4 +2
     assert len(flagged_nasai) == 61  # A2 round 3 +3, A2 round 4 +1
-    assert flagged_ibnmajah == {"hadith:ibnmajah:413"}
+    assert flagged_ibnmajah == {"hadith:ibnmajah:413", "hadith:ibnmajah:1130"}  # A2 round 5 +1130 (bare "yasna' dhalik")
     assert flagged == (flagged_bukhari | flagged_muslim | flagged_abudawud
                         | flagged_tirmidhi | flagged_nasai | flagged_ibnmajah)
     for record_id in sorted(_UNSCORABLE_IDS):
@@ -1156,6 +1159,15 @@ def test_no_unscorable_primary_is_in_the_search_index(real_corpus):
     stays as a scorable "full" representation (abudawud 4555/5035, muslim
     2036-2/2821-2, nasai:3903, tirmidhi 890/1299). The other 43 have no
     addendum and so add no index row.
+
+    Task 16 A2 round 4 raises this to 145: 2 of the 46 omission/comparison
+    records newly excluded carried a prior round's cut addendum (tirmidhi
+    595/1096). The other 44 have no addendum.
+
+    Task 16 A2 round 5 raises this to 147: 2 of the 28 content-mass pointers
+    newly excluded carried a prior round's cut addendum, kept as a scorable
+    "full" representation (abudawud:1176, muslim:2359-6). The other 26 have no
+    addendum and so add no index row.
     """
     out, _, _ = real_corpus
     rows = db.connect(out).execute(
@@ -1164,7 +1176,8 @@ def test_no_unscorable_primary_is_in_the_search_index(real_corpus):
         " WHERE r.unscorable_reason IS NOT NULL"
         " ORDER BY f.record_id").fetchall()
     assert [(r["record_id"], r["variant"]) for r in rows] == \
-        [("hadith:abudawud:1200", "full"),
+        [("hadith:abudawud:1176", "full"),  # A2 round 5: content-mass pointer with an A1-cut addendum
+         ("hadith:abudawud:1200", "full"),
          ("hadith:abudawud:1302", "full"),
          ("hadith:abudawud:1405", "full"),
          ("hadith:abudawud:1604", "full"),
@@ -1214,6 +1227,7 @@ def test_no_unscorable_primary_is_in_the_search_index(real_corpus):
          ("hadith:muslim:1855-3", "full"),
          ("hadith:muslim:1915-3", "full"),
          ("hadith:muslim:2036-2", "full"),
+         ("hadith:muslim:2359-6", "full"),  # A2 round 5: content-mass pointer with an A1-cut addendum
          ("hadith:muslim:2821-2", "full"),
          ("hadith:muslim:546-3", "full"),
          ("hadith:nasai:1786", "full"),

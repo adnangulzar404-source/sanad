@@ -883,13 +883,13 @@ def test_no_addendum_reaches_the_primary_representation(real_corpus):
     conn = db.connect(out)
     assert conn.execute(
         "SELECT count(*) FROM records WHERE addenda_ar IS NOT NULL"
-        " AND unscorable_reason IS NOT NULL").fetchone()[0] == 143  # A2 fix-round +8, A2 round 3 +7
+        " AND unscorable_reason IS NOT NULL").fetchone()[0] == 145  # A2 fix-round +8, A2 round 3 +7, A2 round 4 +2 (tirmidhi 595/1096)
     rows = conn.execute(
         "SELECT r.id, r.text_ar, r.addenda_ar, f.norm_standard,"
         "       f.norm_aggressive FROM records r"
         " JOIN records_fts f ON f.record_id = r.id AND f.variant = 'primary'"
         " WHERE r.addenda_ar IS NOT NULL").fetchall()
-    assert len(rows) == 5703  # A2 fix-round: -8; A2 round 3: -7 (newly-unscorable records that carried an addendum)
+    assert len(rows) == 5701  # A2 fix-round: -8; A2 round 3: -7; A2 round 4: -2 (tirmidhi 595/1096 cross to unscorable)
     for row in rows:
         assert row["addenda_ar"] not in row["text_ar"], row["id"]
         for form in ("standard", "aggressive"):
@@ -1085,10 +1085,10 @@ def test_editorial_pointers_are_kept_but_never_scored(real_corpus):
     flagged_nasai = {r for r in flagged if r.startswith("hadith:nasai:")}
     flagged_ibnmajah = {r for r in flagged if r.startswith("hadith:ibnmajah:")}
     assert flagged_bukhari == set(_UNSCORABLE_IDS)
-    assert len(flagged_muslim) == 925  # A2 fix-round +132, C0 residue +5, A2 round 3 +38
-    assert len(flagged_abudawud) == 151  # A2 fix-round +6, A2 round 3 +6
-    assert len(flagged_tirmidhi) == 95  # A2 fix-round +13, A2 round 3 +2
-    assert len(flagged_nasai) == 60  # A2 round 3 +3
+    assert len(flagged_muslim) == 963  # A2 fix-round +132, C0 residue +5, A2 round 3 +38, A2 round 4 +38
+    assert len(flagged_abudawud) == 156  # A2 fix-round +6, A2 round 3 +6, A2 round 4 +5
+    assert len(flagged_tirmidhi) == 97  # A2 fix-round +13, A2 round 3 +2, A2 round 4 +2
+    assert len(flagged_nasai) == 61  # A2 round 3 +3, A2 round 4 +1
     assert flagged_ibnmajah == {"hadith:ibnmajah:413"}
     assert flagged == (flagged_bukhari | flagged_muslim | flagged_abudawud
                         | flagged_tirmidhi | flagged_nasai | flagged_ibnmajah)
@@ -1233,6 +1233,7 @@ def test_no_unscorable_primary_is_in_the_search_index(real_corpus):
          ("hadith:nasai:5695", "full"),
          ("hadith:nasai:648", "full"),
          ("hadith:tirmidhi:1051", "full"),
+         ("hadith:tirmidhi:1096", "full"),
          ("hadith:tirmidhi:1104", "full"),
          ("hadith:tirmidhi:111", "full"),
          ("hadith:tirmidhi:119", "full"),
@@ -1284,6 +1285,7 @@ def test_no_unscorable_primary_is_in_the_search_index(real_corpus):
          ("hadith:tirmidhi:566", "full"),
          ("hadith:tirmidhi:569", "full"),
          ("hadith:tirmidhi:574", "full"),
+         ("hadith:tirmidhi:595", "full"),
          ("hadith:tirmidhi:599", "full"),
          ("hadith:tirmidhi:612", "full"),
          ("hadith:tirmidhi:627", "full"),

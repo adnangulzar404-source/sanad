@@ -1061,7 +1061,7 @@ def test_no_correctly_cited_hadith_is_ever_flagged_wrong_reference(conn):
         if m.verdict is Verdict.WRONG_REFERENCE or m.record is None \
                 or m.record.hadith_no != r.hadith_no:
             bad.append((r.id, m.verdict, m.record.id if m.record else None))
-    assert checked == 32698, checked  # Task 15 32,934 - 30 (A1+A2) - 151 (A2 fix) - 5 (C0) - 50 (A2 round 3)
+    assert checked == 32652, checked  # Task 15 32,934 - 30 (A1+A2) - 151 (A2 fix) - 5 (C0) - 50 (A2 round 3) - 46 (A2 round 4)
     assert bad == [], f"{len(bad)} regressed, e.g. {bad[:5]}"
 
 
@@ -1082,7 +1082,7 @@ def test_no_correctly_cited_hadith_is_flagged_in_the_arabic_citation_form(conn):
         if m.verdict is Verdict.WRONG_REFERENCE or m.record is None \
                 or m.record.hadith_no != r.hadith_no:
             bad.append((r.id, m.verdict, m.record.id if m.record else None))
-    assert checked == 32698, checked  # Task 15 32,934 - 30 (A1+A2) - 151 (A2 fix) - 5 (C0) - 50 (A2 round 3)
+    assert checked == 32652, checked  # Task 15 32,934 - 30 (A1+A2) - 151 (A2 fix) - 5 (C0) - 50 (A2 round 3) - 46 (A2 round 4)
     assert bad == [], f"{len(bad)} regressed, e.g. {bad[:5]}"
 
 
@@ -1139,7 +1139,7 @@ def test_every_wrongly_cited_hadith_is_flagged(conn):
         checked += 1
         if m.verdict is not Verdict.WRONG_REFERENCE:
             bad.append((r.id, m.verdict))
-    assert checked == 32692, checked  # Task 15 32,928 - 30 (A1+A2) - 151 (A2 fix) - 5 (C0) - 50 (A2 round 3)
+    assert checked == 32646, checked  # Task 15 32,928 - 30 (A1+A2) - 151 (A2 fix) - 5 (C0) - 50 (A2 round 3) - 46 (A2 round 4)
     assert bad == [], f"{len(bad)} not flagged, e.g. {bad[:5]}"
 
 
@@ -1189,7 +1189,7 @@ def test_every_record_cited_as_the_other_kind_is_flagged(conn):
         checked += 1
         if m.verdict is not Verdict.WRONG_REFERENCE or m.given_reference is None:
             bad.append((r.id, m.verdict))
-    assert checked == 38934, checked  # Task 15 39,170 - 30 (A1+A2) - 151 (A2 fix) - 5 (C0) - 50 (A2 round 3)
+    assert checked == 38888, checked  # Task 15 39,170 - 30 (A1+A2) - 151 (A2 fix) - 5 (C0) - 50 (A2 round 3) - 46 (A2 round 4)
     assert bad == [], f"{len(bad)} not flagged, e.g. {bad[:5]}"
 
 

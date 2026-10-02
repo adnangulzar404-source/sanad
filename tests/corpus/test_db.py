@@ -184,12 +184,8 @@ def test_the_fts_index_never_sees_the_isnad(tmp_path):
     db.insert_source(conn, _a_source(id="openiti-bukhari-jk000110", kind="hadith-arabic"))
     db.insert_records(conn, [_a_hadith_record()])
     db.rebuild_fts(conn)
-    indexed = " ".join(
-        f"{r['norm_standard']} {r['norm_aggressive']} {r['translation']}"
-        for r in conn.execute(
-            "SELECT norm_standard, norm_aggressive, translation FROM records_fts"))
-    assert "matnword" in indexed, "the matn must be searchable"
-    assert "isnadword" not in indexed
+    assert len(db.fts_candidates(conn, "matnword")) == 1, "the matn must be searchable"
+    assert len(db.fts_candidates(conn, "isnadword")) == 0
 
 
 def test_an_addendum_is_indexed_only_as_part_of_the_full_text(tmp_path):
@@ -210,13 +206,14 @@ def test_an_addendum_is_indexed_only_as_part_of_the_full_text(tmp_path):
         norm_standard="matnword addendaword",
         norm_aggressive="matnword addendaword")])
     db.rebuild_fts(conn)
-    rows = {r["variant"]: f"{r['norm_standard']} {r['norm_aggressive']}"
-            for r in conn.execute(
-                "SELECT variant, norm_standard, norm_aggressive FROM records_fts")}
-    assert set(rows) == {"primary", "full"}
-    assert "addendaword" not in rows["primary"]
-    assert "addendaword" in rows["full"]
-    assert "isnadword" not in " ".join(rows.values())
+    variants = {r[0] for r in conn.execute(
+        "SELECT variant FROM fts_rowid_map")}
+    assert variants == {"primary", "full"}
+    # addendaword is not searchable via the primary representation
+    assert len(db.fts_candidates(conn, "addendaword matnword")) == 2  # both reps hit
+    primary_cands = [c for c in db.fts_candidates(conn, "addendaword") if c.variant == "primary"]
+    assert primary_cands == [], "addendum must not be in the primary's norms"
+    assert len(db.fts_candidates(conn, "isnadword")) == 0
 
 
 def test_a_record_indexed_twice_is_still_one_search_result(tmp_path):
@@ -289,7 +286,7 @@ def test_an_excluded_records_second_representation_is_indexed(tmp_path):
         norm_aggressive="matnword addendaword")])
     db.rebuild_fts(conn)
     indexed = conn.execute(
-        "SELECT variant FROM records_fts").fetchall()
+        "SELECT variant FROM fts_rowid_map").fetchall()
     assert [r["variant"] for r in indexed] == ["full"]
     # the full text is a candidate; the primary is not
     assert {c.variant for c in db.fts_candidates(conn, "addendaword")} == {"full"}
@@ -377,12 +374,12 @@ def test_deleting_a_variant_row_changes_the_fingerprint(tmp_path):
 
 
 def test_deleting_an_index_row_changes_the_fingerprint(conn):
-    """`records_fts` is derived from the other tables, which is exactly why
+    """`fts_rowid_map` is derived from the other tables, which is exactly why
     it has to be in the comparison: a build that wrote the records correctly
     and indexed them wrongly puts them out of reach of every tier, and every
     row of `records` still matches."""
     before = db.corpus_fingerprint(conn)
-    conn.execute("DELETE FROM records_fts WHERE record_id = 'quran:112:1'")
+    conn.execute("DELETE FROM fts_rowid_map WHERE record_id = 'quran:112:1'")
     conn.commit()
     assert db.corpus_fingerprint(conn) != before
 
@@ -418,6 +415,12 @@ def test_the_fingerprint_covers_every_table_the_build_writes():
     in the schema that the shipped corpus actually has rows in must be in the
     fingerprint; a new table added to the build and not here would otherwise
     go uncompared in silence, which is what F5 was.
+
+    `records_fts` is the one intentional exception: contentless FTS5 tables
+    expose no queryable content columns, only a token index. Coverage is
+    provided by `fts_rowid_map` (which IS fingerprinted) -- its (record_id,
+    variant) pairs are the source of the FTS rowids, so any row missing from
+    the map means a record that cannot be found by MATCH.
     """
     import re
 
@@ -426,7 +429,8 @@ def test_the_fingerprint_covers_every_table_the_build_writes():
                           SCHEMA_SQL)
     assert len(declared) >= 6, declared
     conn = db.connect(MATERIALIZED_DB)
-    populated = {t for t in declared if _rows_of(conn, t)}
+    # records_fts is contentless FTS5 -- no columns to fingerprint; covered via fts_rowid_map.
+    populated = {t for t in declared if _rows_of(conn, t)} - {"records_fts"}
     covered = {t for t, _cols, _order in db.FINGERPRINT_TABLES}
     assert populated - covered == set(), populated - covered
     assert covered - populated == set(), covered - populated

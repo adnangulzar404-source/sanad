@@ -50,6 +50,7 @@ def _strip_to_source(full_path, src_path):
     conn = sqlite3.connect(src_path)
     conn.executescript("""
         DROP TABLE IF EXISTS records_fts;
+        DROP TABLE IF EXISTS fts_rowid_map;
         DROP TABLE IF EXISTS record_variants;
     """)
     cols = [row[1] for row in conn.execute("PRAGMA table_info(records)").fetchall()]

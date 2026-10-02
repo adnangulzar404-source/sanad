@@ -447,7 +447,9 @@ def test_fts_does_not_index_the_isnad(real_corpus):
     """
     out, _, _ = real_corpus
     hits = {r[0] for r in db.connect(out).execute(
-        "SELECT record_id FROM records_fts WHERE records_fts MATCH ?",
+        "SELECT m.record_id"
+        " FROM (SELECT rowid FROM records_fts WHERE records_fts MATCH ?) f"
+        " JOIN fts_rowid_map m ON m.rowid = f.rowid",
         (_AL_HUMAYDI,)).fetchall()}
     assert "hadith:bukhari:1" not in hits, "the isnad must not be searchable text"
 
@@ -473,26 +475,22 @@ def test_fts_indexes_the_record_norms_and_nothing_else(real_corpus):
     # since it does not join to a `records` norm in the first place.
     out, _, _ = real_corpus
     conn = db.connect(out)
-    differing = conn.execute(
-        "SELECT count(*) FROM records_fts f JOIN records r ON r.id = f.record_id"
-        " WHERE f.variant = 'primary'"
-        "   AND (f.norm_standard IS NOT r.norm_standard"
-        "     OR f.norm_aggressive IS NOT r.norm_aggressive)").fetchone()[0]
-    assert differing == 0
-    differing_variants = conn.execute(
-        "SELECT count(*) FROM records_fts f JOIN record_variants v"
-        "   ON v.record_id = f.record_id AND v.variant = f.variant"
-        " WHERE f.variant <> 'primary'"
-        "   AND (f.norm_standard IS NOT v.norm_standard"
-        "     OR f.norm_aggressive IS NOT v.norm_aggressive)").fetchone()[0]
-    assert differing_variants == 0
-    # ... and no index row belongs to neither source.
-    orphans = conn.execute(
-        "SELECT count(*) FROM records_fts f WHERE f.variant <> 'primary'"
-        " AND NOT EXISTS (SELECT 1 FROM record_variants v"
-        "                 WHERE v.record_id = f.record_id"
-        "                   AND v.variant = f.variant)").fetchone()[0]
-    assert orphans == 0
+    # Every primary in fts_rowid_map must be a scorable record.
+    orphan_primaries = conn.execute(
+        "SELECT count(*) FROM fts_rowid_map m"
+        " WHERE m.variant = 'primary'"
+        "   AND NOT EXISTS (SELECT 1 FROM records r"
+        "                    WHERE r.id = m.record_id"
+        "                      AND r.unscorable_reason IS NULL)").fetchone()[0]
+    assert orphan_primaries == 0
+    # Every non-primary in fts_rowid_map must have a record_variants row.
+    orphan_variants = conn.execute(
+        "SELECT count(*) FROM fts_rowid_map m"
+        " WHERE m.variant != 'primary'"
+        "   AND NOT EXISTS (SELECT 1 FROM record_variants v"
+        "                    WHERE v.record_id = m.record_id"
+        "                      AND v.variant = m.variant)").fetchone()[0]
+    assert orphan_variants == 0
 
 
 def test_every_hadith_norm_derives_from_its_matn_alone(real_corpus):
@@ -885,9 +883,9 @@ def test_no_addendum_reaches_the_primary_representation(real_corpus):
         "SELECT count(*) FROM records WHERE addenda_ar IS NOT NULL"
         " AND unscorable_reason IS NOT NULL").fetchone()[0] == 179  # A2 read sweep +42 (POINTERs carrying an addendum), A2 fix-round +8, A2 round 3 +7, A2 round 4 +2 (tirmidhi 595/1096), A2 round 5 +2 (abudawud:1176, muslim:2359-6)
     rows = conn.execute(
-        "SELECT r.id, r.text_ar, r.addenda_ar, f.norm_standard,"
-        "       f.norm_aggressive FROM records r"
-        " JOIN records_fts f ON f.record_id = r.id AND f.variant = 'primary'"
+        "SELECT r.id, r.text_ar, r.addenda_ar, r.norm_standard,"
+        "       r.norm_aggressive FROM records r"
+        " JOIN fts_rowid_map m ON m.record_id = r.id AND m.variant = 'primary'"
         " WHERE r.addenda_ar IS NOT NULL").fetchall()
     assert len(rows) == 5660  # A2 read sweep: -42 (POINTERs carrying an addendum cross to unscorable; restored bukhari:3332 has none); A2 fix-round: -8; A2 round 3: -7; A2 round 4: -2 (tirmidhi 595/1096 cross to unscorable); A2 round 5: -2 (abudawud:1176, muslim:2359-6 cross to unscorable)
     for row in rows:
@@ -970,7 +968,7 @@ def test_an_unscorable_records_full_text_is_still_a_representation(real_corpus):
         "SELECT count(*) FROM record_variants WHERE record_id = 'hadith:bukhari:237'"
     ).fetchone()[0] == 1
     variants = [r[0] for r in conn.execute(
-        "SELECT variant FROM records_fts WHERE record_id = 'hadith:bukhari:237'")]
+        "SELECT variant FROM fts_rowid_map WHERE record_id = 'hadith:bukhari:237'")]
     assert variants == ["full"]
 
 
@@ -1185,10 +1183,10 @@ def test_no_unscorable_primary_is_in_the_search_index(real_corpus):
     """
     out, _, _ = real_corpus
     rows = db.connect(out).execute(
-        "SELECT f.record_id, f.variant FROM records_fts f"
-        " JOIN records r ON r.id = f.record_id"
+        "SELECT m.record_id, m.variant FROM fts_rowid_map m"
+        " JOIN records r ON r.id = m.record_id"
         " WHERE r.unscorable_reason IS NOT NULL"
-        " ORDER BY f.record_id").fetchall()
+        " ORDER BY m.record_id").fetchall()
     assert [(r["record_id"], r["variant"]) for r in rows] == \
         [("hadith:abudawud:1176", "full"),  # A2 round 5: content-mass pointer with an A1-cut addendum
          ("hadith:abudawud:1200", "full"),
@@ -1382,7 +1380,7 @@ def test_a_famous_short_matn_is_still_indexed_and_scorable(real_corpus):
     for record_id in _GENUINE_SHORT_IDS:
         assert db.get_record(conn, record_id).unscorable_reason is None, record_id
         assert conn.execute(
-            "SELECT count(*) FROM records_fts WHERE record_id = ? AND variant = 'primary'",
+            "SELECT count(*) FROM fts_rowid_map WHERE record_id = ? AND variant = 'primary'",
             (record_id,)).fetchone()[0] == 1, record_id
 
 

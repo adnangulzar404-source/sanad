@@ -1,3 +1,9 @@
+> **SUPERSEDED (2026-10-02).** This audit claimed to close the pure-pointer
+> class. That claim was wrong: the re-review found 75 more scorable pointers.
+> Safety now rests on the hand-read sweep in sweep/FINAL-RULINGS.tsv (501 POINTER
+> / 8,220 KEEP), committed as tests/ingest/data/pointer_sweep_rulings.tsv.
+> content_mass only defines the population, not the safety net.
+
 # Task 16 — A2 round 5 audit: the vocabulary-free content-mass net
 
 Base commit `1dd8a3f` (round 4). All Arabic below is copied byte-exact from the

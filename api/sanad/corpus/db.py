@@ -108,39 +108,48 @@ def insert_translations(conn: sqlite3.Connection,
 def rebuild_fts(conn: sqlite3.Connection) -> None:
     """Rebuild the search index over every SCORABLE REPRESENTATION's own norms.
 
-    Two inserts, one per source of a representation: `records` supplies the
-    primary, `record_variants` supplies every additional one (today, the full
-    printed text of a record whose matn was cut). A record with an addendum
-    therefore has two index rows -- see `models.RecordVariant` for why both
-    have to be searchable -- and `records_fts.variant` says which is which so
-    a hit can be scored against the text that was actually indexed.
+    Two insert pairs, one per source of a representation: `records` supplies
+    the primary, `record_variants` supplies every additional one (today, the
+    full printed text of a record whose matn was cut). A record with an
+    addendum therefore has two index rows.
 
-    `unscorable_reason IS NULL` filters the FIRST insert only, and that
-    asymmetry is the point. The reason is a judgement about one string -- the
-    primary matn, pinned by its sha256 in the ingest audit -- so it excludes
-    the primary and says nothing about the full printed text, which is a
-    different string. Record 237 is the case: its primary is a "bayna" clause
-    ending at the chain-transfer mark and is rightly unscorable, while its
-    869-character full narration is the longest in the edition and is an
-    ordinary, quotable hadith. Excluding both put that narration out of reach
-    of every tier.
+    `fts_rowid_map` stores (record_id, variant) for each FTS row. Because
+    contentless FTS5 (content="") does not store column values, rowid is the
+    only handle a MATCH result exposes; the map converts it back to a record.
+    Inserts into fts_rowid_map and records_fts are done in the same order with
+    explicit rowids so the two tables agree.
 
-    An excluded primary is still in `records`, still fetched by `get_record`,
-    still displayed.
+    `unscorable_reason IS NULL` filters the PRIMARY insert only -- the reason
+    is a judgement about the primary matn, not the full printed text. Record
+    237's primary is a chain-transfer fragment (rightly excluded) while its
+    869-character full narration is an ordinary quotable hadith; filtering both
+    would put that narration out of reach of every tier.
     """
+    conn.execute("DELETE FROM fts_rowid_map")
     conn.execute("DELETE FROM records_fts")
+    # Populate the rowid map for primaries, then for variants.
     conn.execute(
-        "INSERT INTO records_fts (record_id, variant, norm_standard,"
-        "                         norm_aggressive, translation) "
-        "SELECT r.id, ?, r.norm_standard, r.norm_aggressive,"
-        "       COALESCE((SELECT group_concat(t.text, ' ') FROM translations t"
-        "                 WHERE t.record_id = r.id), '')"
-        " FROM records r WHERE r.unscorable_reason IS NULL", (PRIMARY_VARIANT,))
+        "INSERT INTO fts_rowid_map (record_id, variant)"
+        " SELECT r.id, ? FROM records r WHERE r.unscorable_reason IS NULL",
+        (PRIMARY_VARIANT,))
     conn.execute(
-        "INSERT INTO records_fts (record_id, variant, norm_standard,"
-        "                         norm_aggressive, translation) "
-        "SELECT v.record_id, v.variant, v.norm_standard, v.norm_aggressive, ''"
-        " FROM record_variants v")
+        "INSERT INTO fts_rowid_map (record_id, variant)"
+        " SELECT v.record_id, v.variant FROM record_variants v")
+    conn.commit()
+    # Insert FTS rows at the rowids assigned above.
+    conn.execute(
+        "INSERT INTO records_fts (rowid, norm_standard, norm_aggressive, translation)"
+        " SELECT m.rowid, r.norm_standard, r.norm_aggressive,"
+        "        COALESCE((SELECT group_concat(t.text, ' ') FROM translations t"
+        "                  WHERE t.record_id = r.id), '')"
+        " FROM fts_rowid_map m JOIN records r ON r.id = m.record_id"
+        " WHERE m.variant = ?", (PRIMARY_VARIANT,))
+    conn.execute(
+        "INSERT INTO records_fts (rowid, norm_standard, norm_aggressive, translation)"
+        " SELECT m.rowid, v.norm_standard, v.norm_aggressive, ''"
+        " FROM fts_rowid_map m"
+        " JOIN record_variants v ON v.record_id = m.record_id AND v.variant = m.variant"
+        " WHERE m.variant != ?", (PRIMARY_VARIANT,))
     conn.commit()
 
 
@@ -173,16 +182,18 @@ def fts_candidates(conn: sqlite3.Connection, query_norm: str,
     tokens = [t for t in _FTS_UNSAFE.sub(" ", query_norm).split() if len(t) > 1]
     if not tokens:
         return []
-    match = " OR ".join(f'"{t}"' for t in tokens)
+    match = " OR ".join(tokens)
     rows = conn.execute(
-        f"SELECT r.{', r.'.join(_RECORD_COLS)}, f.variant AS _variant,"
+        f"SELECT r.{', r.'.join(_RECORD_COLS)}, m.variant AS _variant,"
         "        COALESCE(v.text_ar, r.text_ar) AS _match_text,"
         "        COALESCE(v.norm_aggressive, r.norm_aggressive) AS _match_norm"
-        " FROM records_fts f"
-        " JOIN records r ON r.id = f.record_id"
+        " FROM (SELECT rowid, bm25(records_fts) AS rank"
+        "         FROM records_fts WHERE records_fts MATCH ?) f"
+        " JOIN fts_rowid_map m ON m.rowid = f.rowid"
+        " JOIN records r ON r.id = m.record_id"
         " LEFT JOIN record_variants v"
-        "        ON v.record_id = f.record_id AND v.variant = f.variant"
-        " WHERE records_fts MATCH ? ORDER BY bm25(records_fts) LIMIT ?",
+        "        ON v.record_id = m.record_id AND v.variant = m.variant"
+        " ORDER BY f.rank LIMIT ?",
         (match, limit)).fetchall()
     return [Candidate(record=_row_to_record(r), variant=r["_variant"],
                       text_ar=r["_match_text"], norm_aggressive=r["_match_norm"])
@@ -212,12 +223,14 @@ def fts_records(conn: sqlite3.Connection, query_norm: str,
 # for a reason that says nothing about the corpus. Everything else in that row
 # -- licence, attribution, upstream sha256 -- is compared.
 #
-# `records_fts` is derived from the three tables above it and is in here
+# `fts_rowid_map` is derived from the three tables above it and is in here
 # anyway, because that derivation is where a corpus goes wrong silently: a
 # build that stores every record correctly and indexes one of them wrongly
-# puts it out of reach of every tier while every row of `records` still
-# matches. That is not hypothetical -- it is the half of the I1 fix that the
-# CI step's old records-only fingerprint could not see.
+# (or misses a record entirely) puts it out of reach of every tier while every
+# row of `records` still matches. That is not hypothetical -- it is the half
+# of the I1 fix that the CI step's old records-only fingerprint could not see.
+# The map contains (record_id, variant) for every indexed representation; the
+# contentless records_fts stores only the inverted token index, not columns.
 FINGERPRINT_TABLES: tuple[tuple[str, tuple[str, ...], str], ...] = (
     ("sources", tuple(c for c in (
         "id", "kind", "title", "publisher", "edition", "url", "license_id",
@@ -226,8 +239,7 @@ FINGERPRINT_TABLES: tuple[tuple[str, tuple[str, ...], str], ...] = (
     ("records", _RECORD_COLS, "id"),
     ("record_variants", _VARIANT_COLS, "record_id, variant"),
     ("translations", _TRANSLATION_COLS, "record_id, source_id"),
-    ("records_fts", ("record_id", "variant", "norm_standard",
-                     "norm_aggressive", "translation"), "record_id, variant"),
+    ("fts_rowid_map", ("record_id", "variant"), "record_id, variant"),
 )
 
 # The SOURCE half of the fingerprint: the tables and columns a source-only DB

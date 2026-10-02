@@ -6,7 +6,7 @@
   },
   "functions": {
     "app.py": {
-      "excludeFiles": "{tests/**,eval/**,docs/**,web/node_modules/**,web/src/**,web/tests/**,.venv/**,.superpowers/**,.github/**,**/__pycache__/**,**/*.pyc,*.egg-info/**}"
+      "excludeFiles": "{tests/**,eval/**,docs/**,web/node_modules/**,web/src/**,web/tests/**,.venv/**,.superpowers/**,.github/**,**/__pycache__/**,**/*.pyc,*.egg-info/**,data/sanad-quran.db,ingest/**}"
     }
   }
 }

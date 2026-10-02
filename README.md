@@ -18,7 +18,7 @@ sanad-ingest build --out data/sanad-quran.db     # verifies against the lockfile
 uvicorn sanad.api.app:create_app --factory --port 8000
 ```
 
-`sanad-ingest build` re-downloads the pinned source files (Tanzil's Qur'an exports and the six OpenITI hadith sources) and refuses to write a database unless every source's content matches the SHA-256 pinned in `ingest/corpus.lock.toml` — a corpus that cannot be reproduced from the lockfile is not shipped. The database already committed at `data/sanad-quran.db` is the output of exactly this command; running it again is a reproducibility check, not a requirement to get started.
+`sanad-ingest build` re-downloads the pinned source files (Tanzil's Qur'an exports and the six OpenITI hadith sources — Bukhari, Muslim, Abu Dawud, Tirmidhi, al-Nasa'i, Ibn Majah) and refuses to write a database unless every source's content matches the SHA-256 pinned in `ingest/corpus.lock.toml`. The database already committed at `data/sanad-quran.db` is the output of exactly this command; running it again is a reproducibility check, not a requirement to get started.
 
 Or with Docker, which copies the already-built corpus into the image (no network access needed at build time or at run time):
 
@@ -86,8 +86,7 @@ server renders every quotation from the database by id, so a fabricated or
 altered quotation cannot reach the screen.
 
 **Sanad does not grade hadith authenticity.** A result means the quoted text is present in that collection, nothing more.
-Modern authenticity gradings are copyrighted scholarly work and are not
-shipped; Sanad verifies wording, never authenticity.
+Modern authenticity gradings (ṣaḥīḥ, ḥasan, ḍaʿīf) are copyrighted scholarly work; Sanad confirms what al-Bukhari and the other collections record, never a scholarly grade.
 
 ## Corpus and licensing
 

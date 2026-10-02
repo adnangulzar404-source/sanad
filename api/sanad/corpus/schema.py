@@ -95,8 +95,6 @@ CREATE TABLE IF NOT EXISTS embeddings (
 # `db.DERIVED_SCHEMA_SQL` call sites and the Stage A3 plan.
 DERIVED_SCHEMA_SQL = """
 CREATE INDEX IF NOT EXISTS idx_records_ref ON records(surah, ayah);
-CREATE INDEX IF NOT EXISTS idx_records_norm_std ON records(norm_standard);
-CREATE INDEX IF NOT EXISTS idx_records_norm_light ON records(norm_light);
 
 -- Additional scorable representations of a record's text. One row per
 -- representation BEYOND records.text_ar -- today exactly one kind, 'full'
@@ -113,20 +111,26 @@ CREATE TABLE IF NOT EXISTS record_variants (
   PRIMARY KEY (record_id, variant)
 );
 
-CREATE INDEX IF NOT EXISTS idx_variants_norm_light ON record_variants(norm_light);
-CREATE INDEX IF NOT EXISTS idx_variants_norm_std ON record_variants(norm_standard);
+-- Maps each FTS5 rowid to its (record_id, variant) so that MATCH results can
+-- be joined back to `records` and `record_variants`. Needed because contentless
+-- FTS5 (content="") does not store column values -- it stores only the
+-- inverted token index and exposes nothing but `rowid` after a MATCH.
+CREATE TABLE IF NOT EXISTS fts_rowid_map (
+  rowid     INTEGER PRIMARY KEY,
+  record_id TEXT NOT NULL,
+  variant   TEXT NOT NULL
+);
 
--- One row per SCORABLE REPRESENTATION, not one row per record: a record with
--- an addendum has two (see record_variants). `variant` names which one, so a
--- hit can be scored against the text that was actually indexed rather than
--- against whatever happens to be in records.text_ar.
+-- Contentless FTS5: the inverted token index only -- no duplicate copy of
+-- norm/translation text already in `records` and `record_variants`. Saves
+-- ~30 MB vs the content-bearing form. rowid of each row matches the
+-- corresponding row in fts_rowid_map, enabling the join after a MATCH.
 CREATE VIRTUAL TABLE IF NOT EXISTS records_fts USING fts5(
-  record_id UNINDEXED,
-  variant UNINDEXED,
   norm_standard,
   norm_aggressive,
   translation,
-  tokenize = "unicode61 remove_diacritics 2"
+  tokenize = "unicode61 remove_diacritics 2",
+  content = ""
 );
 """
 

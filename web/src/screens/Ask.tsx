@@ -5,7 +5,12 @@ import { AskEvidenceCard } from "../components/AskEvidenceCard";
 import { ErrorState } from "../components/ErrorState";
 import { HandoffCard } from "../components/HandoffCard";
 
-const EXAMPLE = "Is there a hadith that actions are judged by intentions?";
+const EXAMPLES = [
+  "Is there a hadith that actions are judged by intentions?",
+  "What does the Qur'an say about patience?",
+  "Is there a hadith about cleanliness being half of faith?",
+  "What did the Prophet say about treating neighbours?",
+];
 
 const MARK: Record<string, string> = { done: "✓", active: "…", pending: "·" };
 
@@ -184,14 +189,15 @@ export function Ask() {
                              color: "var(--page)", cursor: "pointer" }}>
               {phase === "streaming" ? "Thinking…" : "Ask"}
             </button>
-            {!hasThread && (
-              <button type="button" onClick={() => setQuestion(EXAMPLE)}
-                      style={{ font: "inherit", padding: "0.5rem 1.25rem",
+            {!hasThread && EXAMPLES.map((ex) => (
+              <button key={ex} type="button" onClick={() => setQuestion(ex)}
+                      style={{ font: "inherit", fontSize: "var(--step--1)",
+                               padding: "0.35rem 0.75rem",
                                border: "1px solid var(--ink-30)", background: "transparent",
                                color: "var(--ink)", cursor: "pointer" }}>
-                Load example
+                {ex}
               </button>
-            )}
+            ))}
             {hasThread && (
               <button type="button" onClick={handleStartOver}
                       style={{ font: "inherit", padding: "0.5rem 1.25rem",

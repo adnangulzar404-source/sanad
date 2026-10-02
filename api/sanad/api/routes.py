@@ -13,6 +13,7 @@ from ..agents.claude_client import ClaudeError, resolve_anthropic_key
 from ..arabic.normalize import normalize
 from ..corpus import db
 from ..corpus.models import Record
+from ..pipeline.claim_orchestrate import run_claim_check
 from ..pipeline.orchestrate import run_ask
 from ..retrieve.voyage import VoyageError, resolve_voyage_key
 from ..text.reverent import reverent
@@ -22,7 +23,9 @@ from .schemas import (
     AskFinalOut,  # noqa: F401 -- documents the `final` event's payload shape
     AskRequest,
     AskTurn,  # noqa: F401 -- documents the history turn shape
+    ClaimCheckRequest,
     ClaimOut,
+    ClaimResultOut,  # noqa: F401 -- documents the `assess` event's record shape
     CorpusResponse,
     CorpusSourceOut,
     CorpusStatsOut,
@@ -364,6 +367,44 @@ def ask(payload: AskRequest, request: Request) -> StreamingResponse:
             reached = {"quran": False, "hadith": False}
 
         _write_ask_audit(request, status, risk, record_ids, reached, error_detail=error_detail)
+
+    return StreamingResponse(_sse(), media_type="text/event-stream")
+
+
+@router.post("/claim-check")
+def claim_check(payload: ClaimCheckRequest, request: Request) -> StreamingResponse:
+    """Stream English claim-check results as text/event-stream.
+
+    Events: extract → assess → final (or error). The `assess` event's
+    `results[*].records` are fetched from the corpus by ID -- the model
+    never writes Arabic text directly into the response.
+    """
+    conn = _conn(request)
+    anthropic_key = resolve_anthropic_key()
+    scope = _scope(request)
+
+    def _sse():
+        if anthropic_key is None:
+            msg = json.dumps({"stage": "error", "payload": {
+                "message": "Claim check needs an Anthropic API key, which is not configured."}})
+            yield f"data: {msg}\n\n"
+            return
+
+        for event in run_claim_check(conn, payload.text,
+                                     anthropic_key=anthropic_key, corpus_scope=scope):
+            if event.stage == "assess":
+                serialised = []
+                for r in event.payload["results"]:
+                    serialised.append({
+                        "claim": r["claim"],
+                        "verdict": r["verdict"],
+                        "note": r["note"],
+                        "records": [_record_out(conn, rec).model_dump()
+                                    for rec in r["records"]],
+                    })
+                yield f"data: {json.dumps({'stage': 'assess', 'payload': {'results': serialised}})}\n\n"
+            else:
+                yield f"data: {json.dumps({'stage': event.stage, 'payload': event.payload})}\n\n"
 
     return StreamingResponse(_sse(), media_type="text/event-stream")
 

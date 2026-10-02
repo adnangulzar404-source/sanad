@@ -209,6 +209,24 @@ class AskFinalOut(BaseModel):
     corpus_scope: str
 
 
+class ClaimCheckRequest(BaseModel):
+    text: str = Field(..., max_length=10_000)
+
+    @field_validator("text")
+    @classmethod
+    def not_blank(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("text must not be blank")
+        return v
+
+
+class ClaimResultOut(BaseModel):
+    claim: str
+    verdict: str
+    note: str
+    records: list[RecordOut]
+
+
 class RecordDetailOut(BaseModel):
     """`GET /api/records/{id}`'s full response -- a superset of `RecordOut`
     (which is what `QuotationOut.record` embeds). This endpoint additionally

@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { ProvenancePanel } from "./components/ProvenancePanel";
 import { Ask } from "./screens/Ask";
+import { Claims } from "./screens/Claims";
 import { Verify } from "./screens/Verify";
 
-type Tab = "verify" | "ask";
+type Tab = "ask" | "verify" | "claims";
 
 const PROVENANCE_HASH = "#provenance";
 
@@ -64,11 +65,16 @@ export default function App() {
         <button role="tab" id="tab-verify" aria-controls="mode-panel"
                 aria-selected={tab === "verify"} onClick={() => setTab("verify")}
                 style={tabStyle(tab === "verify")}>Verify</button>
+        <button role="tab" id="tab-claims" aria-controls="mode-panel"
+                aria-selected={tab === "claims"} onClick={() => setTab("claims")}
+                style={tabStyle(tab === "claims")}>Claims</button>
       </nav>
 
       <div role="tabpanel" id="mode-panel"
-           aria-labelledby={tab === "verify" ? "tab-verify" : "tab-ask"}>
-        {tab === "verify" ? <Verify /> : <Ask />}
+           aria-labelledby={
+             tab === "verify" ? "tab-verify" : tab === "claims" ? "tab-claims" : "tab-ask"
+           }>
+        {tab === "verify" ? <Verify /> : tab === "claims" ? <Claims /> : <Ask />}
       </div>
       <div style={{ maxWidth: "72rem", margin: "0 auto", padding: "0 1.5rem 4rem" }}>
         {showProvenance ? (

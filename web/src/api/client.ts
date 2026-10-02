@@ -78,6 +78,14 @@ export interface AskReached {
   quran: boolean;
   hadith: boolean;
 }
+// The `/api/claim-check` SSE `assess` event's per-claim shape.
+export interface ClaimResult {
+  claim: string;
+  verdict: "supported" | "partially_supported" | "not_found" | "unverifiable";
+  note: string;
+  records: RecordOut[];
+}
+
 export interface AskFinal {
   status: "published" | "abstained";
   question_language: string | null;

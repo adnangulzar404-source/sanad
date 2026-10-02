@@ -2223,6 +2223,10 @@ UNSCORABLE: dict[str, dict[str, tuple[str, str]]] = {
         'hadith:muslim:715-28': ("01bb41f85ab76fb0a2a01cb9e7a357b99b3055999ccc2e1f2ab0396e4871807e", _OMISSION_NOTE),
         'hadith:muslim:792-4': ("5cd4f059939f0b89b26f3c3bbc3a7aa87396f496963c42f9567c252bd1f1e556", _OMISSION_NOTE),
         'hadith:muslim:852-6': ("b0d47c70487a0e889e7a1449d99f63f37169d4954711b23643ea663b4f06c059", _OMISSION_NOTE),
+        # 'لقد كان لكم في رسول الله أسوة حسنة' (Qur'an 33:21 verbatim, no hadith
+        # frame): a qira'a/tafsir record whose entire scored matn is the ayah itself.
+        # Same class as tirmidhi:2934. Stays reachable by reference lookup.
+        'hadith:muslim:1473': ("bf8c7803a2e1dfbc19ec7e6a8c2074eed71846c2dd58661d14d39d4ecdb0893d", _QURANIC_QUOTE),
     },
     "abudawud": {
         # Methodology (Task 12): every matn of 30 characters or fewer was

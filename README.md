@@ -18,7 +18,7 @@ sanad-ingest build --out data/sanad-quran.db     # verifies against the lockfile
 uvicorn sanad.api.app:create_app --factory --port 8000
 ```
 
-`sanad-ingest build` re-downloads the pinned source files (Tanzil's Qur'an exports and OpenITI's Sahih al-Bukhari) and refuses to write a database unless every source's content matches the SHA-256 pinned in `ingest/corpus.lock.toml` — a corpus that cannot be reproduced from the lockfile is not shipped. The database already committed at `data/sanad-quran.db` is the output of exactly this command; running it again is a reproducibility check, not a requirement to get started.
+`sanad-ingest build` re-downloads the pinned source files (Tanzil's Qur'an exports and the six OpenITI hadith sources) and refuses to write a database unless every source's content matches the SHA-256 pinned in `ingest/corpus.lock.toml` — a corpus that cannot be reproduced from the lockfile is not shipped. The database already committed at `data/sanad-quran.db` is the output of exactly this command; running it again is a reproducibility check, not a requirement to get started.
 
 Or with Docker, which copies the already-built corpus into the image (no network access needed at build time or at run time):
 
@@ -48,8 +48,15 @@ Stage A — the deterministic core:
 - The full Tanzil Uthmani Qur'an — 6,236 verses — verified against a
   committed content hash at build time, plus the Pickthall English
   translation (see **Corpus and licensing** below)
-- Sahih al-Bukhari — 7,129 hadith, matn and isnad both stored, matn-only
-  matching, **no gradings shipped** (see **Corpus and licensing** below)
+- **The Kutub al-Sittah** (the six canonical hadith collections) — 33,949
+  hadith, matn and isnad both stored, matn-only matching, **no gradings
+  shipped** (see **Corpus and licensing** below):
+  - Sahih al-Bukhari — 7,129 hadith
+  - Sahih Muslim — 7,460 hadith
+  - Sunan Abi Dawud — 5,274 hadith
+  - Jami' al-Tirmidhi — 3,976 hadith
+  - Sunan al-Nasai — 5,769 hadith
+  - Sunan Ibn Majah — 4,341 hadith
 - Three-tier Arabic normalization, with the matching tier reported so an
   orthographic variant is never conflated with a textual one
 - Verdicts: exact, exact-with-orthographic-variance, near match with a
@@ -58,7 +65,7 @@ Stage A — the deterministic core:
   qualified person
 - `POST /api/verify` — deterministic, no model, no API key
 - `GET /api/corpus` — the provenance manifest: sources, licences, hashes
-- An adversarial evaluation suite (54 cases) that fails CI if any misquote
+- An adversarial evaluation suite (101 cases) that fails CI if any misquote
   is reported as verified
 
 ### Ask mode (optional)
@@ -78,11 +85,9 @@ Ask degrades to an abstention that says so. Claude never writes Arabic; the
 server renders every quotation from the database by id, so a fabricated or
 altered quotation cannot reach the screen.
 
-**Sanad does not grade hadith authenticity.** A `Sahih al-Bukhari <n>` result
-means the quoted text is present in that collection, nothing more. Modern
-authenticity gradings are copyrighted scholarly work and are not shipped;
-Sanad may say "this text is in Sahih al-Bukhari" and must never say or imply
-"this hadith is sahih."
+**Sanad does not grade hadith authenticity.** A result means the quoted text is present in that collection, nothing more.
+Modern authenticity gradings are copyrighted scholarly work and are not
+shipped; Sanad verifies wording, never authenticity.
 
 ## Corpus and licensing
 
@@ -130,7 +135,7 @@ detected secondary-narration boundary, with the removed text preserved
 verbatim in `addenda_ar`. 391 of those are indexed under *two* scored
 representations — the primary matn and the full printed text — so that
 either the intended quotation or the full printed hadith verifies, and
-neither an over-cut nor an under-cut costs a verification. 1,825 records are excluded from scoring (`unscorable_reason` set) but
+neither an over-cut nor an under-cut costs a verification. 1,826 records are excluded from scoring (`unscorable_reason` set) but
 remain reachable by reference lookup: editorial pointers (e.g. `بهذا`,
 `مثله`, `نحوه`, bare frames with no delivered content), records whose
 narration sits entirely in `addenda_ar` pending a split repair (SEGMENT
@@ -153,7 +158,7 @@ enumerated reference token could still escape.
 Bukhari, Sahih Muslim, Abu Dawud, Tirmidhi, Nasai, Ibn Majah). 32,124 of
 the 33,949 hadith are scorable. The committed `data/sanad-quran.db`
 currently hashes to
-`ad8d94cbb07b7470a48e5c6f469a94f3d64dc3aca45a1b6fccddb952cf4c46de`
+`07b0fcb964d7986e178c8439dd09fce8e84512e2945631abebde254a60ae4985`
 (whole-file SHA-256, printed by `sanad-ingest build` and re-checked by
 rebuilding from the pinned, cached sources — see **Run locally** above).
 This hash changes whenever the corpus is rebuilt with different inputs;

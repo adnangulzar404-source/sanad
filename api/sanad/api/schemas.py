@@ -138,14 +138,49 @@ class CorpusResponse(BaseModel):
     sources: list[CorpusSourceOut]
 
 
+HISTORY_MAX_TURNS = 6
+TURN_SUMMARY_MAX_CHARS = 200
+
+
+class AskTurn(BaseModel):
+    """One prior turn in a threaded Ask conversation.
+
+    Only English framing text and record IDs -- never raw Arabic, never model
+    Arabic prose. The server re-fetches every ID from the corpus before adding
+    it to the valid-citation set; an ID not in the corpus is silently dropped.
+    """
+    question: str
+    summary: str | None = None
+    item_ids: list[str] = Field(default_factory=list)
+
+    @field_validator("summary")
+    @classmethod
+    def summary_cap(cls, v: str | None) -> str | None:
+        if v is not None and len(v) > TURN_SUMMARY_MAX_CHARS:
+            raise ValueError(
+                f"turn summary must not exceed {TURN_SUMMARY_MAX_CHARS} characters")
+        return v
+
+
 class AskRequest(BaseModel):
     question: str = Field(..., max_length=2000)
+    # The conversation history the client accumulated from prior turns.
+    # Oldest first, capped at HISTORY_MAX_TURNS. Oversized → 422.
+    history: list[AskTurn] = Field(default_factory=list)
 
     @field_validator("question")
     @classmethod
     def not_blank(cls, v: str) -> str:
         if not v.strip():
             raise ValueError("question must not be blank")
+        return v
+
+    @field_validator("history")
+    @classmethod
+    def history_window(cls, v: list[AskTurn]) -> list[AskTurn]:
+        if len(v) > HISTORY_MAX_TURNS:
+            raise ValueError(
+                f"history must not exceed {HISTORY_MAX_TURNS} turns")
         return v
 
 
@@ -157,6 +192,7 @@ class ReachedOut(BaseModel):
 class AskItemOut(BaseModel):
     record_id: str
     framing: str
+    matn_translation: str | None = None
     record: RecordOut | None = None
 
 

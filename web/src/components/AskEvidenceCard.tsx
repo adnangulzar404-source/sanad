@@ -43,7 +43,17 @@ export function AskEvidenceCard({ item }: { item: AskItem }) {
 
       {rec?.translation_en && (
         <div style={{ marginBlockStart: "0.9rem", paddingBlockStart: "0.6rem", borderBlockStart: "var(--rule)" }}>
+          <p className="data" style={{ margin: "0 0 0.25rem" }}>Pickthall translation</p>
           <p data-testid="ask-translation" style={{ margin: 0 }}>{rec.translation_en}</p>
+        </div>
+      )}
+
+      {!rec?.translation_en && item.matn_translation && (
+        <div style={{ marginBlockStart: "0.9rem", paddingBlockStart: "0.6rem", borderBlockStart: "var(--rule)" }}>
+          <p className="data" style={{ margin: "0 0 0.25rem" }} data-testid="ask-rendering-label">
+            Sanad&#8217;s plain-English rendering &#8212; not an authoritative translation.
+          </p>
+          <p data-testid="ask-matn-translation" style={{ margin: 0 }}>{item.matn_translation}</p>
         </div>
       )}
 

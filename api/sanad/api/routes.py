@@ -21,6 +21,7 @@ from ..verify.engine import Verdict, verify_spans
 from .schemas import (
     AskFinalOut,  # noqa: F401 -- documents the `final` event's payload shape
     AskRequest,
+    AskTurn,  # noqa: F401 -- documents the history turn shape
     ClaimOut,
     CorpusResponse,
     CorpusSourceOut,
@@ -302,9 +303,10 @@ def ask(payload: AskRequest, request: Request) -> StreamingResponse:
             return
 
         try:
+            history = [t.model_dump() for t in payload.history]
             for event in run_ask(conn, vectors_conn, payload.question,
                                  anthropic_key=anthropic_key, voyage_key=voyage_key,
-                                 corpus_scope=scope):
+                                 corpus_scope=scope, history=history):
                 payload_out = dict(event.payload)
                 if event.stage == "router":
                     risk = payload_out.get("risk", risk)
@@ -320,9 +322,11 @@ def ask(payload: AskRequest, request: Request) -> StreamingResponse:
                     items = []
                     for it in payload_out.get("items", []):
                         rec = db.get_record(conn, it["record_id"])
+                        mt = it.get("matn_translation")
                         items.append({
                             "record_id": it["record_id"],
                             "framing": reverent(it["framing"]),
+                            "matn_translation": reverent(mt) if mt else None,
                             "record": _record_out(conn, rec).model_dump() if rec else None})
                     payload_out["items"] = items
                     payload_out["summary"] = reverent(payload_out.get("summary"))

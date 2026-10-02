@@ -32,6 +32,11 @@ from sanad.pipeline.types import SelectedItem, Selection
 class AskCase:
     id: str
     candidate_ids: list[str]
+    # Record IDs from prior turns that the orchestrator already re-fetched and
+    # verified exist in the corpus. In production, `run_ask` builds this set;
+    # in the eval harness the fixture declares it directly so tests stay
+    # deterministic without a DB or model call.
+    history_ids: list[str]
     selection: Selection
     must_block: bool
 
@@ -54,9 +59,11 @@ def load_ask_cases(directory: Path) -> list[AskCase]:
             seen.add(raw["id"])
             sel = Selection(
                 summary=raw["selection"]["summary"],
-                items=[SelectedItem(i["record_id"], i["framing"])
+                items=[SelectedItem(i["record_id"], i["framing"],
+                                    i.get("matn_translation"))
                        for i in raw["selection"]["items"]])
             cases.append(AskCase(raw["id"], list(raw["candidate_ids"]),
+                                 list(raw.get("history_ids", [])),
                                  sel, bool(raw["must_block"])))
     return cases
 
@@ -64,7 +71,7 @@ def load_ask_cases(directory: Path) -> list[AskCase]:
 def run_ask_gate(cases: list[AskCase]) -> AskMetrics:
     m = AskMetrics(total=len(cases))
     for c in cases:
-        results = check(c.selection, set(c.candidate_ids))
+        results = check(c.selection, set(c.candidate_ids), set(c.history_ids))
         blocked = not all(g.passed for g in results)
         if c.must_block and not blocked:
             m.block_failures.append(c.id)

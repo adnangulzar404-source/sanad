@@ -205,16 +205,33 @@ def _grading_matches(text: str) -> list[str]:
 def _prose_sources(selection: Selection) -> list[tuple[str, str]]:
     """(label, text) pairs for every piece of Claude-generated prose, so
     guard details can name exactly which one offended (fix round 1,
-    ruling e)."""
-    return [("summary", selection.summary)] + [
+    ruling e). Includes matn_translation when present: a rendering
+    containing Arabic-script characters is the same violation as Arabic
+    in framing (spec §6)."""
+    sources = [("summary", selection.summary)] + [
         (f"framing for {item.record_id}", item.framing) for item in selection.items]
+    for item in selection.items:
+        if item.matn_translation:
+            sources.append((f"matn_translation for {item.record_id}", item.matn_translation))
+    return sources
 
 
-def check(selection: Selection, candidate_ids: set[str]) -> list[GuardResult]:
+def check(selection: Selection, candidate_ids: set[str],
+          history_ids: set[str] | None = None) -> list[GuardResult]:
+    """Spec §5 guard battery.
+
+    `history_ids` is the set of record IDs from prior turns that the caller
+    has already verified exist in the corpus (re-fetched by the orchestrator).
+    The valid-citation set = candidate_ids ∪ history_ids; a model citing a
+    carry-forward ID passes the citation guard without it having been retrieved
+    this turn. IDs not in the corpus were already dropped by the orchestrator
+    before reaching here.
+    """
+    valid_ids = candidate_ids | (history_ids or set())
     sources = _prose_sources(selection)
     joined = " ".join(text for _, text in sources)
 
-    stray = [i.record_id for i in selection.items if i.record_id not in candidate_ids]
+    stray = [i.record_id for i in selection.items if i.record_id not in valid_ids]
 
     arabic_offenders = [label for label, text in sources if contains_arabic(text)]
 

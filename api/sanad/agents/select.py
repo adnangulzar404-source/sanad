@@ -20,6 +20,7 @@ from ..corpus import db
 from ..pipeline.types import RetrievalHit, SelectedItem, Selection
 from . import claude_client
 
+
 # The system prompt used to hardcode "Qur'an verses and Sahih al-Bukhari
 # hadith" -- a description of the corpus that Stage A3 makes false the moment
 # another hadith collection is ingested (Stage A3 ruling R-A3-17).
@@ -41,6 +42,10 @@ def _select_system(corpus_scope: str) -> str:
         "Do not rule, do not grade authenticity, do not claim consensus.\n"
         "6. Write the summary and every framing in the question's own language.\n"
         "7. Refer to the one God as 'Allah', never 'God'.\n"
+        "8. For each selected hadith item (record_id starts with 'hadith:'), write a "
+        "plain-English rendering of the matn in the `matn_translation` field. "
+        "Use 'Allah' not 'God'. For a Qur'an verse (record_id starts with 'quran:'), "
+        "set `matn_translation` to null.\n"
         "Return ONLY the structured object."
     )
 
@@ -51,8 +56,9 @@ SELECT_SCHEMA = {
         "items": {"type": "array", "items": {
             "type": "object",
             "properties": {"record_id": {"type": "string"},
-                           "framing": {"type": "string"}},
-            "required": ["record_id", "framing"],
+                           "framing": {"type": "string"},
+                           "matn_translation": {"type": ["string", "null"]}},
+            "required": ["record_id", "framing", "matn_translation"],
             "additionalProperties": False,
         }},
     },
@@ -90,5 +96,6 @@ def select_and_frame(corpus_conn, question: str, hits: list[RetrievalHit], *,
         key=key, client=client)
     return Selection(
         summary=data["summary"],
-        items=[SelectedItem(record_id=i["record_id"], framing=i["framing"])
+        items=[SelectedItem(record_id=i["record_id"], framing=i["framing"],
+                            matn_translation=i.get("matn_translation"))
                for i in data["items"]])

@@ -27,6 +27,7 @@ class Expansion:
 class SelectedItem:
     record_id: str
     framing: str
+    matn_translation: str | None = None
 
 @dataclass(frozen=True)
 class Selection:

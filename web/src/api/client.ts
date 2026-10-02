@@ -56,12 +56,22 @@ export function getCorpus(): Promise<CorpusResponse> {
   return apiFetch<CorpusResponse>("/api/corpus");
 }
 
+// One prior turn in a threaded Ask conversation. Mirrors backend `AskTurn`
+// (api/sanad/api/schemas.py). Only English framing text and record IDs —
+// never raw Arabic. The server re-fetches every ID from the corpus.
+export interface AskTurn {
+  question: string;
+  summary: string | null;
+  item_ids: string[];
+}
+
 // The `/api/ask` SSE `final` payload. Declared by hand rather than generated:
 // the endpoint streams `text/event-stream`, so it has no typed JSON body in the
 // OpenAPI schema. Mirrors the backend `AskFinalOut` (api/sanad/api/schemas.py).
 export interface AskItem {
   record_id: string;
   framing: string;
+  matn_translation: string | null;
   record: RecordOut | null;
 }
 export interface AskReached {

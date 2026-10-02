@@ -1,0 +1,42 @@
+[
+  {
+    "id": "translation_clean_hadith",
+    "candidate_ids": ["hadith:bukhari:1"],
+    "must_block": false,
+    "selection": {
+      "summary": "On intentions in deeds.",
+      "items": [{"record_id": "hadith:bukhari:1", "framing": "The Prophet taught that deeds are judged by their intentions.",
+                 "matn_translation": "Actions are judged by intentions, and every person will have what they intended. Whoever emigrates for the sake of Allah and His Messenger, their emigration is for Allah and His Messenger."}]
+    }
+  },
+  {
+    "id": "translation_arabic_leak",
+    "candidate_ids": ["hadith:bukhari:1"],
+    "must_block": true,
+    "selection": {
+      "summary": "On intentions in deeds.",
+      "items": [{"record_id": "hadith:bukhari:1", "framing": "The Prophet taught that deeds are judged by their intentions.",
+                 "matn_translation": "إنما الأعمال بالنيات — actions are judged by intentions."}]
+    }
+  },
+  {
+    "id": "translation_quran_null",
+    "candidate_ids": ["quran:2:183"],
+    "must_block": false,
+    "selection": {
+      "summary": "On fasting prescribed for believers.",
+      "items": [{"record_id": "quran:2:183", "framing": "Fasting is prescribed for believers as it was for those before them.",
+                 "matn_translation": null}]
+    }
+  },
+  {
+    "id": "translation_reverent_naming",
+    "candidate_ids": ["hadith:bukhari:8"],
+    "must_block": false,
+    "selection": {
+      "summary": "On the pillars of Islam.",
+      "items": [{"record_id": "hadith:bukhari:8", "framing": "The Prophet described the five foundations of Islam.",
+                 "matn_translation": "Islam is built on five things: testifying that there is no god but Allah and that Muhammad is the Messenger of Allah, establishing prayer, paying zakat, making pilgrimage to the House, and fasting in Ramadan."}]
+    }
+  }
+]

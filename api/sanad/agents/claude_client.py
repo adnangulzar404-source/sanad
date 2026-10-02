@@ -36,6 +36,10 @@ def resolve_anthropic_key() -> str | None:
     return os.environ.get("ANTHROPIC_API_KEY") or None
 
 
+def _fallback_key() -> str | None:
+    return os.environ.get("ANTHROPIC_API_KEY_2") or None
+
+
 def call_structured(*, system_blocks: list[dict], user_text: str, schema: dict,
                     key: str, effort: str = "high",
                     client: httpx.Client | None = None) -> dict:
@@ -52,12 +56,19 @@ def call_structured(*, system_blocks: list[dict], user_text: str, schema: dict,
         "system": system_blocks,
         "messages": [{"role": "user", "content": user_text}],
     }
-    try:
-        resp = client.post(ANTHROPIC_URL, headers={
-            "x-api-key": key,
+    def _post(api_key: str) -> httpx.Response:
+        return client.post(ANTHROPIC_URL, headers={
+            "x-api-key": api_key,
             "anthropic-version": ANTHROPIC_VERSION,
             "content-type": "application/json",
         }, json=body)
+
+    try:
+        resp = _post(key)
+        if resp.status_code in (429, 529):
+            fb = _fallback_key()
+            if fb and fb != key:
+                resp = _post(fb)
     except httpx.HTTPError as exc:
         raise ClaudeError(f"transport: {exc}") from exc
     finally:

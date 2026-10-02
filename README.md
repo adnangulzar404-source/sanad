@@ -135,12 +135,10 @@ detected secondary-narration boundary, with the removed text preserved
 verbatim in `addenda_ar`. 391 of those are indexed under *two* scored
 representations — the primary matn and the full printed text — so that
 either the intended quotation or the full printed hadith verifies, and
-neither an over-cut nor an under-cut costs a verification. 1,826 records are excluded from scoring (`unscorable_reason` set) but
+neither an over-cut nor an under-cut costs a verification. 1,816 records are excluded from scoring (`unscorable_reason` set) but
 remain reachable by reference lookup: editorial pointers (e.g. `بهذا`,
-`مثله`, `نحوه`, bare frames with no delivered content), records whose
-narration sits entirely in `addenda_ar` pending a split repair (SEGMENT
-class), and a small number of records whose entire text is a Qur'an verse
-(QURAN class). The pointer exclusion rests on a hand-read sweep of the
+`مثله`, `نحوه`, bare frames with no delivered content), and a small number
+of records whose entire text is a Qur'an verse (QURAN class). The pointer exclusion rests on a hand-read sweep of the
 bounded population of 8,721 records most likely to contain pointers (those
 with low content-mass or a reference/deferral token); every record in that
 population was read at least once, most twice, disagreements adjudicated.
@@ -155,10 +153,10 @@ were then corrected. A pointer above the content-mass threshold using no
 enumerated reference token could still escape.
 
 **Corpus totals.** 40,185 records: 6,236 ayat + 33,949 hadith (Sahih
-Bukhari, Sahih Muslim, Abu Dawud, Tirmidhi, Nasai, Ibn Majah). 32,124 of
+Bukhari, Sahih Muslim, Abu Dawud, Tirmidhi, Nasai, Ibn Majah). 32,133 of
 the 33,949 hadith are scorable. The committed `data/sanad-quran.db`
 currently hashes to
-`07b0fcb964d7986e178c8439dd09fce8e84512e2945631abebde254a60ae4985`
+`be81841cd70658131264083304681c35d2a706737e7599830257e88bd4096e35`
 (whole-file SHA-256, printed by `sanad-ingest build` and re-checked by
 rebuilding from the pinned, cached sources — see **Run locally** above).
 This hash changes whenever the corpus is rebuilt with different inputs;

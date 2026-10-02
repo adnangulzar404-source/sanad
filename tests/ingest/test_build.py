@@ -805,7 +805,7 @@ def test_the_appended_narrations_are_stored_but_never_scored(real_corpus):
     conn = db.connect(out)
     n = conn.execute(
         "SELECT count(*) FROM records WHERE addenda_ar IS NOT NULL").fetchone()[0]
-    assert n == 5846  # Task 16 A1: +81 Bukhari, +25 Muslim compiler-commentary
+    assert n == 5839  # Task 16 A1: +81 Bukhari, +25 Muslim compiler-commentary; SEGMENT repair: -7
     rec = db.get_record(conn, "hadith:bukhari:22")
     assert rec.addenda_ar and _HADDATHANA in rec.addenda_ar
     assert _HADDATHANA not in rec.text_ar
@@ -883,13 +883,13 @@ def test_no_addendum_reaches_the_primary_representation(real_corpus):
     conn = db.connect(out)
     assert conn.execute(
         "SELECT count(*) FROM records WHERE addenda_ar IS NOT NULL"
-        " AND unscorable_reason IS NOT NULL").fetchone()[0] == 189  # A2 read sweep +42 (POINTERs carrying an addendum), A2 fix-round +8, A2 round 3 +7, A2 round 4 +2 (tirmidhi 595/1096), A2 round 5 +2 (abudawud:1176, muslim:2359-6)
+        " AND unscorable_reason IS NOT NULL").fetchone()[0] == 179  # A2 read sweep +42 (POINTERs carrying an addendum), A2 fix-round +8, A2 round 3 +7, A2 round 4 +2 (tirmidhi 595/1096), A2 round 5 +2 (abudawud:1176, muslim:2359-6)
     rows = conn.execute(
         "SELECT r.id, r.text_ar, r.addenda_ar, f.norm_standard,"
         "       f.norm_aggressive FROM records r"
         " JOIN records_fts f ON f.record_id = r.id AND f.variant = 'primary'"
         " WHERE r.addenda_ar IS NOT NULL").fetchall()
-    assert len(rows) == 5657  # A2 read sweep: -42 (POINTERs carrying an addendum cross to unscorable; restored bukhari:3332 has none); A2 fix-round: -8; A2 round 3: -7; A2 round 4: -2 (tirmidhi 595/1096 cross to unscorable); A2 round 5: -2 (abudawud:1176, muslim:2359-6 cross to unscorable)
+    assert len(rows) == 5660  # A2 read sweep: -42 (POINTERs carrying an addendum cross to unscorable; restored bukhari:3332 has none); A2 fix-round: -8; A2 round 3: -7; A2 round 4: -2 (tirmidhi 595/1096 cross to unscorable); A2 round 5: -2 (abudawud:1176, muslim:2359-6 cross to unscorable)
     for row in rows:
         assert row["addenda_ar"] not in row["text_ar"], row["id"]
         for form in ("standard", "aggressive"):
@@ -921,7 +921,7 @@ def test_the_full_printed_text_is_scored_alongside_the_primary(real_corpus):
         "       v.norm_aggressive FROM records r"
         " LEFT JOIN record_variants v ON v.record_id = r.id"
         " WHERE r.addenda_ar IS NOT NULL").fetchall()
-    assert len(rows) == 5846  # Task 16 A1: +81 Bukhari, +25 Muslim
+    assert len(rows) == 5839  # Task 16 A1: +81 Bukhari, +25 Muslim; SEGMENT repair: -7
     checked = 0
     for row in rows:
         # 237 (and Task 11's Muslim 1915-3, 546-3, and fix round 1's 41
@@ -933,7 +933,7 @@ def test_the_full_printed_text_is_scored_alongside_the_primary(real_corpus):
         for form in ("light", "standard", "aggressive"):
             assert row[f"norm_{form}"] == normalize(row["whole"], form), row["id"]
         checked += 1
-    assert checked == 5846  # Task 16 A1: +81 Bukhari, +25 Muslim
+    assert checked == 5839  # Task 16 A1: +81 Bukhari, +25 Muslim; SEGMENT repair: -7
 
 
 def test_a_record_with_no_addendum_has_no_second_representation(real_corpus):
@@ -1016,7 +1016,7 @@ _UNSCORABLE_IDS = frozenset(f"hadith:bukhari:{n}" for n in (
     "127", "237", "335", "394", "549", "557", "587", "1379", "1915", "2483",
     "3457", "3750", "3777", "3801", "3957", "4540", "5454", "5837", "3746",
     "1656", "4251", "4745",
-    "102", "218", "1171", "1620", "1651", "1653", "1657", "1663",
+    "102", "218", "1171", "1620", "1651", "1653", "1657",
     "2101", "2117", "2390", "3901", "3905", "4446", "4562", "4662",
     "5018", "5090", "6068", "6599", "6831", "6906", "6907", "7070",
     "7093",
@@ -1094,10 +1094,10 @@ def test_editorial_pointers_are_kept_but_never_scored(real_corpus):
     flagged_nasai = {r for r in flagged if r.startswith("hadith:nasai:")}
     flagged_ibnmajah = {r for r in flagged if r.startswith("hadith:ibnmajah:")}
     assert flagged_bukhari == set(_UNSCORABLE_IDS)
-    assert len(flagged_muslim) == 1336  # A2 read sweep +352 (349+3+1 isnad-tail), A2 fix-round +132, C0 residue +5, A2 round 3 +38, A2 round 4 +38, A2 round 5 +19
-    assert len(flagged_abudawud) == 226  # A2 read sweep +66 (64+2), A2 fix-round +6, A2 round 3 +6, A2 round 4 +5, A2 round 5 +4
-    assert len(flagged_tirmidhi) == 114  # A2 read sweep +17, A2 fix-round +13, A2 round 3 +2, A2 round 4 +2
-    assert len(flagged_nasai) == 94  # A2 read sweep +33, A2 round 3 +3, A2 round 4 +1
+    assert len(flagged_muslim) == 1334  # A2 read sweep +352 (349+3+1 isnad-tail), A2 fix-round +132, C0 residue +5, A2 round 3 +38, A2 round 4 +38, A2 round 5 +19; QURAN +1; SEGMENT repair -2
+    assert len(flagged_abudawud) == 225  # A2 read sweep +66 (64+2), A2 fix-round +6, A2 round 3 +6, A2 round 4 +5, A2 round 5 +4
+    assert len(flagged_tirmidhi) == 113  # A2 read sweep +17, A2 fix-round +13, A2 round 3 +2, A2 round 4 +2
+    assert len(flagged_nasai) == 89  # A2 read sweep +33, A2 round 3 +3, A2 round 4 +1
     assert flagged_ibnmajah == {  # A2 round 5 +1130 (bare "yasna' dhalik"); A2 read sweep +7
         "hadith:ibnmajah:413", "hadith:ibnmajah:1130", "hadith:ibnmajah:155",
         "hadith:ibnmajah:511", "hadith:ibnmajah:1299", "hadith:ibnmajah:2542",
@@ -1211,7 +1211,6 @@ def test_no_unscorable_primary_is_in_the_search_index(real_corpus):
          ("hadith:abudawud:2580", "full"),
          ("hadith:abudawud:2585", "full"),
          ("hadith:abudawud:263", "full"),
-         ("hadith:abudawud:2761", "full"),  # A2 read sweep POINTER
          ("hadith:abudawud:300", "full"),
          ("hadith:abudawud:308", "full"),
          ("hadith:abudawud:3099", "full"),
@@ -1241,13 +1240,11 @@ def test_no_unscorable_primary_is_in_the_search_index(real_corpus):
          ("hadith:abudawud:690", "full"),  # A2 read sweep POINTER
          ("hadith:abudawud:750", "full"),  # A2 read sweep POINTER
          ("hadith:abudawud:960", "full"),
-         ("hadith:bukhari:1663", "full"),  # A2 read sweep POINTER
          ("hadith:bukhari:237", "full"),
          ("hadith:bukhari:2390", "full"),  # A2 read sweep POINTER
          ("hadith:bukhari:7093", "full"),  # A2 read sweep POINTER
          ("hadith:muslim:1159-7", "full"),
          ("hadith:muslim:1238-2", "full"),
-         ("hadith:muslim:1296-2", "full"),  # A2 read sweep POINTER
          ("hadith:muslim:1433-7", "full"),
          ("hadith:muslim:1458-2", "full"),  # A2 read sweep POINTER
          ("hadith:muslim:1471-21", "full"),  # A2 read sweep POINTER
@@ -1265,25 +1262,19 @@ def test_no_unscorable_primary_is_in_the_search_index(real_corpus):
          ("hadith:muslim:2549-2", "full"),  # A2 read sweep POINTER
          ("hadith:muslim:2756-2", "full"),  # A2 read sweep POINTER
          ("hadith:muslim:2821-2", "full"),
-         ("hadith:muslim:2834-3", "full"),  # A2 read sweep POINTER
          ("hadith:muslim:2901-4", "full"),  # A2 read sweep POINTER
          ("hadith:muslim:546-3", "full"),
          ("hadith:muslim:57-2", "full"),  # A2 read sweep POINTER
          ("hadith:muslim:580-4", "full"),  # A2 read sweep POINTER
          ("hadith:nasai:1786", "full"),
          ("hadith:nasai:207-2", "full"),
-         ("hadith:nasai:2208", "full"),  # A2 read sweep POINTER
          ("hadith:nasai:2232", "full"),
          ("hadith:nasai:2266", "full"),  # A2 read sweep POINTER
          ("hadith:nasai:2295", "full"),
          ("hadith:nasai:2412", "full"),
-         ("hadith:nasai:3206", "full"),  # A2 read sweep POINTER
-         ("hadith:nasai:3422", "full"),  # A2 read sweep POINTER
-         ("hadith:nasai:3455", "full"),  # A2 read sweep POINTER
          ("hadith:nasai:3492", "full"),
          ("hadith:nasai:353", "full"),
          ("hadith:nasai:3903", "full"),
-         ("hadith:nasai:3918", "full"),  # A2 read sweep POINTER
          ("hadith:nasai:4098", "full"),
          ("hadith:nasai:4360", "full"),
          ("hadith:nasai:4588", "full"),
@@ -1315,7 +1306,6 @@ def test_no_unscorable_primary_is_in_the_search_index(real_corpus):
          ("hadith:tirmidhi:2282", "full"),
          ("hadith:tirmidhi:2286", "full"),
          ("hadith:tirmidhi:2296", "full"),
-         ("hadith:tirmidhi:2444", "full"),  # A2 read sweep POINTER
          ("hadith:tirmidhi:2534", "full"),
          ("hadith:tirmidhi:2534-2", "full"),
          ("hadith:tirmidhi:2543-2", "full"),

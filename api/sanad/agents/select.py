@@ -44,6 +44,7 @@ def _select_system(corpus_scope: str) -> str:
         "7. Refer to the one God as 'Allah', never 'God'.\n"
         "8. For each selected hadith item (record_id starts with 'hadith:'), write a "
         "plain-English rendering of the matn in the `matn_translation` field. "
+        "English only — absolutely no Arabic script, not even one letter. "
         "Use 'Allah' not 'God'. For a Qur'an verse (record_id starts with 'quran:'), "
         "set `matn_translation` to null.\n"
         "Return ONLY the structured object."

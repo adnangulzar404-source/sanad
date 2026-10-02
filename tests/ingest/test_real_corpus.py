@@ -500,7 +500,7 @@ def test_the_index_holds_one_row_per_scorable_representation():
     # A2 read sweep: scorable -495 +1, indexed -495 +1 (the 495 read-sweep
     # POINTERs leave, the restored bukhari:3332 returns). variants unchanged:
     # the 42 POINTERs that carry an addendum keep their "full" variant row.
-    assert (scorable, variants, indexed) == (38366, 5846, 44212)
+    assert (scorable, variants, indexed) == (38361, 5846, 44207)
 
 
 # --- C1: nothing scorable as a hadith is wholly a Qur'anic quotation --------
@@ -674,7 +674,7 @@ def test_no_scorable_hadith_representation_is_wholly_quranic():
     # primary is scorable, so only the 28 primary reps drop). The sweep is still
     # zero: none of the 74 pure-apparatus records is wholly Qur'anic.
     # A2 read sweep: -495 primaries, +1 restored (bukhari:3332): 38,470 -> 37,976.
-    assert len(reps) == 37976, "the sweep stopped covering what it was written for"
+    assert len(reps) == 37971, "the sweep stopped covering what it was written for"
     offenders = [(rid, variant) for rid, variant, norm in reps
                  if norm.strip() and any(f" {norm} " in b for b in blobs)]
     assert offenders == []
@@ -882,7 +882,7 @@ def test_every_other_excluded_record_is_excluded_whole():
     # a fresh build: 1,201 -> 1,251 (round 3) -> 1,297 (round 4). A2 round 5
     # (content-mass net) adds 28 more: 1,297 -> 1,325.
     # A2 read sweep: +495 pinned, -1 restored (bukhari:3332): 1,325 -> 1,819.
-    assert len(rows) == 1819
+    assert len(rows) == 1824
     assert {r["id"]: r["n"] for r in rows if r["n"]} == {
         "hadith:bukhari:237": 1,
         # A2 round 5: two content-mass pointers carry an A1 addendum, so they
@@ -1232,7 +1232,7 @@ def test_exactly_one_hadith_representation_sits_inside_an_ayah():
     # variants unchanged (the two addenda-carrying pointers keep their "full"
     # variant row): 38,498 -> 38,470.
     # A2 read sweep: -495 primaries, +1 restored (bukhari:3332): 38,470 -> 37,976.
-    assert len(reps) == 37976, len(reps)
+    assert len(reps) == 37971, len(reps)
 
     withheld, disclosed = [], []
     for rep in reps:
@@ -1332,8 +1332,8 @@ def test_muslim_record_count_and_scorability():
     # A2 round 5 (vocabulary-free content-mass net): -19 more Muslim primaries
     # (19 of the 28 content-mass pointers are Muslim; 274-13 "da'hu" and 581-2
     # are genuine short matns, kept): 6497 -> 6478, 963 -> 982.
-    # A2 read sweep: -349 Muslim POINTERs: 6478 -> 6129, 982 -> 1331; cut unchanged.
-    assert (total, scorable, unscorable, cut) == (7460, 6129, 1331, 147)
+    # A2 read sweep: -349 Muslim POINTERs: 6478 -> 6129 -> 6126, 982 -> 1331 -> 1334; cut unchanged.
+    assert (total, scorable, unscorable, cut) == (7460, 6126, 1334, 147)
 
 
 def test_abudawud_record_count_and_scorability():
@@ -1410,8 +1410,8 @@ def test_abudawud_record_count_and_scorability():
     # -6 (updated only in the reps pins at the time): 5129 -> 5123 -> 5118.
     # A2 round 5 (content-mass net): -4 more (abudawud:1176, 1354, 3609, 4045):
     # 5118 -> 5114, 156 -> 160.
-    # A2 read sweep: -64 Abu Dawud POINTERs: 5114 -> 5050, 160 -> 224; cut unchanged.
-    assert (total, scorable, unscorable, cut) == (5274, 5050, 224, 873)
+    # A2 read sweep: -64 Abu Dawud POINTERs: 5114 -> 5050 -> 5048, 160 -> 224 -> 226; cut unchanged.
+    assert (total, scorable, unscorable, cut) == (5274, 5048, 226, 873)
 
 
 # Three spot-checked Abu Dawud matns, read BYTE-EXACT from the materialized
@@ -3050,7 +3050,7 @@ def test_prefix_collision_detector_nasai_residue_is_fully_read():
 # in task-16-A2round4-audit.md and split into POINTER (unscorable) and KEEP
 # (scorable). The two gates below pin that partition: re-admitting any audited
 # pointer, or over-marking any audited keep, turns one of them RED. The lists
-# are long BECAUSE the safety is the exhaustive partition, not a band.
+# are long BECAUSE the safety is the hand-read sweep, not a band or a proof.
 _A2R4_AUDITED_POINTERS = [
     "hadith:abudawud:2011", "hadith:abudawud:3355", "hadith:abudawud:3379",
     "hadith:abudawud:3945", "hadith:abudawud:3959", "hadith:muslim:1162-4",

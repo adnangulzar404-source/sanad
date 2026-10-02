@@ -130,17 +130,27 @@ detected secondary-narration boundary, with the removed text preserved
 verbatim in `addenda_ar`. 391 of those are indexed under *two* scored
 representations — the primary matn and the full printed text — so that
 either the intended quotation or the full printed hadith verifies, and
-neither an over-cut nor an under-cut costs a verification. 17 records whose
-matn is an editorial pointer (e.g. `بهذا`, `مثله`, `نحوه`) or a bare incipit
-are excluded from scoring (`unscorable_reason` set) but remain reachable by
-reference lookup. That exclusion is scoped to the *primary* matn, which is
-the string the audit actually read: one of the 17 (hadith 237) also carries
-an addendum, and its full printed text — the longest in this edition — is
-indexed and scorable while its primary is not.
+neither an over-cut nor an under-cut costs a verification. 1,824 records whose matn is an editorial pointer (e.g. `بهذا`, `مثله`,
+`نحوه`) or a bare frame with no delivered content are excluded from scoring
+(`unscorable_reason` set) but remain reachable by reference lookup. That
+exclusion rests on a hand-read sweep of the bounded population of 8,721
+records most likely to contain pointers (those with low content-mass or a
+reference/deferral token); every record in that population was read at least
+once, most twice, disagreements adjudicated. The resulting 500-entry ground
+truth is committed to `tests/ingest/data/pointer_sweep_rulings.tsv` and
+enforced by a gate that fails if any pointer is re-admitted or any kept
+record changes. **This check carries a measured miss rate (~0.3% random /
+~2% in deferral-bearing single-read records), not a proof**: a pointer using
+no enumerated reference token and above the content-mass threshold could
+still escape. A small number of records whose narration sits entirely in
+`addenda_ar` (SEGMENT class) are marked unscorable pending a split repair;
+a small number of records whose entire text is a Qur'an verse (QURAN class)
+are similarly deferred.
 
-**Corpus totals.** 13,365 records: 6,236 ayat + 7,129 hadith. The committed
-`data/sanad-quran.db` currently hashes to
-`ab96d484370fe8a4555a691192886504b95ed07bc1fcf10fabbf0a34ca530083`
+**Corpus totals.** 40,185 records: 6,236 ayat + 33,949 hadith (Sahih
+Bukhari, Sahih Muslim, Abu Dawud, Tirmidhi, Nasai, Ibn Majah). 32,125 are
+scorable. The committed `data/sanad-quran.db` currently hashes to
+`fb3112f1480a4f97ceaaddedf67fd398b0b013f8202d10d747d4f89f24b06a24`
 (whole-file SHA-256, printed by `sanad-ingest build` and re-checked by
 rebuilding from the pinned, cached sources — see **Run locally** above).
 This hash changes whenever the corpus is rebuilt with different inputs;

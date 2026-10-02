@@ -1094,8 +1094,8 @@ def test_editorial_pointers_are_kept_but_never_scored(real_corpus):
     flagged_nasai = {r for r in flagged if r.startswith("hadith:nasai:")}
     flagged_ibnmajah = {r for r in flagged if r.startswith("hadith:ibnmajah:")}
     assert flagged_bukhari == set(_UNSCORABLE_IDS)
-    assert len(flagged_muslim) == 1331  # A2 read sweep +349, A2 fix-round +132, C0 residue +5, A2 round 3 +38, A2 round 4 +38, A2 round 5 +19
-    assert len(flagged_abudawud) == 224  # A2 read sweep +64, A2 fix-round +6, A2 round 3 +6, A2 round 4 +5, A2 round 5 +4
+    assert len(flagged_muslim) == 1334  # A2 read sweep +349, A2 fix-round +132, C0 residue +5, A2 round 3 +38, A2 round 4 +38, A2 round 5 +19
+    assert len(flagged_abudawud) == 226  # A2 read sweep +64, A2 fix-round +6, A2 round 3 +6, A2 round 4 +5, A2 round 5 +4
     assert len(flagged_tirmidhi) == 114  # A2 read sweep +17, A2 fix-round +13, A2 round 3 +2, A2 round 4 +2
     assert len(flagged_nasai) == 94  # A2 read sweep +33, A2 round 3 +3, A2 round 4 +1
     assert flagged_ibnmajah == {  # A2 round 5 +1130 (bare "yasna' dhalik"); A2 read sweep +7

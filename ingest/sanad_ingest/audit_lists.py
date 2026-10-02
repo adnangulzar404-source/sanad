@@ -3141,9 +3141,9 @@ for _coll, _entries in _A2R5_CONTENT_MASS_POINTERS.items():
 # blind, every KEEP carrying a reference token was read again, a random sample
 # of the other KEEPs was read again, and disagreements were adjudicated. The
 # rulings are .superpowers/sdd/2026-09-27-hadith-collections-a3/sweep/
-# FINAL-RULINGS.tsv (8,721 rows: 495 POINTER, 8,226 KEEP); the committed copy
-# the gate reads is tests/ingest/data/pointer_sweep_rulings.tsv. The 495
-# POINTERs are pinned below. The entries were generated mechanically from the
+# FINAL-RULINGS.tsv (8,721 rows: 501 POINTER, 8,220 KEEP after re-review); the committed copy
+# the gate reads is tests/ingest/data/pointer_sweep_rulings.tsv (501 POINTER
+# after re-review). The 501 POINTERs are pinned below. The entries were generated mechanically from the
 # rulings plus the built DB (sha256 of text_ar), never typed; the reason
 # constant was chosen from each ruling's recorded reason.
 _SEGMENT = ("narration segmented into addenda_ar; text_ar is only a frame; "
@@ -3910,6 +3910,9 @@ _A2_READ_SWEEP_POINTERS: dict[str, dict[str, tuple[str, str]]] = {
             ("5d8c84c04b606b1993327f2edabaa8cc3b02a596ee117438ccc5910e43cc6357", _FRAGMENT_VARIANT),
         "hadith:muslim:2843-2":
             ("27b69ecde696bf295bd23783d2fffcc305ee5570ad12741d273bcfd15f9ceb20", _FRAGMENT_VARIANT),
+        # re-review 2026-10-02 (isnad-tail class sweep): transmitter's doubt about a number variant
+        "hadith:muslim:2265-3":
+            ("1d6a36596765b600c2e7c6fbb3260596c923414ef1a624598d46873c59f38a21", _FRAGMENT_VARIANT),
     },
     "abudawud": {
         "hadith:abudawud:37":

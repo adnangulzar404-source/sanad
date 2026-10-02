@@ -1039,14 +1039,13 @@ def test_every_other_excluded_record_is_excluded_whole():
         # prior round cut (their "full" variant is kept, the pointer head is not).
         "hadith:tirmidhi:595": 1,
         "hadith:tirmidhi:1096": 1,
-        # A2 read sweep: the 42 read-sweep POINTERs that carry an addendum.
-        "hadith:bukhari:1663": 1,
+        # A2 read sweep: 32 read-sweep POINTERs that carry an addendum.
+        # (Was 42; 10 SEGMENT-class records restored to scorable by SEGMENT repair.)
         "hadith:bukhari:2390": 1,
         "hadith:bukhari:7093": 1,
         "hadith:muslim:21-3": 1,
         "hadith:muslim:57-2": 1,
         "hadith:muslim:580-4": 1,
-        "hadith:muslim:1296-2": 1,
         "hadith:muslim:1458-2": 1,
         "hadith:muslim:1471-21": 1,
         "hadith:muslim:1581-2": 1,
@@ -1054,7 +1053,6 @@ def test_every_other_excluded_record_is_excluded_whole():
         "hadith:muslim:2359-4": 1,
         "hadith:muslim:2549-2": 1,
         "hadith:muslim:2756-2": 1,
-        "hadith:muslim:2834-3": 1,
         "hadith:muslim:2901-4": 1,
         "hadith:abudawud:37": 1,
         "hadith:abudawud:690": 1,
@@ -1062,7 +1060,6 @@ def test_every_other_excluded_record_is_excluded_whole():
         "hadith:abudawud:1700": 1,
         "hadith:abudawud:2094": 1,
         "hadith:abudawud:2424": 1,
-        "hadith:abudawud:2761": 1,
         "hadith:abudawud:3320": 1,
         "hadith:abudawud:3465": 1,
         "hadith:abudawud:3814": 1,
@@ -1072,14 +1069,8 @@ def test_every_other_excluded_record_is_excluded_whole():
         "hadith:tirmidhi:495": 1,
         "hadith:tirmidhi:567": 1,
         "hadith:tirmidhi:737": 1,
-        "hadith:tirmidhi:2444": 1,
         "hadith:tirmidhi:3152": 1,
-        "hadith:nasai:2208": 1,
         "hadith:nasai:2266": 1,
-        "hadith:nasai:3206": 1,
-        "hadith:nasai:3422": 1,
-        "hadith:nasai:3455": 1,
-        "hadith:nasai:3918": 1,
         "hadith:nasai:4792": 1,
         "hadith:nasai:5483": 1,
     }

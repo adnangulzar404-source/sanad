@@ -1236,11 +1236,11 @@ def test_exactly_one_hadith_representation_sits_inside_an_ayah():
         if strict:
             disclosed.append((rep["rid"], rep["variant"], strict))
 
+    # muslim:1473 removed: QURAN class, now unscorable (de2866e).
     assert withheld == [
         ("hadith:bukhari:3658", "primary", ["quran:54:1"]),
         ("hadith:muslim:274-13", "primary",
          ["quran:2:260", "quran:4:142", "quran:11:6", "quran:18:57"]),
-        ("hadith:muslim:1473", "primary", ["quran:33:21"]),
         ("hadith:muslim:2380-5", "primary", ["quran:18:77"]),
         ("hadith:ibnmajah:2073", "primary", ["quran:33:21"]),
     ]
@@ -1324,7 +1324,7 @@ def test_muslim_record_count_and_scorability():
     # (19 of the 28 content-mass pointers are Muslim; 274-13 "da'hu" and 581-2
     # are genuine short matns, kept): 6497 -> 6478, 963 -> 982.
     # A2 read sweep: -349 Muslim POINTERs: 6478 -> 6129 -> 6126, 982 -> 1334; cut unchanged.
-    assert (total, scorable, unscorable, cut) == (7460, 6126, 1334, 147)
+    assert (total, scorable, unscorable, cut) == (7460, 6126, 1334, 145)  # SEGMENT repair: -2 addenda
 
 
 def test_abudawud_record_count_and_scorability():

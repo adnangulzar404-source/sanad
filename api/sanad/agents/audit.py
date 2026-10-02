@@ -52,6 +52,7 @@ def audit_brief(corpus_conn, selection: Selection, *, key: str,
         lines.append(f"  record [{item.record_id}]: {rec.text_ar if rec else '(missing)'}")
     data = claude_client.call_structured(
         system_blocks=[{"type": "text", "text": AUDIT_SYSTEM}],
-        user_text="\n".join(lines), schema=AUDIT_SCHEMA, key=key, client=client)
+        user_text="\n".join(lines), schema=AUDIT_SCHEMA, key=key, effort="medium",
+        max_tokens=4000, client=client)
     return AuditVerdict(overreach=bool(data["overreach"]),
                         flags=list(data["flags"]))

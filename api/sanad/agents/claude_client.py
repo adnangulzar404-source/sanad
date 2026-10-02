@@ -41,13 +41,13 @@ def _fallback_key() -> str | None:
 
 
 def call_structured(*, system_blocks: list[dict], user_text: str, schema: dict,
-                    key: str, effort: str = "high",
+                    key: str, effort: str = "high", max_tokens: int = _MAX_TOKENS,
                     client: httpx.Client | None = None) -> dict:
     owns = client is None
     client = client or httpx.Client(timeout=_TIMEOUT)
     body = {
         "model": CLAUDE_MODEL,
-        "max_tokens": _MAX_TOKENS,
+        "max_tokens": max_tokens,
         "thinking": {"type": "adaptive"},
         "output_config": {
             "effort": effort,

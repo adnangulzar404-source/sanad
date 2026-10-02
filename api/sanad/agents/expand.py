@@ -80,6 +80,7 @@ def expand_query(question: str, *, key: str, corpus_scope: str,
         user_text = question
     data = claude_client.call_structured(
         system_blocks=[{"type": "text", "text": _expand_system(corpus_scope)}],
-        user_text=user_text, schema=EXPAND_SCHEMA, key=key, client=client)
+        user_text=user_text, schema=EXPAND_SCHEMA, key=key, effort="low",
+        max_tokens=2000, client=client)
     return Expansion(question_language=data["question_language"],
                      search_terms=list(data["search_terms"]))

@@ -157,7 +157,7 @@ export function Ask() {
       )}
 
       {/* Question input — initial or follow-up */}
-      {!hasThread || phase === "done" ? (
+      {!hasThread || phase === "done" || phase === "error" ? (
         <form onSubmit={handleSubmit} style={{ marginBlockEnd: "1rem" }}>
           <label htmlFor="ask-input" className="data"
                  style={{ display: "block", marginBlockEnd: "0.4rem" }}>

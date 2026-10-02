@@ -139,7 +139,7 @@ class CorpusResponse(BaseModel):
 
 
 HISTORY_MAX_TURNS = 6
-TURN_SUMMARY_MAX_CHARS = 200
+TURN_SUMMARY_MAX_CHARS = 600
 
 
 class AskTurn(BaseModel):

@@ -130,27 +130,30 @@ detected secondary-narration boundary, with the removed text preserved
 verbatim in `addenda_ar`. 391 of those are indexed under *two* scored
 representations — the primary matn and the full printed text — so that
 either the intended quotation or the full printed hadith verifies, and
-neither an over-cut nor an under-cut costs a verification. 1,824 records whose matn is an editorial pointer (e.g. `بهذا`, `مثله`,
-`نحوه`) or a bare frame with no delivered content are excluded from scoring
-(`unscorable_reason` set) but remain reachable by reference lookup. That
-exclusion rests on a hand-read sweep of the bounded population of 8,721
-records most likely to contain pointers (those with low content-mass or a
-reference/deferral token); every record in that population was read at least
-once, most twice, disagreements adjudicated. The resulting 500-entry ground
-truth is committed to `tests/ingest/data/pointer_sweep_rulings.tsv` and
-enforced by a gate that fails if any pointer is re-admitted or any kept
-record changes. **This check carries a measured miss rate (~0.3% random /
-~2% in deferral-bearing single-read records), not a proof**: a pointer using
-no enumerated reference token and above the content-mass threshold could
-still escape. A small number of records whose narration sits entirely in
-`addenda_ar` (SEGMENT class) are marked unscorable pending a split repair;
-a small number of records whose entire text is a Qur'an verse (QURAN class)
-are similarly deferred.
+neither an over-cut nor an under-cut costs a verification. 1,825 records are excluded from scoring (`unscorable_reason` set) but
+remain reachable by reference lookup: editorial pointers (e.g. `بهذا`,
+`مثله`, `نحوه`, bare frames with no delivered content), records whose
+narration sits entirely in `addenda_ar` pending a split repair (SEGMENT
+class), and a small number of records whose entire text is a Qur'an verse
+(QURAN class). The pointer exclusion rests on a hand-read sweep of the
+bounded population of 8,721 records most likely to contain pointers (those
+with low content-mass or a reference/deferral token); every record in that
+population was read at least once, most twice, disagreements adjudicated.
+The 8,722-row ground truth is committed to
+`tests/ingest/data/pointer_sweep_rulings.tsv` and enforced by a gate that
+fails if any pointer is re-admitted, any kept record changes sha, or any
+new record enters the population without a ruling. **This check rests on a
+measured miss rate, not a proof**: a post-pipeline independent re-read of a
+random sample of 150 KEEPs found 0 misses; a targeted read of ~860 KEEPs
+(deferral-bearing, short variants, tiny matns) found 6 misses, all of which
+were then corrected. A pointer above the content-mass threshold using no
+enumerated reference token could still escape.
 
 **Corpus totals.** 40,185 records: 6,236 ayat + 33,949 hadith (Sahih
-Bukhari, Sahih Muslim, Abu Dawud, Tirmidhi, Nasai, Ibn Majah). 32,125 are
-scorable. The committed `data/sanad-quran.db` currently hashes to
-`fb3112f1480a4f97ceaaddedf67fd398b0b013f8202d10d747d4f89f24b06a24`
+Bukhari, Sahih Muslim, Abu Dawud, Tirmidhi, Nasai, Ibn Majah). 32,124 of
+the 33,949 hadith are scorable. The committed `data/sanad-quran.db`
+currently hashes to
+`ad8d94cbb07b7470a48e5c6f469a94f3d64dc3aca45a1b6fccddb952cf4c46de`
 (whole-file SHA-256, printed by `sanad-ingest build` and re-checked by
 rebuilding from the pinned, cached sources — see **Run locally** above).
 This hash changes whenever the corpus is rebuilt with different inputs;

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sqlite3
 
+from ..arabic.normalize import normalize as _normalize
 from ..corpus import db
 from ..pipeline.types import RetrievalHit, RetrievalResult
 from . import voyage
@@ -27,7 +28,8 @@ def _fts_ranked(conn: sqlite3.Connection, arabic_terms: list[str]) -> list[str]:
     seen: dict[str, int] = {}
     order: list[str] = []
     for term in arabic_terms:
-        for rec in db.fts_records(conn, term, RETRIEVAL_K_PER_RETRIEVER):
+        for rec in db.fts_records(conn, _normalize(term, "standard"),
+                                  RETRIEVAL_K_PER_RETRIEVER):
             if rec.id not in seen:
                 seen[rec.id] = len(order)
                 order.append(rec.id)

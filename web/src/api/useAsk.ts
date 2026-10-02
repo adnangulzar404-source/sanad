@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import type { AskFinal } from "./client";
+import type { AskFinal, AskTurn } from "./client";
 
 /** The pipeline stages, in the order they stream, with the copy the reveal
  * shows. Not every stage fires on every request (a handoff emits only
@@ -17,9 +17,24 @@ export const ASK_STAGES = [
 export type AskPhase = "idle" | "streaming" | "done" | "unreachable" | "error";
 export type StageStatus = "pending" | "active" | "done";
 
+/** A prior answer in the running thread, stored client-side for display.
+ * `final` is the full server response (records rendered from DB) — kept so
+ * each answer in the list renders Arabic from its own `record` objects, not
+ * from history prose. The `turn` is the server-safe version (English + IDs
+ * only) sent as history on the next request. */
+export interface PastAnswer {
+  question: string;
+  final: AskFinal;
+  /** Server-safe turn: English question + summary + record IDs only. */
+  turn: AskTurn;
+}
+
 /** Same reasoning as useVerify's NOT_UP_YET: a cold start or crashed instance
  * returns these, meaning "not up yet", not "broken". */
 const NOT_UP_YET = new Set([502, 503, 504]);
+
+// Match backend HISTORY_MAX_TURNS (api/sanad/api/schemas.py).
+const HISTORY_MAX = 6;
 
 function computeStages(seen: Set<string>): Record<string, StageStatus> {
   const out: Record<string, StageStatus> = {};
@@ -40,8 +55,13 @@ export function useAsk() {
     computeStages(new Set()),
   );
   const [final, setFinal] = useState<AskFinal | null>(null);
+  // Past answers accumulated client-side. The `turn` field of each is sent as
+  // `history` to the server on the next request (English + IDs only, no Arabic).
+  const [pastAnswers, setPastAnswers] = useState<PastAnswer[]>([]);
 
-  const run = useCallback(async (question: string) => {
+  // `run` accepts the current history to send (derived by Ask.tsx from
+  // pastAnswers so the callback needs no closure over state).
+  const run = useCallback(async (question: string, history: AskTurn[] = []) => {
     setPhase("streaming");
     setFinal(null);
     const seen = new Set<string>();
@@ -52,7 +72,7 @@ export function useAsk() {
       resp = await fetch("/api/ask", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ question }),
+        body: JSON.stringify({ question, history }),
       });
     } catch {
       setPhase("unreachable");
@@ -98,9 +118,22 @@ export function useAsk() {
           if (!line) continue;
           const evt = JSON.parse(line.slice("data: ".length));
           if (evt.stage === "final") {
-            setFinal(evt.payload as AskFinal);
+            const finalPayload = evt.payload as AskFinal;
+            setFinal(finalPayload);
             setPhase("done");
             sawFinal = true;
+            // Accumulate published turns only. Abstained turns carry no usable
+            // summary or IDs, so they add no value as history context.
+            if (finalPayload.status === "published") {
+              const turn: AskTurn = {
+                question,
+                summary: finalPayload.summary,
+                item_ids: finalPayload.items.map((i) => i.record_id),
+              };
+              setPastAnswers((prev) =>
+                [...prev, { question, final: finalPayload, turn }].slice(-HISTORY_MAX),
+              );
+            }
           } else if (evt.stage !== "error") {
             seen.add(evt.stage);
             setStages(computeStages(seen));
@@ -117,5 +150,12 @@ export function useAsk() {
     }
   }, []);
 
-  return { phase, stages, final, run };
+  const startOver = useCallback(() => {
+    setPastAnswers([]);
+    setFinal(null);
+    setPhase("idle");
+    setStages(computeStages(new Set()));
+  }, []);
+
+  return { phase, stages, final, run, pastAnswers, startOver };
 }

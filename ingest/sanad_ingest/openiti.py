@@ -1621,7 +1621,7 @@ def full_text(unit: HadithUnit) -> str:
     return full_text_from_parts(unit.matn_ar, unit.addenda_ar)
 
 
-def find_near_misses(units: list["HadithUnit"], configured: re.Pattern[str],
+def find_near_misses(units: list[HadithUnit], configured: re.Pattern[str],
                      sweep: re.Pattern[str]) -> list[str]:
     """Record ids whose printed text (matn and addendum rejoined, so a marker
     already cut into an addendum by an unrelated mechanism still counts) is
@@ -2121,10 +2121,8 @@ def _unwrap_parens(s: str) -> str:
     leading number: none of the measured non-heading cases carry one, and a
     genuine one (e.g. a narrated quantity) would be matn, not markup."""
     s = s.strip()
-    if s.startswith("("):
-        s = s[1:]
-    if s.endswith(")"):
-        s = s[:-1]
+    s = s.removeprefix("(")
+    s = s.removesuffix(")")
     return s.strip()
 
 

@@ -1,0 +1,57 @@
+[
+  {
+    "id": "followup_history_id_extends_valid_set",
+    "description": "Spec §7 case 1: a follow-up may cite a record from the prior turn. The guard allows it because history_ids extends the valid-citation set.",
+    "candidate_ids": [],
+    "history_ids": ["hadith:bukhari:1"],
+    "must_block": false,
+    "selection": {
+      "summary": "On judging actions by intentions, as reported in the first hadith.",
+      "items": [{"record_id": "hadith:bukhari:1", "framing": "Narrated in Bukhari 1, on the relationship between intention and action."}]
+    }
+  },
+  {
+    "id": "adversarial_arabic_in_selection_still_blocked",
+    "description": "Spec §7 case 2: Arabic in model selection is blocked regardless of history. The guard enforces the no-Arabic-in-prose rule per turn.",
+    "candidate_ids": ["quran:2:183"],
+    "history_ids": [],
+    "must_block": true,
+    "selection": {
+      "summary": "The verse الصيام addresses fasting.",
+      "items": [{"record_id": "quran:2:183", "framing": "Fasting is prescribed."}]
+    }
+  },
+  {
+    "id": "followup_escalation_clean_selection_passes",
+    "description": "Spec §7 case 3: a follow-up that escalates to personal-ruling is caught at routing (upstream of guards), not here. Guard-level: a clean selection passes.",
+    "candidate_ids": ["hadith:bukhari:1"],
+    "history_ids": [],
+    "must_block": false,
+    "selection": {
+      "summary": "On the relationship between intention and action.",
+      "items": [{"record_id": "hadith:bukhari:1", "framing": "This hadith addresses the role of intention."}]
+    }
+  },
+  {
+    "id": "unknown_history_id_not_in_valid_set",
+    "description": "Spec §7 case 4: a history item_id that does not exist in the corpus is silently dropped by the orchestrator (re-fetch returns nothing). history_ids is empty; selection citing the fake ID is blocked.",
+    "candidate_ids": [],
+    "history_ids": [],
+    "must_block": true,
+    "selection": {
+      "summary": "On fasting.",
+      "items": [{"record_id": "fake:history:99999", "framing": "A record that was claimed in history but is not in the corpus."}]
+    }
+  },
+  {
+    "id": "history_capped_old_turn_id_not_carried",
+    "description": "Spec §7 case 5: a turn beyond the window (N+7) is not in history_ids. Citing an ID from a dropped turn is blocked. history_ids is empty; selection citing the out-of-window ID is blocked.",
+    "candidate_ids": [],
+    "history_ids": [],
+    "must_block": true,
+    "selection": {
+      "summary": "On prayer.",
+      "items": [{"record_id": "hadith:bukhari:2", "framing": "A record from turn 1 that fell out of the history window."}]
+    }
+  }
+]

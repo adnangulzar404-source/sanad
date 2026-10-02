@@ -54,13 +54,13 @@ _TEST_SCOPE = "TEST_SCOPE"
 
 def _deps(**over):
     base = dict(
-        expand=lambda q, *, key, client=None, corpus_scope=None: Expansion("en", ["صبر"]),
+        expand=lambda q, *, key, client=None, corpus_scope=None, history=None: Expansion("en", ["صبر"]),
         retrieve=lambda cc, vc, *, arabic_terms, question, voyage_key, embed_fn=None:
             RetrievalResult([RetrievalHit("quran:2:183", 0.5, True, False)],
                             {"quran": True, "hadith": False}, None, 1),
         select=lambda cc, q, hits, *, key, client=None, feedback=None, corpus_scope=None:
             Selection("Summary.", [SelectedItem("quran:2:183", "Framing.")]),
-        guards=lambda sel, cands: [GuardResult("g", True, "")],
+        guards=lambda sel, cands, history_ids=None: [GuardResult("g", True, "")],
         audit=lambda cc, sel, *, key, client=None: AuditVerdict(False, []),
     )
     base.update(over)
@@ -96,7 +96,7 @@ def test_personal_ruling_stops_after_router():
 
 def test_guard_block_then_clean_retry_publishes():
     calls = {"n": 0}
-    def flaky_guards(sel, cands):
+    def flaky_guards(sel, cands, history_ids=None):
         calls["n"] += 1
         return [GuardResult("g", calls["n"] > 1, "bad" if calls["n"] == 1 else "")]
     events = _run("q", _deps(guards=flaky_guards))
@@ -104,7 +104,7 @@ def test_guard_block_then_clean_retry_publishes():
     assert calls["n"] == 2  # retried once
 
 def test_second_failure_abstains():
-    events = _run("q", _deps(guards=lambda s, c: [GuardResult("g", False, "bad")]))
+    events = _run("q", _deps(guards=lambda s, c, h=None: [GuardResult("g", False, "bad")]))
     assert events[-1].payload["status"] == "abstained"
     assert events[-1].payload["abstain_reason"]
 
@@ -125,7 +125,7 @@ def test_no_candidates_abstains_with_scope():
 
 def test_claude_error_in_expand_abstains_not_raises():
     from sanad.agents.claude_client import ClaudeError
-    def boom(q, *, key, client=None, corpus_scope=None): raise ClaudeError("refused")
+    def boom(q, *, key, client=None, corpus_scope=None, history=None): raise ClaudeError("refused")
     events = _run("q", _deps(expand=boom))
     assert events[-1].stage in ("error", "final")
     assert events[-1].payload.get("status") == "abstained" or events[-1].stage == "error"
@@ -156,7 +156,7 @@ def test_feedback_flows_into_retry_select_call():
     feedback_seen = []
     calls = {"n": 0}
 
-    def flaky_guards(sel, cands):
+    def flaky_guards(sel, cands, history_ids=None):
         calls["n"] += 1
         return [GuardResult("g", calls["n"] > 1, "specific failure detail"
                              if calls["n"] == 1 else "")]
@@ -181,7 +181,7 @@ def test_persistent_failure_calls_select_at_most_twice():
         return Selection("Summary.", [SelectedItem("quran:2:183", "Framing.")])
 
     events = _run("q", _deps(select=counting_select,
-                             guards=lambda s, c: [GuardResult("g", False, "bad")]))
+                             guards=lambda s, c, h=None: [GuardResult("g", False, "bad")]))
     assert calls["n"] == 2
     assert events[-1].payload["status"] == "abstained"
 
@@ -469,7 +469,7 @@ def test_provider_secret_never_streamed_on_expand_failure():
 
     SECRET = "sk-ant-super-secret-leak-marker-should-never-stream"
 
-    def boom(q, *, key, client=None, corpus_scope=None):
+    def boom(q, *, key, client=None, corpus_scope=None, history=None):
         raise ClaudeError(f"transport failed, response body: {SECRET}")
 
     events = _run("q", _deps(expand=boom))

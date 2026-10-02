@@ -653,6 +653,14 @@ COMMENTARY_NEVER_CUT: dict[str, dict[str, tuple[str, str]]] = {
         "hadith:nasai:5039":
             ("bb7d1c5bbdcab2c79a95127aa256e4e619f582af6b270a2e972288688a97dac5",
              _NASAI_GENUINE_BARE_RAWA_QADI_DIGRESSION),
+        # SEGMENT repair (2026-10-02): "qala Abu Abd al-Rahman" cut left only
+        # the scene-setter in text_ar; the Prophetic saying about marriage/fasting
+        # for young men is inside the commentary block. Full presplit matn includes
+        # the complete narration.
+        "hadith:nasai:3206":
+            ("2654824666d8a71a6e4e489122ed2bb12e5ede2163e0556c21953151f519bc46",
+             ("SEGMENT repair: commentary cut left only opening scene; full matn"
+              " includes the Prophetic saying (whoever has means, let him marry)")),
     },
 }
 
@@ -675,6 +683,12 @@ NEVER_CUT: dict[str, dict[str, tuple[str, str]]] = {
         "hadith:bukhari:4575":
             ("86e0300ecb069cd2cd368656cfe256e667974b1ca965e3a7cd61a4b3ea0eab03",
              _QURANIC_PRIMARY),
+        # SEGMENT repair (2026-10-02): secondary cut left only Hajjaj's frame;
+        # full matn includes Ibrahim/Ibn Masud at Jamra al-Aqaba.
+        "hadith:bukhari:1663":
+            ("0b909d490cc9fdfffb69fe881327976e9c706a5c1af77a5bfccdaa1fc66e60c6",
+             ("SEGMENT repair: secondary cut left only the outer frame in text_ar;"
+              " full matn includes Ibn Masud at Jamra al-Aqaba (the Prophetic content)")),
     },
     # Ibn Majah (Task 15). "... fa-qala rasulu Llahi salla Llahu 'alayhi
     # wa-sallam: hal biha wathan? Qala: la" ("... is there an idol there? He
@@ -700,11 +714,55 @@ NEVER_CUT: dict[str, dict[str, tuple[str, str]]] = {
     "ibnmajah": {
         "hadith:ibnmajah:2131":
             ("6fb9495add12f726140601f4cf7b6d242e7fbd807aad2928e6eed096deadfcf0",
-             "bare qala swallowed a second, unrelated isnad's forward-chain "
-             "check: the primary's own genuine punchline (the Prophet's "
-             "reply) sat past a bare 'qala' that only looks like a narrator "
-             "opening a second chain because a real isnad happens to follow "
-             "it"),
+             ("bare qala swallowed a second, unrelated isnad's forward-chain "
+              "check: the primary's own genuine punchline (the Prophet's "
+              "reply) sat past a bare 'qala' that only looks like a narrator "
+              "opening a second chain because a real isnad happens to follow "
+              "it")),
+    },
+    # --- SEGMENT repair (2026-10-02) ----------------------------------------
+    # 8 records cut by _split_secondary where the Prophetic narration moved
+    # to addenda_ar. The bukhari:1663 entry is merged into "bukhari" above.
+    # A separate entry covers nasai:3206 in COMMENTARY_NEVER_CUT["nasai"].
+    "muslim": {
+        "hadith:muslim:1296-2":
+            ("ce3eb1d88a211df5439d38dbca193eff00a288b1f56edcb85e5175f6b561c01f",
+             ("SEGMENT repair: secondary cut left Hajjaj's frame; full matn"
+              " includes Ibn Masud's correction of Quran ordering")),
+        "hadith:muslim:2834-3":
+            ("d2762674600ac39385a64542ad3af1b75dd95c7f5467d6a53ee4835686890ee1",
+             ("SEGMENT repair: cut at chain-switch ح left incomplete primary;"
+              " full matn includes the complete parallel narration about the first to enter Paradise")),
+    },
+    "abudawud": {
+        "hadith:abudawud:2761":
+            ("f217870d04fa792f99579c0d839c555aebd84ddb75dbd4349f7b227afa8cc441",
+             ("SEGMENT repair: secondary cut left only the opener; full matn"
+              " includes Nuaim's narration of the Prophet's words to Musaylama's envoys")),
+    },
+    "tirmidhi": {
+        "hadith:tirmidhi:2444":
+            ("18bf0ed18ea826e9e737a5c7a8b15654801d979a9e936d2d277d6aa7ff093d7c",
+             ("SEGMENT repair: secondary cut removed the hawd narration; full matn"
+              " includes Abu Sallam's narration from the Prophet about the hawd")),
+    },
+    "nasai": {
+        "hadith:nasai:2208":
+            ("e187c41f5186b8e22a019cff24e95d46cae32140473d2ab57c5358ebfea58fd8",
+             ("SEGMENT repair: secondary cut removed Abu Salama's narration about"
+              " Ramadan; full matn includes the Prophetic saying about qiyam Ramadan")),
+        "hadith:nasai:3422":
+            ("73dd6c3405050ede6d02aa947543a1f661d3612296c5a85d87cdbfffa16c6b99",
+             ("SEGMENT repair: secondary cut left incomplete frame (Tabuk, ح);"
+              " full matn includes the parallel narration about Ka'b ibn Malik")),
+        "hadith:nasai:3455":
+            ("db96b761c303c61c6a45ae3e3fd52f6cd1fc4df0136fdb836927265ecaf7bdbd",
+             ("SEGMENT repair: secondary cut removed Abu al-Duha's narration from"
+              " Ibn Abbas about the Prophet's separation from wives")),
+        "hadith:nasai:3918":
+            ("3445f57976f53c03af2f414c799edab0097a5ab160812b714338b59f15f620e3",
+             ("SEGMENT repair: secondary cut removed Ibn Khudayj's narration that"
+              " the Prophet prohibited crop-sharing (khabar)")),
     },
 }
 
@@ -3171,8 +3229,6 @@ _A2_READ_SWEEP_POINTERS: dict[str, dict[str, tuple[str, str]]] = {
             ("fa0d6509e0ef34565dbcedcbf3f565b4e66341b8be11e64e0eb2d53198d891f7", _FRAME_ONLY),
         "hadith:bukhari:1657":
             ("9f2c743de19e068a94fb9a81e75c64a7794a1514824d911c8792a5cc394f7fa9", _BARE_RULING),
-        "hadith:bukhari:1663":
-            ("66aee602227f038358d3703288e55746c46361f4ede3f1e49ad4b539d8896831", _SEGMENT),
         "hadith:bukhari:2101":
             ("38839dd73355b213976af8868910e772a3da3358b3fc75c2f77471f811851f20", _FRAGMENT_VARIANT),
         "hadith:bukhari:2117":
@@ -3481,8 +3537,6 @@ _A2_READ_SWEEP_POINTERS: dict[str, dict[str, tuple[str, str]]] = {
             ("f5fd03c81dd2bc5c4dd450834d7e40c0dc878a31e743cdf0d18a7c27bad8cf28", _POINTER),
         "hadith:muslim:1289-2":
             ("1d4f61930fc0c4e0377d885525b6815e6c260f746309e0a5d24cc248a17062b0", _FRAGMENT_VARIANT),
-        "hadith:muslim:1296-2":
-            ("99e4193e78aae065d39b9668b30e7e14cb84b699dbdacd53c4b47e2abba113fa", _SEGMENT),
         "hadith:muslim:1296-5":
             ("4a0b45cd763a6cab2dba7d8c4150651e798d20cf22572500b5f4c2ad8f487009", _FRAGMENT_VARIANT),
         "hadith:muslim:1306-7":
@@ -3871,8 +3925,6 @@ _A2_READ_SWEEP_POINTERS: dict[str, dict[str, tuple[str, str]]] = {
             ("9e4b63b7390d67f0de6d5532eb220fa11e578fddaf22598be28c2dfcba9e470d", _FRAGMENT_VARIANT),
         "hadith:muslim:2816-2":
             ("3004927fcb710a9e0ff28cfc5957ca240827d1cb40960c64eb66dacbb9338f83", _FRAGMENT_VARIANT),
-        "hadith:muslim:2834-3":
-            ("f429b37f96e60685de791ec69f6a926d24152ca0617bf03757873b9b1017b53d", _SEGMENT),
         "hadith:muslim:2845-3":
             ("eeefb0bb6f0b92c641817308d9f10ea72af518de23791651211eda544bb674c1", _FRAGMENT_VARIANT),
         "hadith:muslim:2853-2":
@@ -3991,8 +4043,6 @@ _A2_READ_SWEEP_POINTERS: dict[str, dict[str, tuple[str, str]]] = {
             ("4a4c2136a99450b5be4e043b519b5eaba8aa1d8cc1af065fb57fb98858ba2090", _DEFERRAL),
         "hadith:abudawud:2742":
             ("d42c7770899f85ba32e9f60ad2f6d5b8eae087e59bf3a1a840db47941db99609", _ISNAD_COMMENT),
-        "hadith:abudawud:2761":
-            ("102c313d97a9c0078405f2a0666d8fcd3a1bfdff162f2c5e08b7d84fa7c14174", _SEGMENT),
         "hadith:abudawud:3320":
             ("e8e2cd962302e0d0c64052b316e331a3b5cab3712b8033f480b2cbfe83e15d10", _EDITORIAL_DISCUSSION),
         "hadith:abudawud:3411":
@@ -4084,8 +4134,6 @@ _A2_READ_SWEEP_POINTERS: dict[str, dict[str, tuple[str, str]]] = {
             ("02590c82f5414b742b9ee1cd8e51e1926da3167145b7199b10d59b92d8b0d604", _ISNAD_VARIATION),
         "hadith:tirmidhi:2370":
             ("aadd8de1d2731e9f6f9dbe83213f3677828d3e271c8ce31b831f72494608825d", _ISNAD_COMMENT),
-        "hadith:tirmidhi:2444":
-            ("4c75d3b663f9dd25a98f47de37ba517ed3db32aca039262af30bdf725b8ea00a", _SEGMENT),
         "hadith:tirmidhi:3152":
             ("56579572db237a4fadc54e4053d81499615fadcf9d8e7973623acf43a663aad5", _POINTER),
     },
@@ -4116,8 +4164,6 @@ _A2_READ_SWEEP_POINTERS: dict[str, dict[str, tuple[str, str]]] = {
             ("5ea43cce20116d1df6e627339141eecf9caf5be61ac391b44de7743a5da30d00", _DEFERRAL),
         "hadith:nasai:1982":
             ("7c2554e9ca5a8e67980022e8af76fce00618ecd1990ed39db3d4298e6074abcc", _POINTER),
-        "hadith:nasai:2208":
-            ("dbb4c671ae97a75a9b0a07794342430dcba7e222c64f61fe0620db5ef480d2b2", _SEGMENT),
         "hadith:nasai:2209":
             ("d33511e3cc00b17a95aa6e11aeeeed91047a37f6661f9378a17abae3ee824f01", _DEFERRAL),
         "hadith:nasai:2227":
@@ -4134,14 +4180,6 @@ _A2_READ_SWEEP_POINTERS: dict[str, dict[str, tuple[str, str]]] = {
             ("1397b4c52e5b2d69a9a4cedfa81b4a4e02fbd1424f968dbaff9d5d137b0b9b14", _POINTER),
         "hadith:nasai:2940":
             ("7de40ab5d852bfe2a9a6eda8f855a049818432939906aa1d42cbb86354dd0708", _POINTER),
-        "hadith:nasai:3206":
-            ("029ca114f3269e9321dc6b405d84010347c94419d49656d8cde89b324ac6fb9c", _SEGMENT),
-        "hadith:nasai:3422":
-            ("199f2bcd197f9c357570d92f0c6f918ee5dfed316daef002085153dcdae5188e", _SEGMENT),
-        "hadith:nasai:3455":
-            ("b4c9475f52169dc727bf25940fb6d3f0f531aaaa5ec91e0c457aca800dcc9fc0", _SEGMENT),
-        "hadith:nasai:3918":
-            ("c33b63b6219a078617b6ec1be5c00efc96456b3db060184ff5df2cff112491de", _SEGMENT),
         "hadith:nasai:3981":
             ("1d4375b46421e0f8f4c1ee7c43f79d1c6709271aa1fdf689d8ecc3bb1255ac1a", _FRAME_ONLY),
         "hadith:nasai:4221":

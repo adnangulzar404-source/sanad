@@ -12,6 +12,7 @@ from __future__ import annotations
 from ..pipeline.types import Expansion
 from . import claude_client
 
+
 # The system prompt used to hardcode "over the Qur'an and Sahih al-Bukhari" --
 # a description of the corpus that Stage A3 makes false the moment another
 # hadith collection is ingested (Stage A3 ruling R-A3-17). `corpus_scope` is
@@ -43,9 +44,37 @@ EXPAND_SCHEMA = {
 }
 
 
-def expand_query(question: str, *, key: str, corpus_scope: str, client=None) -> Expansion:
+def _history_block(history: list[dict]) -> str:
+    """Preceding-turns context for pronoun/ellipsis resolution.
+
+    Each turn carries only its English question and summary (never Arabic) so
+    "that hadith" or "in Muslim" in the new question can be resolved without
+    handing the model any Arabic it could echo back as prose.
+    """
+    lines = []
+    for i, t in enumerate(history, 1):
+        lines.append(f"Turn {i} question: {t.get('question', '').strip()}")
+        s = (t.get('summary') or "").strip()
+        if s:
+            lines.append(f"Turn {i} summary: {s}")
+        ids = t.get("item_ids", [])
+        if ids:
+            lines.append(f"Turn {i} evidence IDs: {', '.join(ids)}")
+    return "\n".join(lines)
+
+
+def expand_query(question: str, *, key: str, corpus_scope: str,
+                 history: list[dict] | None = None, client=None) -> Expansion:
+    if history:
+        user_text = (
+            "Prior turns (English only — use for pronoun and ellipsis resolution):\n"
+            + _history_block(history)
+            + "\n\nNew question to expand: " + question
+        )
+    else:
+        user_text = question
     data = claude_client.call_structured(
         system_blocks=[{"type": "text", "text": _expand_system(corpus_scope)}],
-        user_text=question, schema=EXPAND_SCHEMA, key=key, client=client)
+        user_text=user_text, schema=EXPAND_SCHEMA, key=key, client=client)
     return Expansion(question_language=data["question_language"],
                      search_terms=list(data["search_terms"]))

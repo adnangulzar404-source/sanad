@@ -23,13 +23,18 @@ def _expand_system(corpus_scope: str) -> str:
     return (
         "You expand a user's question into Arabic search terms for a lexical "
         f"index over this corpus. {corpus_scope} The index does NOT stem "
-        "Arabic and does NOT strip the definite article. So for each concept "
-        "in the question, emit SEVERAL surface forms, not one: the bare "
-        "root-word, the form with the definite article ال, and common "
-        "inflections (verb, active participle, plural). Example — concept "
-        "'patience' -> ['صبر', 'الصبر', 'صابرين', 'يصبر', 'اصبروا']. Detect "
-        "the question's language as an ISO 639-1 code. Return ONLY the "
-        "structured object. Do not answer the question."
+        "Arabic and does NOT strip the definite article or prepositional "
+        "prefixes (ب، ل، و، ك fuse onto the next word as one token). "
+        "For each concept in the question emit SEVERAL surface forms: the "
+        "bare root, the form with ال, common inflections (verb, active "
+        "participle, plural), AND forms with prepositional prefixes fused "
+        "to the definite noun (بالـ, للـ, وال). "
+        "Example — concept 'intention' -> "
+        "['نية', 'النية', 'نيات', 'النيات', 'بالنية', 'بالنيات', 'نوى']. "
+        "Example — concept 'patience' -> "
+        "['صبر', 'الصبر', 'صابرين', 'يصبر', 'بالصبر']. "
+        "Detect the question's language as an ISO 639-1 code. Return ONLY "
+        "the structured object. Do not answer the question."
     )
 
 

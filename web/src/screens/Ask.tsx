@@ -11,7 +11,7 @@ const MARK: Record<string, string> = { done: "✓", active: "…", pending: "·"
 
 /** One published answer brief (reused for both past answers and the current
  * answer). Arabic renders from `final.items[*].record` — never from prose. */
-function AnswerBrief({ question, final }: { question: string; final: AskFinal }) {
+function AnswerBrief({ question, final, current }: { question: string; final: AskFinal; current?: boolean }) {
   const showTranslationNote = final.items.some((i) => i.record?.translation_en);
   const showGradingNote = final.items.some((i) => i.record?.collection);
   const translationDisclaimer = final.items.find(
@@ -44,7 +44,7 @@ function AnswerBrief({ question, final }: { question: string; final: AskFinal })
               <h3 className="data" style={{ margin: "0 0 0.5rem", fontSize: "inherit" }}>
                 in brief
               </h3>
-              <p data-testid="ask-summary" style={{ margin: 0, maxWidth: "var(--measure)" }}>
+              <p {...(current ? { "data-testid": "ask-summary" } : {})} style={{ margin: 0, maxWidth: "var(--measure)" }}>
                 {final.summary}
               </p>
             </div>
@@ -121,9 +121,10 @@ export function Ask() {
         </p>
       </header>
 
-      {/* Running list of past answers */}
+      {/* All answers (published ones live in pastAnswers; last one is marked current). */}
       {pastAnswers.map((pa: PastAnswer, i: number) => (
-        <AnswerBrief key={i} question={pa.question} final={pa.final} />
+        <AnswerBrief key={i} current={i === pastAnswers.length - 1}
+                     question={pa.question} final={pa.final} />
       ))}
 
       {/* Progress while streaming */}
@@ -150,12 +151,9 @@ export function Ask() {
       {phase === "unreachable" && <ErrorState kind="unreachable" />}
       {phase === "error" && <ErrorState kind="server" />}
 
-      {/* Current answer */}
-      {phase === "done" && final && (
-        <AnswerBrief question={pastAnswers.length > 0
-          ? pastAnswers[pastAnswers.length - 1]?.question ?? ""
-          : question}
-          final={final} />
+      {/* Abstained / not-published answers aren't in pastAnswers — show them separately. */}
+      {phase === "done" && final && final.status !== "published" && (
+        <AnswerBrief current question={question} final={final} />
       )}
 
       {/* Question input — initial or follow-up */}
@@ -180,7 +178,7 @@ export function Ask() {
           <div style={{ display: "flex", gap: "0.75rem", marginBlockStart: "0.75rem",
                         flexWrap: "wrap" }}>
             <button type="submit"
-                    disabled={question.trim().length === 0 || phase === "streaming"}
+                    disabled={(question.trim().length === 0 && phase !== "error") || phase === "streaming"}
                     style={{ font: "inherit", padding: "0.5rem 1.25rem",
                              border: "1px solid var(--ink)", background: "var(--ink)",
                              color: "var(--page)", cursor: "pointer" }}>

@@ -500,7 +500,7 @@ def test_the_index_holds_one_row_per_scorable_representation():
     # A2 read sweep: scorable -495 +1, indexed -495 +1 (the 495 read-sweep
     # POINTERs leave, the restored bukhari:3332 returns). variants unchanged:
     # the 42 POINTERs that carry an addendum keep their "full" variant row.
-    assert (scorable, variants, indexed) == (38361, 5846, 44207)
+    assert (scorable, variants, indexed) == (38360, 5846, 44206)
 
 
 # --- C1: nothing scorable as a hadith is wholly a Qur'anic quotation --------
@@ -673,8 +673,8 @@ def test_no_scorable_hadith_representation_is_wholly_quranic():
     # in record_variants, which this count includes regardless of whether the
     # primary is scorable, so only the 28 primary reps drop). The sweep is still
     # zero: none of the 74 pure-apparatus records is wholly Qur'anic.
-    # A2 read sweep: -495 primaries, +1 restored (bukhari:3332): 38,470 -> 37,976.
-    assert len(reps) == 37971, "the sweep stopped covering what it was written for"
+    # A2 read sweep: -501 primaries total, +1 restored (bukhari:3332): 38,470 -> 37,970.
+    assert len(reps) == 37970, "the sweep stopped covering what it was written for"
     offenders = [(rid, variant) for rid, variant, norm in reps
                  if norm.strip() and any(f" {norm} " in b for b in blobs)]
     assert offenders == []
@@ -881,8 +881,8 @@ def test_every_other_excluded_record_is_excluded_whole():
     # docstring stops at C0's 1,201); round 4 adds 46 more. Re-measured against
     # a fresh build: 1,201 -> 1,251 (round 3) -> 1,297 (round 4). A2 round 5
     # (content-mass net) adds 28 more: 1,297 -> 1,325.
-    # A2 read sweep: +495 pinned, -1 restored (bukhari:3332): 1,325 -> 1,819.
-    assert len(rows) == 1824
+    # A2 read sweep: +495 pinned, -1 restored (bukhari:3332): 1,325 -> 1,825.
+    assert len(rows) == 1825
     assert {r["id"]: r["n"] for r in rows if r["n"]} == {
         "hadith:bukhari:237": 1,
         # A2 round 5: two content-mass pointers carry an A1 addendum, so they
@@ -1231,8 +1231,8 @@ def test_exactly_one_hadith_representation_sits_inside_an_ayah():
     # A2 round 5: -28 more scorable primaries now UNSCORABLE (content-mass net);
     # variants unchanged (the two addenda-carrying pointers keep their "full"
     # variant row): 38,498 -> 38,470.
-    # A2 read sweep: -495 primaries, +1 restored (bukhari:3332): 38,470 -> 37,976.
-    assert len(reps) == 37971, len(reps)
+    # A2 read sweep: -501 primaries total, +1 restored (bukhari:3332): 38,470 -> 37,970.
+    assert len(reps) == 37970, len(reps)
 
     withheld, disclosed = [], []
     for rep in reps:
@@ -1332,8 +1332,8 @@ def test_muslim_record_count_and_scorability():
     # A2 round 5 (vocabulary-free content-mass net): -19 more Muslim primaries
     # (19 of the 28 content-mass pointers are Muslim; 274-13 "da'hu" and 581-2
     # are genuine short matns, kept): 6497 -> 6478, 963 -> 982.
-    # A2 read sweep: -349 Muslim POINTERs: 6478 -> 6129 -> 6126, 982 -> 1331 -> 1334; cut unchanged.
-    assert (total, scorable, unscorable, cut) == (7460, 6126, 1334, 147)
+    # A2 read sweep: -349 Muslim POINTERs: 6478 -> 6129 -> 6125, 982 -> 1335; cut unchanged.
+    assert (total, scorable, unscorable, cut) == (7460, 6125, 1335, 147)
 
 
 def test_abudawud_record_count_and_scorability():

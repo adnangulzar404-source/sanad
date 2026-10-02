@@ -57,7 +57,7 @@ function AnswerBrief({ question, final }: { question: string; final: AskFinal })
               <p data-testid="ask-reached" className="data" style={{ margin: "0 0 0.75rem" }}>
                 Drawn from: {[
                   final.reached.quran && "the Qur'an",
-                  final.reached.hadith && "Sahih al-Bukhari",
+                  final.reached.hadith && "the Kutub al-Sittah",
                 ].filter(Boolean).join(" and ")}
               </p>
             )}
@@ -115,7 +115,7 @@ export function Ask() {
       <header style={{ marginBlockEnd: "2rem" }}>
         <h1 style={{ fontSize: "var(--step-3)", margin: "0 0 0.25rem", fontWeight: 600 }}>Ask</h1>
         <p className="data" style={{ margin: 0 }}>
-          ask a question and read an evidence brief drawn from the Qur'an and Sahih al-Bukhari —
+          ask a question and read an evidence brief drawn from the Qur'an and the Kutub al-Sittah —
           Sanad selects passages and frames them in English; every Arabic quotation is rendered
           from the source, never written by the model
         </p>

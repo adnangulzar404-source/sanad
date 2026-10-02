@@ -138,8 +138,8 @@ class CorpusResponse(BaseModel):
     sources: list[CorpusSourceOut]
 
 
-HISTORY_MAX_TURNS = 6
-TURN_SUMMARY_MAX_CHARS = 600
+HISTORY_MAX_TURNS = 10
+TURN_SUMMARY_MAX_CHARS = 1000
 
 
 class AskTurn(BaseModel):

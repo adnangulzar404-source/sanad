@@ -34,7 +34,7 @@ export interface PastAnswer {
 const NOT_UP_YET = new Set([502, 503, 504]);
 
 // Match backend HISTORY_MAX_TURNS (api/sanad/api/schemas.py).
-const HISTORY_MAX = 6;
+const HISTORY_MAX = 10;
 
 function computeStages(seen: Set<string>): Record<string, StageStatus> {
   const out: Record<string, StageStatus> = {};

@@ -39,16 +39,29 @@ class _SPAStaticFiles(StaticFiles):
     those when no `/api/*` route matched (see `create_app`'s mount-order
     comment), and such a request must still 404 as JSON, not silently
     return the HTML shell.
+
+    Cache strategy: `index.html` (the SPA shell) must never be cached by the
+    browser. After a deploy, Vite emits new JS/CSS filenames (content-hashed),
+    so an old cached `index.html` pointing at old filenames returns 404 and
+    renders a blank page. HTML files get `no-cache`; hashed assets keep the
+    default long-lived cache.
     """
 
     async def get_response(self, path: str, scope: Scope):
         try:
-            return await super().get_response(path, scope)
+            resp = await super().get_response(path, scope)
         except StarletteHTTPException as exc:
             is_api = path == "api" or path.startswith(("api/", "api\\"))
             if exc.status_code == 404 and not is_api:
-                return await super().get_response("index.html", scope)
-            raise
+                resp = await super().get_response("index.html", scope)
+            else:
+                raise
+        # Prevent browser from caching HTML (the SPA shell). Hashed assets
+        # already change name on every deploy, so their cache is safe to keep.
+        content_type = resp.headers.get("content-type", "")
+        if "text/html" in content_type:
+            resp.headers["cache-control"] = "no-cache"
+        return resp
 
 
 def _open_corpus_conn(path: Path) -> sqlite3.Connection:

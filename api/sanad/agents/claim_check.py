@@ -130,7 +130,7 @@ def assess_claims(claims_with_candidates: list[dict], *, key: str,
     data = claude_client.call_structured(
         system_blocks=[
             {"type": "text", "text": _assess_system(corpus_scope)},
-            {"type": "text", "text": evidence, "cache_control": {"type": "ephemeral"}},
+            {"type": "text", "text": evidence},
         ],
         user_text="Assess each claim against its candidates.",
         schema=ASSESS_SCHEMA,

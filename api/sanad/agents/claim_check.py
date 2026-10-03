@@ -31,13 +31,11 @@ EXTRACT_SCHEMA = {
     "properties": {
         "claims": {
             "type": "array",
-            "maxItems": 8,
             "items": {
                 "type": "object",
                 "properties": {
                     "claim": {"type": "string"},
-                    "search_terms": {"type": "array", "items": {"type": "string"},
-                                     "maxItems": 12},
+                    "search_terms": {"type": "array", "items": {"type": "string"}},
                 },
                 "required": ["claim", "search_terms"],
                 "additionalProperties": False,
@@ -89,11 +87,7 @@ ASSESS_SCHEMA = {
             "items": {
                 "type": "object",
                 "properties": {
-                    "verdict": {
-                        "type": "string",
-                        "enum": ["supported", "partially_supported",
-                                 "not_found", "unverifiable"],
-                    },
+                    "verdict": {"type": "string"},
                     "note": {"type": "string"},
                     "record_ids": {"type": "array", "items": {"type": "string"}},
                 },

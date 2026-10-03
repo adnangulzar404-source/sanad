@@ -88,6 +88,13 @@ def test_happy_path_publishes():
     assert final["items"][0]["record_id"] == "quran:2:183"
 
 
+def test_published_final_carries_matn_translation():
+    sel = Selection("Summary.", [SelectedItem("hadith:bukhari:1", "Framing.",
+                                              matn_translation="Deeds are by intentions.")])
+    events = _run("Intentions?", _deps(select=lambda *a, **k: sel))
+    assert events[-1].payload["items"][0]["matn_translation"] == "Deeds are by intentions."
+
+
 def test_personal_ruling_stops_after_router():
     events = _run("Can I divorce my wife?", _deps(), risk="PERSONAL_RULING")
     assert [e.stage for e in events] == ["router"]

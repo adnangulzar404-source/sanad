@@ -239,7 +239,8 @@ def run_ask(corpus_conn, vectors_conn, question, *, anthropic_key,
             yield _final(status=status,
                          question_language=expansion.question_language,
                          summary=selection.summary,
-                         items=[{"record_id": i.record_id, "framing": i.framing}
+                         items=[{"record_id": i.record_id, "framing": i.framing,
+                                 "matn_translation": i.matn_translation}
                                 for i in selection.items],
                          reached=result.reached,
                          unreached_reason=result.unreached_reason, risk=risk.value)

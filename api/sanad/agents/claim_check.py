@@ -55,7 +55,10 @@ def extract_and_plan(text: str, *, key: str, client=None) -> list[dict]:
         system_blocks=[{"type": "text", "text": _EXTRACT_SYSTEM}],
         user_text=text, schema=EXTRACT_SCHEMA,
         key=key, effort="low", max_tokens=2000, client=client)
-    return data["claims"]
+    try:
+        return data["claims"]
+    except (KeyError, TypeError) as exc:
+        raise claude_client.ClaudeError(f"extract response missing claims key: {exc}") from exc
 
 
 # ── Assess: verdict for each claim vs retrieved records ─────────────────────
@@ -132,4 +135,7 @@ def assess_claims(claims_with_candidates: list[dict], *, key: str,
         user_text="Assess each claim against its candidates.",
         schema=ASSESS_SCHEMA,
         key=key, effort="medium", max_tokens=6000, client=client)
-    return data["assessments"]
+    try:
+        return data["assessments"]
+    except (KeyError, TypeError) as exc:
+        raise claude_client.ClaudeError(f"assess response missing assessments key: {exc}") from exc

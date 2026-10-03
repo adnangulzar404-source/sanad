@@ -67,7 +67,7 @@ function ClaimCard({ result }: { result: ClaimResult }) {
 
 export function Claims() {
   const [text, setText] = useState("");
-  const { phase, claims, results, run, reset } = useClaimCheck();
+  const { phase, claims, results, errorMessage, run, reset } = useClaimCheck();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -158,7 +158,9 @@ export function Claims() {
         </section>
       )}
 
-      {phase === "error" && results.length === 0 && <ErrorState kind="server" />}
+      {phase === "error" && results.length === 0 && (
+        <ErrorState kind="server" detail={errorMessage ?? undefined} />
+      )}
 
       {results.length > 0 && (
         <section>

@@ -9,11 +9,13 @@ export function useClaimCheck() {
   const [phase, setPhase] = useState<ClaimPhase>("idle");
   const [claims, setClaims] = useState<string[]>([]);
   const [results, setResults] = useState<ClaimResult[]>([]);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const run = useCallback(async (text: string) => {
     setPhase("extracting");
     setClaims([]);
     setResults([]);
+    setErrorMessage(null);
 
     let resp: Response;
     try {
@@ -57,6 +59,7 @@ export function useClaimCheck() {
             setPhase("done");
             sawFinal = true;
           } else if (evt.stage === "error") {
+            setErrorMessage((evt.payload as { message?: string }).message ?? null);
             setPhase("error");
             sawFinal = true;
           }
@@ -73,7 +76,8 @@ export function useClaimCheck() {
     setPhase("idle");
     setClaims([]);
     setResults([]);
+    setErrorMessage(null);
   }, []);
 
-  return { phase, claims, results, run, reset };
+  return { phase, claims, results, errorMessage, run, reset };
 }

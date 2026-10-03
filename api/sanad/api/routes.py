@@ -390,21 +390,26 @@ def claim_check(payload: ClaimCheckRequest, request: Request) -> StreamingRespon
             yield f"data: {msg}\n\n"
             return
 
-        for event in run_claim_check(conn, payload.text,
-                                     anthropic_key=anthropic_key, corpus_scope=scope):
-            if event.stage == "assess":
-                serialised = []
-                for r in event.payload["results"]:
-                    serialised.append({
-                        "claim": r["claim"],
-                        "verdict": r["verdict"],
-                        "note": r["note"],
-                        "records": [_record_out(conn, rec).model_dump()
-                                    for rec in r["records"]],
-                    })
-                yield f"data: {json.dumps({'stage': 'assess', 'payload': {'results': serialised}})}\n\n"
-            else:
-                yield f"data: {json.dumps({'stage': event.stage, 'payload': event.payload})}\n\n"
+        try:
+            for event in run_claim_check(conn, payload.text,
+                                         anthropic_key=anthropic_key, corpus_scope=scope):
+                if event.stage == "assess":
+                    serialised = []
+                    for r in event.payload["results"]:
+                        serialised.append({
+                            "claim": r["claim"],
+                            "verdict": r["verdict"],
+                            "note": r["note"],
+                            "records": [_record_out(conn, rec).model_dump()
+                                        for rec in r["records"]],
+                        })
+                    yield f"data: {json.dumps({'stage': 'assess', 'payload': {'results': serialised}})}\n\n"
+                else:
+                    yield f"data: {json.dumps({'stage': event.stage, 'payload': event.payload})}\n\n"
+        except Exception:
+            err = json.dumps({"stage": "error", "payload": {
+                "message": _GENERIC_MIDSTREAM_ERROR_MESSAGE}})
+            yield f"data: {err}\n\n"
 
     return StreamingResponse(_sse(), media_type="text/event-stream")
 

@@ -17,8 +17,12 @@ function RubElHizb({ size, color, opacity, style }: {
   return (
     <svg aria-hidden width={size} height={size} viewBox="0 0 100 100"
          style={{ color, opacity, display: "block", ...style }}>
-      <path d={star} fillRule="evenodd" fill="currentColor" />
-      <circle cx="50" cy="50" r="7" fill="currentColor" />
+      {/* Two square outlines — the classic calligraphic ۞ is drawn as
+          overlapping frames, not a filled star. Interior stays open. */}
+      <path d={star} fill="none" stroke="currentColor" strokeWidth="3" />
+      {/* Centre ring — hollow circle, not a dot */}
+      <circle cx="50" cy="50" r="9" fill="none"
+              stroke="currentColor" strokeWidth="3" />
     </svg>
   );
 }
@@ -84,26 +88,26 @@ export default function App() {
         position: "fixed", inset: 0, zIndex: -1,
         overflow: "hidden", pointerEvents: "none",
       }}>
-        {/* Top-right — large, gold, primary rotation */}
-        <RubElHizb size={300} color="var(--gold)" opacity={0.11}
+        {/* Top-right — large, gold */}
+        <RubElHizb size={300} color="var(--gold)" opacity={0.18}
           style={{ position: "absolute", top: "4%", right: "-3%",
                    animation: "bgRotate 45s linear infinite",
                    transformOrigin: "center center" }} />
 
-        {/* Bottom-left — medium, verdigris, counter-rotation */}
-        <RubElHizb size={200} color="var(--verdigris)" opacity={0.08}
+        {/* Bottom-left — medium, verdigris */}
+        <RubElHizb size={200} color="var(--verdigris)" opacity={0.15}
           style={{ position: "absolute", bottom: "6%", left: "-3%",
                    animation: "bgRotate 60s linear infinite reverse",
                    transformOrigin: "center center" }} />
 
-        {/* Top-left — small, gold, slow rotation */}
-        <RubElHizb size={110} color="var(--gold)" opacity={0.07}
+        {/* Top-left — small, gold */}
+        <RubElHizb size={110} color="var(--gold)" opacity={0.13}
           style={{ position: "absolute", top: "3%", left: "2%",
                    animation: "bgRotate 80s linear infinite",
                    transformOrigin: "center center" }} />
 
-        {/* Bottom-right — medium-small, verdigris, medium rotation */}
-        <RubElHizb size={150} color="var(--verdigris)" opacity={0.07}
+        {/* Bottom-right — medium-small, verdigris */}
+        <RubElHizb size={150} color="var(--verdigris)" opacity={0.13}
           style={{ position: "absolute", bottom: "4%", right: "2%",
                    animation: "bgRotate 55s linear infinite reverse",
                    transformOrigin: "center center" }} />

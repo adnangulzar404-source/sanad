@@ -21,7 +21,7 @@ function RubElHizb({ size, color, opacity, style }: {
           overlapping frames, not a filled star. Interior stays open. */}
       <path d={star} fill="none" stroke="currentColor" strokeWidth="3" />
       {/* Centre ring — hollow circle, not a dot */}
-      <circle cx="50" cy="50" r="9" fill="none"
+      <circle cx="50" cy="50" r="12" fill="none"
               stroke="currentColor" strokeWidth="3" />
     </svg>
   );
@@ -98,27 +98,23 @@ export default function App() {
         position: "fixed", inset: 0, zIndex: -1,
         overflow: "hidden", pointerEvents: "none",
       }}>
-        {/* Top-right — large, gold */}
-        <RubElHizb size={300} color="var(--gold)" opacity={0.18}
-          style={{ position: "absolute", top: "4%", right: "-3%",
+        {/* Right diagonal — top-right + bottom-left, same big size */}
+        <RubElHizb size={260} color="var(--gold)" opacity={0.18}
+          style={{ position: "absolute", top: "2%", right: "2%",
                    animation: "bgRotate 45s linear infinite",
                    transformOrigin: "center center" }} />
-
-        {/* Bottom-left — medium, verdigris */}
-        <RubElHizb size={200} color="var(--verdigris)" opacity={0.15}
-          style={{ position: "absolute", bottom: "6%", left: "-3%",
+        <RubElHizb size={260} color="var(--verdigris)" opacity={0.15}
+          style={{ position: "absolute", bottom: "2%", left: "2%",
                    animation: "bgRotate 60s linear infinite reverse",
                    transformOrigin: "center center" }} />
 
-        {/* Top-left — small, gold */}
-        <RubElHizb size={110} color="var(--gold)" opacity={0.13}
-          style={{ position: "absolute", top: "3%", left: "2%",
+        {/* Left diagonal — top-left + bottom-right, same small size */}
+        <RubElHizb size={110} color="var(--verdigris)" opacity={0.13}
+          style={{ position: "absolute", top: "2%", left: "2%",
                    animation: "bgRotate 80s linear infinite",
                    transformOrigin: "center center" }} />
-
-        {/* Bottom-right — medium-small, verdigris */}
-        <RubElHizb size={150} color="var(--verdigris)" opacity={0.13}
-          style={{ position: "absolute", bottom: "4%", right: "2%",
+        <RubElHizb size={110} color="var(--gold)" opacity={0.13}
+          style={{ position: "absolute", bottom: "2%", right: "2%",
                    animation: "bgRotate 55s linear infinite reverse",
                    transformOrigin: "center center" }} />
       </div>

@@ -5,7 +5,7 @@
 @import "@fontsource/ibm-plex-mono/400.css";
 
 :root {
-  /* Manuscript pigments. Warm parchment — aged paper feel. */
+  /* Light mode — warm parchment */
   --page:      #F5F0E8;
   --ink:       #241F1C;
   --rubric:    #9E2B25;  /* red is apparatus in manuscript, not alarm */
@@ -32,6 +32,26 @@
 
   --measure: 62ch;
   --rule: 1px solid var(--ink-12);
+}
+
+/* Dark mode colours — deep mosque-interior teal.
+   Applied via manual toggle ([data-theme="dark"] on <html>)
+   OR automatically when the OS prefers dark (and user hasn't forced light). */
+[data-theme="dark"] {
+  --page:      #1E2D29;
+  --ink:       #EDE8DE;
+  --rubric:    #C4453E;
+  --verdigris: #5BA898;
+  --gold:      #C9A84C;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --page:      #1E2D29;
+    --ink:       #EDE8DE;
+    --rubric:    #C4453E;
+    --verdigris: #5BA898;
+    --gold:      #C9A84C;
+  }
 }
 
 * { box-sizing: border-box; }

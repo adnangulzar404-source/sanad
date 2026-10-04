@@ -47,9 +47,19 @@ export default function App() {
   const [showProvenance, setShowProvenance] = useState(
     () => window.location.hash === PROVENANCE_HASH
   );
-  // Ask is the landing tab: it is the primary experience. Verify is one click
-  // away. Tab state is local -- no router dependency.
   const [tab, setTab] = useState<Tab>("ask");
+
+  // Theme: read stored preference, fall back to OS setting.
+  const [theme, setTheme] = useState<"light" | "dark">(() => {
+    const stored = localStorage.getItem("sanad-theme");
+    if (stored === "dark" || stored === "light") return stored;
+    return window.matchMedia?.("(prefers-color-scheme: dark)")?.matches ? "dark" : "light";
+  });
+
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", theme);
+    localStorage.setItem("sanad-theme", theme);
+  }, [theme]);
 
   useEffect(() => {
     const openOnHash = () => {
@@ -135,7 +145,7 @@ export default function App() {
       <nav aria-label="mode" role="tablist" style={{
         display: "flex", gap: "0.25rem", maxWidth: "72rem",
         margin: "0 auto", padding: "0.75rem 1.5rem 0",
-        borderBlockEnd: "var(--rule)",
+        borderBlockEnd: "var(--rule)", alignItems: "center",
       }}>
         <button role="tab" id="tab-ask" aria-controls="mode-panel"
                 aria-selected={tab === "ask"} onClick={() => setTab("ask")}
@@ -146,6 +156,21 @@ export default function App() {
         <button role="tab" id="tab-claims" aria-controls="mode-panel"
                 aria-selected={tab === "claims"} onClick={() => setTab("claims")}
                 style={tabStyle(tab === "claims")}>Claims</button>
+
+        {/* Theme toggle — crescent moon for dark, sun for light */}
+        <button
+          aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+          onClick={() => setTheme(t => t === "dark" ? "light" : "dark")}
+          style={{
+            marginInlineStart: "auto", font: "inherit",
+            fontSize: "var(--step-1)", lineHeight: 1,
+            background: "none", border: "none", cursor: "pointer",
+            color: "var(--ink-60)", padding: "0.25rem 0.5rem",
+            transition: "color 0.15s",
+          }}
+        >
+          {theme === "dark" ? "☀" : "☽"}
+        </button>
       </nav>
 
       <div role="tabpanel" id="mode-panel"

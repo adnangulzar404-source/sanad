@@ -9,9 +9,10 @@ export function AskEvidenceCard({ item }: { item: AskItem }) {
   const rec = item.record;
   return (
     <article
+      className="card-enter"
       style={{
         border: "var(--rule)",
-        borderInlineStart: "3px solid var(--ink-12)",
+        borderInlineStart: "3px solid var(--verdigris)",
         padding: "1rem 1.25rem",
         marginBlockEnd: "1rem",
         background: "color-mix(in srgb, var(--page) 94%, white)",

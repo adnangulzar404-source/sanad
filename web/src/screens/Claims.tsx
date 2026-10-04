@@ -31,9 +31,9 @@ const VERDICT_META: Record<
 function ClaimCard({ result }: { result: ClaimResult }) {
   const meta = VERDICT_META[result.verdict] ?? { label: result.verdict, colour: "var(--ink-60)" };
   return (
-    <article style={{
+    <article className="card-enter" style={{
       border: "var(--rule)",
-      borderInlineStart: "3px solid var(--ink-12)",
+      borderInlineStart: `3px solid ${meta.colour}`,
       padding: "1rem 1.25rem",
       marginBlockEnd: "1.25rem",
       background: "color-mix(in srgb, var(--page) 94%, white)",

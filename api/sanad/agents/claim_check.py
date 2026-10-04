@@ -128,7 +128,7 @@ def assess_claims(claims_with_candidates: list[dict], *, key: str,
         ],
         user_text="Assess each claim against its candidates.",
         schema=ASSESS_SCHEMA,
-        key=key, effort="medium", max_tokens=6000, client=client)
+        key=key, effort="low", max_tokens=3000, client=client)
     try:
         return data["assessments"]
     except (KeyError, TypeError) as exc:

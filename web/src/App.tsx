@@ -46,18 +46,44 @@ export default function App() {
   };
 
   const tabStyle = (active: boolean) => ({
-    font: "inherit", padding: "0.5rem 1rem", cursor: "pointer",
-    background: "none", border: "none",
-    borderBlockEnd: active ? "2px solid var(--ink)" : "2px solid transparent",
-    color: active ? "var(--ink)" : "var(--ink-60)",
+    font: "inherit", padding: "0.5rem 1.1rem", cursor: "pointer",
+    background: active ? "color-mix(in srgb, var(--verdigris) 8%, var(--page))" : "none",
+    border: "none",
+    borderBlockEnd: active ? "2px solid var(--verdigris)" : "2px solid transparent",
+    color: active ? "var(--verdigris)" : "var(--ink-60)",
     fontWeight: active ? 600 : 400,
+    borderRadius: "2px 2px 0 0",
+    transition: "color 0.15s, border-color 0.15s, background 0.15s",
   }) as const;
 
   return (
     <>
+      {/* Brand header: Arabic name + Rub el Hizb (۞, U+06DE — the octagonal
+          star marker used in Qur'an text layout) as geometric decoration. */}
+      <header style={{
+        maxWidth: "72rem", margin: "0 auto",
+        padding: "1.25rem 1.5rem 0",
+        display: "flex", alignItems: "baseline", gap: "0.75rem",
+      }}>
+        <span aria-hidden style={{
+          fontFamily: "var(--naskh)", fontSize: "var(--step-2)",
+          color: "var(--gold)", lineHeight: 1,
+        }}>۞</span>
+        <span style={{
+          fontFamily: "var(--naskh)", fontSize: "var(--step-2)",
+          color: "var(--ink)", direction: "rtl", lineHeight: 1,
+        }}>سند</span>
+        <span aria-hidden style={{ color: "var(--ink-30)" }}>·</span>
+        <span style={{
+          fontFamily: "var(--serif)", fontSize: "var(--step--1)",
+          color: "var(--ink-60)", letterSpacing: "0.04em", textTransform: "uppercase",
+        }}>Sanad</span>
+      </header>
+
       <nav aria-label="mode" role="tablist" style={{
-        display: "flex", gap: "0.5rem", maxWidth: "72rem",
-        margin: "0 auto", padding: "1rem 1.5rem 0",
+        display: "flex", gap: "0.25rem", maxWidth: "72rem",
+        margin: "0 auto", padding: "0.75rem 1.5rem 0",
+        borderBlockEnd: "var(--rule)",
       }}>
         <button role="tab" id="tab-ask" aria-controls="mode-panel"
                 aria-selected={tab === "ask"} onClick={() => setTab("ask")}

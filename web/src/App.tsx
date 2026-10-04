@@ -21,7 +21,7 @@ function RubElHizb({ size, color, opacity, style }: {
           overlapping frames, not a filled star. Interior stays open. */}
       <path d={star} fill="none" stroke="currentColor" strokeWidth="3" />
       {/* Centre ring — hollow circle, not a dot */}
-      <circle cx="50" cy="50" r="12" fill="none"
+      <circle cx="50" cy="50" r="16" fill="none"
               stroke="currentColor" strokeWidth="3" />
     </svg>
   );

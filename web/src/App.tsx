@@ -4,22 +4,27 @@ import { Ask } from "./screens/Ask";
 import { Claims } from "./screens/Claims";
 import { Verify } from "./screens/Verify";
 
-/** Geometric Rub el Hizb — two overlapping squares (axis-aligned + 45°
- *  rotated) forming the traditional 8-pointed Islamic star, with a small
- *  centre circle. Drawn as SVG so it never depends on font rendering. */
+/** Geometric Rub el Hizb — the union of two congruent squares (one axis-
+ *  aligned, one rotated 45°) creates the traditional Islamic 8-pointed star.
+ *  The correct inner/outer radius ratio is ≈0.766 (not ~0.42 as in a generic
+ *  star), so the shape is closer to a wide octagon with pointed tips and a
+ *  centre dot — that distinctive blocky look is what makes it a Rub el Hizb.
+ *  Outer R=45, inner r≈34.5 (= 45 × 0.766), centre dot r=8. */
 function RubElHizb({ size, color, opacity, style }: {
   size: number; color: string; opacity: number; style?: React.CSSProperties;
 }) {
-  // 8-pointed star polygon: outer R=45, inner r=19, 16 alternating vertices.
+  // 16 vertices: alternating outer (R=45) and inner (r=34.5) at 22.5° steps.
+  // The inner vertices fall on the edges of the opposite square, producing the
+  // characteristic straight "notch" sides of the traditional star shape.
   const pts =
-    "50,5 57.3,32.4 81.8,18.2 67.6,42.7 95,50 67.6,57.3 " +
-    "81.8,81.8 57.3,67.6 50,95 42.7,67.6 18.2,81.8 32.4,57.3 " +
-    "5,50 32.4,42.7 18.2,18.2 42.7,32.4";
+    "50,5  63,18  82,18  82,37  95,50  82,63 " +
+    "82,82  63,82  50,95  37,82  18,82  18,63 " +
+    "5,50  18,37  18,18  37,18";
   return (
     <svg aria-hidden width={size} height={size} viewBox="0 0 100 100"
          style={{ color, opacity, display: "block", ...style }}>
       <polygon points={pts} fill="currentColor" />
-      <circle cx="50" cy="50" r="9" fill="currentColor" />
+      <circle cx="50" cy="50" r="8" fill="currentColor" />
     </svg>
   );
 }
@@ -85,21 +90,21 @@ export default function App() {
         position: "fixed", inset: 0, zIndex: -1,
         overflow: "hidden", pointerEvents: "none",
       }}>
-        {/* Large primary: slow full rotation, gold, off-center right */}
+        {/* Large primary: rotates one full turn every 45 s, gold, upper-right */}
         <RubElHizb size={340} color="var(--gold)" opacity={0.09}
           style={{ position: "absolute", top: "6%", right: "-4%",
-                   animation: "bgRotate 180s linear infinite",
+                   animation: "bgRotate 45s linear infinite",
                    transformOrigin: "center center" }} />
 
-        {/* Medium: drifts slowly, verdigris, lower-left */}
+        {/* Medium: drifts + rotates (reverse), verdigris, lower-left */}
         <RubElHizb size={190} color="var(--verdigris)" opacity={0.06}
           style={{ position: "absolute", bottom: "10%", left: "-2%",
-                   animation: "bgDrift 140s ease-in-out infinite" }} />
+                   animation: "bgDrift 80s ease-in-out infinite" }} />
 
         {/* Small: reverse drift, gold, upper-centre */}
         <RubElHizb size={88} color="var(--gold)" opacity={0.055}
           style={{ position: "absolute", top: "2%", left: "32%",
-                   animation: "bgDrift 100s ease-in-out infinite reverse" }} />
+                   animation: "bgDrift 60s ease-in-out infinite reverse" }} />
       </div>
 
       {/* Brand header: Arabic name + Rub el Hizb (۞, U+06DE — the octagonal

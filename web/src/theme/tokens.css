@@ -5,9 +5,8 @@
 @import "@fontsource/ibm-plex-mono/400.css";
 
 :root {
-  /* Manuscript pigments. Cool paper, not cream — this is an instrument,
-     not a facsimile. See the Stage A spec §10. */
-  --page:      #E6E8E6;
+  /* Manuscript pigments. Warm parchment — aged paper feel. */
+  --page:      #F5F0E8;
   --ink:       #241F1C;
   --rubric:    #9E2B25;  /* red is apparatus in manuscript, not alarm */
   --verdigris: #2F6B5E;

@@ -98,22 +98,22 @@ export default function App() {
         position: "fixed", inset: 0, zIndex: -1,
         overflow: "hidden", pointerEvents: "none",
       }}>
-        {/* Right diagonal — top-right + bottom-left, same big size */}
+        {/* Right diagonal — top-right + bottom-left, both gold */}
         <RubElHizb size={260} color="var(--gold)" opacity={0.18}
           style={{ position: "absolute", top: "2%", right: "2%",
                    animation: "bgRotate 45s linear infinite",
                    transformOrigin: "center center" }} />
-        <RubElHizb size={260} color="var(--verdigris)" opacity={0.15}
+        <RubElHizb size={260} color="var(--gold)" opacity={0.15}
           style={{ position: "absolute", bottom: "2%", left: "2%",
                    animation: "bgRotate 60s linear infinite reverse",
                    transformOrigin: "center center" }} />
 
-        {/* Left diagonal — top-left + bottom-right, same small size */}
+        {/* Left diagonal — top-left + bottom-right, both verdigris */}
         <RubElHizb size={110} color="var(--verdigris)" opacity={0.13}
           style={{ position: "absolute", top: "2%", left: "2%",
                    animation: "bgRotate 80s linear infinite",
                    transformOrigin: "center center" }} />
-        <RubElHizb size={110} color="var(--gold)" opacity={0.13}
+        <RubElHizb size={110} color="var(--verdigris)" opacity={0.13}
           style={{ position: "absolute", bottom: "2%", right: "2%",
                    animation: "bgRotate 55s linear infinite reverse",
                    transformOrigin: "center center" }} />

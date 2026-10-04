@@ -79,6 +79,17 @@ body::before {
   background: var(--verdigris);
 }
 
+/* Background symbol animations — very slow so they read as atmosphere, not UI. */
+@keyframes bgRotate {
+  to { transform: rotate(360deg); }
+}
+@keyframes bgDrift {
+  0%   { transform: translate(0px,   0px)  rotate(0deg);   }
+  33%  { transform: translate(18px, -12px) rotate(120deg); }
+  66%  { transform: translate(-10px, 8px)  rotate(240deg); }
+  100% { transform: translate(0px,   0px)  rotate(360deg); }
+}
+
 /* Card entrance — slides up 8px and fades in. Respects reduced-motion. */
 @keyframes cardEnter {
   from { opacity: 0; transform: translateY(8px); }

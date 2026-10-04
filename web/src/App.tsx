@@ -56,8 +56,47 @@ export default function App() {
     transition: "color 0.15s, border-color 0.15s, background 0.15s",
   }) as const;
 
+  // Shared style for every background symbol — position overridden per instance.
+  const bgSym = (extra: React.CSSProperties): React.CSSProperties => ({
+    position: "absolute", fontFamily: "var(--naskh)", lineHeight: 1,
+    userSelect: "none", pointerEvents: "none",
+    ...extra,
+  });
+
   return (
     <>
+      {/* Fixed background layer: slowly rotating/drifting ۞ symbols create
+          atmosphere without competing with content. aria-hidden + z-index:-1
+          keep them invisible to AT and behind every interactive element. */}
+      <div aria-hidden="true" style={{
+        position: "fixed", inset: 0, zIndex: -1,
+        overflow: "hidden", pointerEvents: "none",
+      }}>
+        {/* Large primary: slow full rotation, gold, off-center right */}
+        <span style={bgSym({
+          top: "8%", right: "-4%",
+          fontSize: "360px", color: "var(--gold)", opacity: 0.07,
+          animation: "bgRotate 180s linear infinite",
+          display: "block", transformOrigin: "center center",
+        })}>۞</span>
+
+        {/* Medium: drifts slowly with slight rotation, verdigris, lower-left */}
+        <span style={bgSym({
+          bottom: "12%", left: "-2%",
+          fontSize: "200px", color: "var(--verdigris)", opacity: 0.05,
+          animation: "bgDrift 140s ease-in-out infinite",
+          display: "block",
+        })}>۞</span>
+
+        {/* Small: reverse drift, gold, upper-left */}
+        <span style={bgSym({
+          top: "2%", left: "30%",
+          fontSize: "90px", color: "var(--gold)", opacity: 0.045,
+          animation: "bgDrift 100s ease-in-out infinite reverse",
+          display: "block",
+        })}>۞</span>
+      </div>
+
       {/* Brand header: Arabic name + Rub el Hizb (۞, U+06DE — the octagonal
           star marker used in Qur'an text layout) as geometric decoration. */}
       <header style={{

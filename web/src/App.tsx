@@ -129,7 +129,7 @@ export default function App() {
       <header style={{
         maxWidth: "72rem", margin: "0 auto",
         padding: "1.25rem 1.5rem 0",
-        display: "flex", alignItems: "baseline", gap: "0.75rem",
+        display: "flex", alignItems: "center", gap: "0.75rem",
       }}>
         <RubElHizb size="24px" color="var(--gold)" opacity={1} />
         <span style={{

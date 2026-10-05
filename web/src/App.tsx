@@ -9,14 +9,14 @@ import { Verify } from "./screens/Verify";
  *  are filled; inner octagon (inside both squares) is hollow; centre dot on top.
  *  Sharp 90° outer points, hollow ring interior — matches the traditional shape. */
 function RubElHizb({ size, color, opacity, style }: {
-  size: number; color: string; opacity: number; style?: React.CSSProperties;
+  size: number | string; color: string; opacity: number; style?: React.CSSProperties;
 }) {
   const star =
     "M17,17 L83,17 L83,83 L17,83 Z " +
     "M50,3  L97,50 L50,97 L3,50  Z";
   return (
-    <svg aria-hidden width={size} height={size} viewBox="0 0 100 100"
-         style={{ color, opacity, display: "block", ...style }}>
+    <svg aria-hidden viewBox="0 0 100 100"
+         style={{ width: size, height: size, color, opacity, display: "block", ...style }}>
       {/* Two square outlines — the classic calligraphic ۞ is drawn as
           overlapping frames, not a filled star. Interior stays open. */}
       <path d={star} fill="none" stroke="currentColor" strokeWidth="3" />
@@ -98,23 +98,28 @@ export default function App() {
         position: "fixed", inset: 0, zIndex: -1,
         overflow: "hidden", pointerEvents: "none",
       }}>
-        {/* Right diagonal — top-right + bottom-left, both gold */}
-        <RubElHizb size={260} color="var(--gold)" opacity={0.18}
+        {/* Right diagonal — top-right + bottom-left, both gold.
+            min() clamps to 36vw on narrow screens so they don't overflow. */}
+        <RubElHizb size="min(260px, 36vw)" color="var(--gold)" opacity={0.14}
           style={{ position: "absolute", top: "2%", right: "2%",
+                   filter: "blur(3px)",
                    animation: "bgRotate 45s linear infinite",
                    transformOrigin: "center center" }} />
-        <RubElHizb size={260} color="var(--gold)" opacity={0.15}
+        <RubElHizb size="min(260px, 36vw)" color="var(--gold)" opacity={0.12}
           style={{ position: "absolute", bottom: "2%", left: "2%",
+                   filter: "blur(3px)",
                    animation: "bgRotate 60s linear infinite reverse",
                    transformOrigin: "center center" }} />
 
         {/* Left diagonal — top-left + bottom-right, both verdigris */}
-        <RubElHizb size={110} color="var(--verdigris)" opacity={0.13}
+        <RubElHizb size="min(110px, 16vw)" color="var(--verdigris)" opacity={0.13}
           style={{ position: "absolute", top: "2%", left: "2%",
+                   filter: "blur(2px)",
                    animation: "bgRotate 80s linear infinite",
                    transformOrigin: "center center" }} />
-        <RubElHizb size={110} color="var(--verdigris)" opacity={0.13}
+        <RubElHizb size="min(110px, 16vw)" color="var(--verdigris)" opacity={0.13}
           style={{ position: "absolute", bottom: "2%", right: "2%",
+                   filter: "blur(2px)",
                    animation: "bgRotate 55s linear infinite reverse",
                    transformOrigin: "center center" }} />
       </div>
@@ -126,7 +131,7 @@ export default function App() {
         padding: "1.25rem 1.5rem 0",
         display: "flex", alignItems: "baseline", gap: "0.75rem",
       }}>
-        <RubElHizb size={24} color="var(--gold)" opacity={1} />
+        <RubElHizb size="24px" color="var(--gold)" opacity={1} />
         <span style={{
           fontFamily: "var(--naskh)", fontSize: "var(--step-2)",
           color: "var(--ink)", direction: "rtl", lineHeight: 1,
